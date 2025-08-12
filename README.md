@@ -207,15 +207,19 @@ Once the backend is running, interactive API documentation is available at:
 
 ### Key Endpoints
 
-- `POST /games/` - Create a new game
-- `GET /games/{game_id}/` - Get game state
-- `POST /games/{game_id}/moves/` - Make a move
-- `GET /games/{game_id}/moves/` - Get move history
-- `PUT /games/{game_id}/rules/` - Update rule configuration
+- `POST /api/v1/games/` - Create a new two-player game
+- `GET /api/v1/games/{game_id}/` - Get game state  
+- `PUT /api/v1/games/{game_id}/start` - Start a waiting game
+- `POST /api/v1/games/{game_id}/moves/` - Make a move
+- `GET /api/v1/games/{game_id}/moves/` - Get move history
+- `PUT /api/v1/games/{game_id}/` - Update game status
+- `GET /api/v1/users/` - List users
+- `POST /api/v1/users/` - Create user
+- `GET /api/v1/rulesets/` - List available rulesets
 
 ## Current Status
 
-### ✅ Completed (Phase 0, 1.1 & 1.2)
+### ✅ Completed (Phase 0, 1.1, 1.2 & 1.4)
 - Project structure with UV workspace and src layout  
 - Docker Compose setup with PostgreSQL and pgAdmin
 - Development/Production network separation for security
@@ -228,11 +232,17 @@ Once the backend is running, interactive API documentation is available at:
   - Game model with UUID keys and board state (32 tests)
   - GameMove model with position validation (31 tests)
 - **Database Schema**: Full migrations with constraints, indexes, relationships
-- **Integration Verified**: All models working together with validation
+- **REST API Implementation** with 81 comprehensive tests:
+  - User management endpoints (27 tests)
+  - RuleSet management endpoints (23 tests)
+  - Game lifecycle endpoints (31 tests)
+  - All using httpx with async testing infrastructure
+- **Game Architecture**: Two-player games only (removed single-player concept)
+- **Integration Verified**: All models and API endpoints working together
 
-### 🔄 Next Steps (Phase 1.3 & 1.4)
+### 🔄 Next Steps (Phase 1.3 & 2.x)
 - Create game logic engine with TDD approach (board, moves, win detection)
-- Build FastAPI endpoints for game management API
+- Add AI agents as regular Users connecting through API
 - Implement Dear PyGUI frontend interface
 
 ### 🎯 Architecture Overview
@@ -241,16 +251,17 @@ Once the backend is running, interactive API documentation is available at:
 │   ├── db/models/         # ✅ Complete: RuleSet, User, Game, GameMove
 │   ├── db/database.py     # ✅ Async SQLAlchemy connection
 │   ├── core/config.py     # ✅ Settings management
-│   └── api/routes/        # Next: API endpoints
-├── frontend/src/frontend/  # Future: Dear PyGUI desktop application
+│   ├── api/routes/        # ✅ Complete REST API endpoints
+│   └── schemas/           # ✅ Pydantic request/response schemas
+├── frontend/src/frontend/  # Next: Dear PyGUI desktop application
 ├── backend/migrations/     # ✅ Alembic database migrations
-└── backend/tests/         # ✅ 148 comprehensive model tests
+└── backend/tests/         # ✅ 229+ comprehensive tests (models + API)
 ```
 
 ### 📊 Database Schema
 - **rulesets** - Game rule configurations (Standard, Renju, Freestyle, etc.)
 - **users** - Player accounts with game statistics
-- **games** - Active game instances with board state
+- **games** - Two-player game instances with board state (white_player_id required)
 - **game_moves** - Individual move history with validation
 
 ## Contributing

@@ -644,28 +644,6 @@ class TestGameStateQueries:
         game.status = GameStatus.WAITING
         assert game.is_game_over is False
 
-    async def test_is_single_player(self, db_session: AsyncSession) -> None:
-        """Test single player game detection."""
-        black_player = User(username="singletest")
-        white_player = User(username="singletest2")
-        ruleset = RuleSet(name="Single Rules", board_size=15, allow_overlines=False)
-        
-        db_session.add_all([black_player, white_player, ruleset])
-        await db_session.commit()
-        await db_session.refresh(black_player)
-        await db_session.refresh(white_player)
-        await db_session.refresh(ruleset)
-
-        # Test single player game
-        game = Game(
-            black_player_id=black_player.id,
-            ruleset_id=ruleset.id
-        )
-        assert game.is_single_player is True
-
-        # Test two player game
-        game.white_player_id = white_player.id
-        assert game.is_single_player is False
 
     async def test_can_start(self, db_session: AsyncSession) -> None:
         """Test if game can be started."""
@@ -811,7 +789,6 @@ class TestGameToDictMethod:
         assert "created_at" in result
         assert "updated_at" in result
         assert result["is_game_over"] is False
-        assert result["is_single_player"] is False
         assert result["can_start"] is False  # Already active
 
 

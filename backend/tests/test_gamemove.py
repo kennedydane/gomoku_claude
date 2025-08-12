@@ -343,9 +343,16 @@ class TestGameMoveValidation:
 
     async def test_game_must_be_active_for_moves(self, db_session: AsyncSession, sample_user, sample_ruleset):
         """Test that moves can only be added to ACTIVE games."""
+        # Create a second user for white player
+        white_player = User(username="whiteuser", email="white@example.com")
+        db_session.add(white_player)
+        await db_session.commit()
+        await db_session.refresh(white_player)
+        
         # Create a finished game
-        finished_game = Game.create_single_player_game(
+        finished_game = Game.create_game(
             black_player_id=sample_user.id,
+            white_player_id=white_player.id,
             ruleset_id=sample_ruleset.id
         )
         finished_game.status = GameStatus.FINISHED

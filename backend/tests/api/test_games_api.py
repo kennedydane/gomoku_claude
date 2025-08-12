@@ -21,30 +21,6 @@ from backend.db.models import Game, GameMove, GameStatus, Player, RuleSet, User
 class TestCreateGame:
     """Test POST /api/v1/games/ endpoint."""
     
-    async def test_create_single_player_game_success(self, async_client: AsyncClient, sample_user, sample_ruleset):
-        """Test successful single-player game creation."""
-        game_data = {
-            "ruleset_id": sample_ruleset.id,
-            "black_player_id": sample_user.id,
-            "white_player_id": None
-        }
-        
-        response = await async_client.post("/api/v1/games/", json=game_data)
-        
-        assert response.status_code == 201
-        data = response.json()
-        assert data["black_player_id"] == sample_user.id
-        assert data["white_player_id"] is None
-        assert data["ruleset_id"] == sample_ruleset.id
-        assert data["status"] == "waiting"
-        assert data["current_player"] == "black"
-        assert data["move_count"] == 0
-        assert data["is_single_player"] is True
-        assert data["can_start"] is True
-        assert data["is_game_over"] is False
-        assert "id" in data
-        assert "board_state" in data
-        assert data["board_state"]["size"] == sample_ruleset.board_size
     
     async def test_create_two_player_game_success(self, async_client: AsyncClient, sample_user, sample_user2, sample_ruleset):
         """Test successful two-player game creation."""
@@ -60,7 +36,6 @@ class TestCreateGame:
         data = response.json()
         assert data["black_player_id"] == sample_user.id
         assert data["white_player_id"] == sample_user2.id
-        assert data["is_single_player"] is False
         assert data["can_start"] is True
     
     async def test_create_game_nonexistent_ruleset(self, async_client: AsyncClient, sample_user):
@@ -68,7 +43,7 @@ class TestCreateGame:
         game_data = {
             "ruleset_id": 99999,
             "black_player_id": sample_user.id,
-            "white_player_id": None
+            "white_player_id": sample_user.id + 100  # Non-existent user ID
         }
         
         response = await async_client.post("/api/v1/games/", json=game_data)
@@ -81,7 +56,7 @@ class TestCreateGame:
         game_data = {
             "ruleset_id": sample_ruleset.id,
             "black_player_id": 99999,
-            "white_player_id": None
+            "white_player_id": 99998  # Another non-existent user ID
         }
         
         response = await async_client.post("/api/v1/games/", json=game_data)
@@ -129,8 +104,8 @@ class TestListGames:
     async def test_list_games_with_data(self, async_client: AsyncClient, db_session: AsyncSession, sample_user, sample_user2, sample_ruleset):
         """Test listing games with existing data."""
         # Create multiple games
-        game1 = Game.create_single_player_game(sample_user.id, sample_ruleset.id)
-        game2 = Game.create_two_player_game(sample_user.id, sample_user2.id, sample_ruleset.id)
+        game1 = Game.create_game(sample_user.id, sample_user2.id, sample_ruleset.id)
+        game2 = Game.create_game(sample_user2.id, sample_user.id, sample_ruleset.id)
         db_session.add_all([game1, game2])
         await db_session.commit()
         
@@ -147,11 +122,11 @@ class TestListGames:
             assert "black_player" in game
             assert "ruleset" in game
     
-    async def test_list_games_pagination(self, async_client: AsyncClient, db_session: AsyncSession, sample_user, sample_ruleset):
+    async def test_list_games_pagination(self, async_client: AsyncClient, db_session: AsyncSession, sample_user, sample_user2, sample_ruleset):
         """Test game list pagination."""
         # Create multiple games
         for i in range(5):
-            game = Game.create_single_player_game(sample_user.id, sample_ruleset.id)
+            game = Game.create_game(sample_user.id, sample_user2.id, sample_ruleset.id)
             db_session.add(game)
         await db_session.commit()
         
@@ -165,11 +140,11 @@ class TestListGames:
         assert response.status_code == 200
         assert len(response.json()) == 2
     
-    async def test_list_games_filter_by_status(self, async_client: AsyncClient, db_session: AsyncSession, sample_user, sample_ruleset):
+    async def test_list_games_filter_by_status(self, async_client: AsyncClient, db_session: AsyncSession, sample_user, sample_user2, sample_ruleset):
         """Test filtering games by status."""
         # Create games with different statuses
-        waiting_game = Game.create_single_player_game(sample_user.id, sample_ruleset.id)
-        active_game = Game.create_single_player_game(sample_user.id, sample_ruleset.id)
+        waiting_game = Game.create_game(sample_user.id, sample_user2.id, sample_ruleset.id)
+        active_game = Game.create_game(sample_user2.id, sample_user.id, sample_ruleset.id)
         active_game.start_game()
         db_session.add_all([waiting_game, active_game])
         await db_session.commit()
@@ -190,24 +165,24 @@ class TestListGames:
     
     async def test_list_games_filter_by_player(self, async_client: AsyncClient, db_session: AsyncSession, sample_user, sample_user2, sample_ruleset):
         """Test filtering games by player ID."""
-        # Create games with different players
-        game1 = Game.create_single_player_game(sample_user.id, sample_ruleset.id)
-        game2 = Game.create_single_player_game(sample_user2.id, sample_ruleset.id)
-        game3 = Game.create_two_player_game(sample_user.id, sample_user2.id, sample_ruleset.id)
+        # Create games with different players  
+        game1 = Game.create_game(sample_user.id, sample_user2.id, sample_ruleset.id)
+        game2 = Game.create_game(sample_user2.id, sample_user.id, sample_ruleset.id)
+        game3 = Game.create_game(sample_user.id, sample_user2.id, sample_ruleset.id)
         db_session.add_all([game1, game2, game3])
         await db_session.commit()
         
-        # Filter by sample_user.id (should get game1 and game3)
+        # Filter by sample_user.id (should get all 3 games - user1 is in all games)
         response = await async_client.get(f"/api/v1/games/?player_id={sample_user.id}")
         assert response.status_code == 200
         data = response.json()
-        assert len(data) == 2
+        assert len(data) == 3
         
-        # Filter by sample_user2.id (should get game2 and game3)
+        # Filter by sample_user2.id (should get all 3 games - user2 is in all games)
         response = await async_client.get(f"/api/v1/games/?player_id={sample_user2.id}")
         assert response.status_code == 200
         data = response.json()
-        assert len(data) == 2
+        assert len(data) == 3
 
 
 class TestGetGame:
@@ -237,10 +212,10 @@ class TestGetGame:
 class TestStartGame:
     """Test PUT /api/v1/games/{game_id}/start endpoint."""
     
-    async def test_start_game_success(self, async_client: AsyncClient, db_session: AsyncSession, sample_user, sample_ruleset):
+    async def test_start_game_success(self, async_client: AsyncClient, db_session: AsyncSession, sample_user, sample_user2, sample_ruleset):
         """Test successful game start."""
         # Create a WAITING game
-        game = Game.create_single_player_game(sample_user.id, sample_ruleset.id)
+        game = Game.create_game(sample_user.id, sample_user2.id, sample_ruleset.id)
         db_session.add(game)
         await db_session.commit()
         await db_session.refresh(game)
@@ -260,10 +235,10 @@ class TestStartGame:
         assert response.status_code == 404
         assert "Game not found" in response.json()["detail"]
     
-    async def test_start_game_already_started(self, async_client: AsyncClient, db_session: AsyncSession, sample_user, sample_ruleset):
+    async def test_start_game_already_started(self, async_client: AsyncClient, db_session: AsyncSession, sample_user, sample_user2, sample_ruleset):
         """Test starting already active game."""
         # Create and start a game
-        game = Game.create_single_player_game(sample_user.id, sample_ruleset.id)
+        game = Game.create_game(sample_user.id, sample_user2.id, sample_ruleset.id)
         game.start_game()
         db_session.add(game)
         await db_session.commit()
@@ -278,10 +253,10 @@ class TestStartGame:
 class TestUpdateGame:
     """Test PUT /api/v1/games/{game_id} endpoint."""
     
-    async def test_update_game_end_with_winner(self, async_client: AsyncClient, db_session: AsyncSession, sample_user, sample_ruleset):
+    async def test_update_game_end_with_winner(self, async_client: AsyncClient, db_session: AsyncSession, sample_user, sample_user2, sample_ruleset):
         """Test ending game with winner."""
         # Create and start game
-        game = Game.create_single_player_game(sample_user.id, sample_ruleset.id)
+        game = Game.create_game(sample_user.id, sample_user2.id, sample_ruleset.id)
         game.start_game()
         db_session.add(game)
         await db_session.commit()
@@ -301,10 +276,10 @@ class TestUpdateGame:
         assert data["finished_at"] is not None
         assert data["is_game_over"] is True
     
-    async def test_update_game_abandon(self, async_client: AsyncClient, db_session: AsyncSession, sample_user, sample_ruleset):
+    async def test_update_game_abandon(self, async_client: AsyncClient, db_session: AsyncSession, sample_user, sample_user2, sample_ruleset):
         """Test abandoning game."""
         # Create and start game
-        game = Game.create_single_player_game(sample_user.id, sample_ruleset.id)
+        game = Game.create_game(sample_user.id, sample_user2.id, sample_ruleset.id)
         game.start_game()
         db_session.add(game)
         await db_session.commit()
@@ -336,10 +311,10 @@ class TestUpdateGame:
 class TestMakeMove:
     """Test POST /api/v1/games/{game_id}/moves/ endpoint."""
     
-    async def test_make_move_success(self, async_client: AsyncClient, db_session: AsyncSession, sample_user, sample_ruleset):
+    async def test_make_move_success(self, async_client: AsyncClient, db_session: AsyncSession, sample_user, sample_user2, sample_ruleset):
         """Test successful move creation."""
         # Create and start game
-        game = Game.create_single_player_game(sample_user.id, sample_ruleset.id)
+        game = Game.create_game(sample_user.id, sample_user2.id, sample_ruleset.id)
         game.start_game()
         db_session.add(game)
         await db_session.commit()
@@ -366,7 +341,7 @@ class TestMakeMove:
     async def test_make_move_two_player_alternating(self, async_client: AsyncClient, db_session: AsyncSession, sample_user, sample_user2, sample_ruleset):
         """Test alternating moves in two-player game."""
         # Create and start two-player game
-        game = Game.create_two_player_game(sample_user.id, sample_user2.id, sample_ruleset.id)
+        game = Game.create_game(sample_user.id, sample_user2.id, sample_ruleset.id)
         game.start_game()
         db_session.add(game)
         await db_session.commit()
@@ -407,10 +382,10 @@ class TestMakeMove:
         assert response.status_code == 404
         assert "Game not found" in response.json()["detail"]
     
-    async def test_make_move_game_not_active(self, async_client: AsyncClient, db_session: AsyncSession, sample_user, sample_ruleset):
+    async def test_make_move_game_not_active(self, async_client: AsyncClient, db_session: AsyncSession, sample_user, sample_user2, sample_ruleset):
         """Test making move in inactive game."""
         # Create game but don't start it
-        game = Game.create_single_player_game(sample_user.id, sample_ruleset.id)
+        game = Game.create_game(sample_user.id, sample_user2.id, sample_ruleset.id)
         db_session.add(game)
         await db_session.commit()
         await db_session.refresh(game)
@@ -429,7 +404,7 @@ class TestMakeMove:
     async def test_make_move_wrong_player(self, async_client: AsyncClient, db_session: AsyncSession, sample_user, sample_user2, sample_ruleset):
         """Test making move with wrong player."""
         # Create two-player game
-        game = Game.create_two_player_game(sample_user.id, sample_user2.id, sample_ruleset.id)
+        game = Game.create_game(sample_user.id, sample_user2.id, sample_ruleset.id)
         game.start_game()
         db_session.add(game)
         await db_session.commit()
@@ -447,10 +422,10 @@ class TestMakeMove:
         assert response.status_code == 400
         assert "black player's turn" in response.json()["detail"]
     
-    async def test_make_move_invalid_position(self, async_client: AsyncClient, db_session: AsyncSession, sample_user, sample_ruleset):
+    async def test_make_move_invalid_position(self, async_client: AsyncClient, db_session: AsyncSession, sample_user, sample_user2, sample_ruleset):
         """Test making move at invalid position."""
         # Create and start game
-        game = Game.create_single_player_game(sample_user.id, sample_ruleset.id)
+        game = Game.create_game(sample_user.id, sample_user2.id, sample_ruleset.id)
         game.start_game()
         db_session.add(game)
         await db_session.commit()
@@ -470,7 +445,7 @@ class TestMakeMove:
     async def test_make_move_occupied_position(self, async_client: AsyncClient, db_session: AsyncSession, sample_user, sample_user2, sample_ruleset):
         """Test making move at already occupied position."""
         # Create and start two-player game 
-        game = Game.create_two_player_game(sample_user.id, sample_user2.id, sample_ruleset.id)
+        game = Game.create_game(sample_user.id, sample_user2.id, sample_ruleset.id)
         game.start_game()
         db_session.add(game)
         await db_session.commit()
@@ -509,7 +484,7 @@ class TestGetGameMoves:
     async def test_get_game_moves_with_data(self, async_client: AsyncClient, db_session: AsyncSession, sample_user, sample_user2, sample_ruleset):
         """Test getting moves for game with existing moves."""
         # Create and start two-player game
-        game = Game.create_two_player_game(sample_user.id, sample_user2.id, sample_ruleset.id)
+        game = Game.create_game(sample_user.id, sample_user2.id, sample_ruleset.id)
         game.start_game()
         db_session.add(game)
         await db_session.commit()
@@ -593,29 +568,3 @@ class TestGameAPIIntegration:
         assert end_response.json()["status"] == "finished"
         assert end_response.json()["winner_id"] == sample_user.id
     
-    async def test_single_player_game_workflow(self, async_client: AsyncClient, sample_user, sample_ruleset):
-        """Test single-player game workflow."""
-        # 1. Create single-player game
-        game_data = {
-            "ruleset_id": sample_ruleset.id,
-            "black_player_id": sample_user.id,
-            "white_player_id": None
-        }
-        
-        create_response = await async_client.post("/api/v1/games/", json=game_data)
-        assert create_response.status_code == 201
-        game = create_response.json()
-        game_id = game["id"]
-        assert game["is_single_player"] is True
-        
-        # 2. Start and make moves
-        start_response = await async_client.put(f"/api/v1/games/{game_id}/start")
-        assert start_response.status_code == 200
-        
-        move_response = await async_client.post(f"/api/v1/games/{game_id}/moves/", json={
-            "player_id": sample_user.id,
-            "row": 7,
-            "col": 7
-        })
-        assert move_response.status_code == 201
-        assert move_response.json()["player_color"] == "black"

@@ -77,12 +77,12 @@ class Game(Base):
         comment="Foreign key to User (black player)"
     )
 
-    white_player_id: Mapped[Optional[int]] = mapped_column(
+    white_player_id: Mapped[int] = mapped_column(
         Integer,
         ForeignKey("users.id"),
-        nullable=True,
+        nullable=False,
         index=True,
-        comment="Foreign key to User (white player, nullable for single player)"
+        comment="Foreign key to User (white player)"
     )
 
     # Ruleset relationship
@@ -177,7 +177,7 @@ class Game(Base):
         lazy="select"
     )
 
-    white_player: Mapped[Optional["User"]] = relationship(
+    white_player: Mapped["User"] = relationship(
         "User", 
         foreign_keys=[white_player_id],
         lazy="select"
@@ -258,12 +258,7 @@ class Game(Base):
         Returns:
             str: Human-readable description of the game
         """
-        if self.is_single_player:
-            # For single player games, just show black player
-            return f"Single Player Game"
-        else:
-            # For two player games, show both players
-            return f"Two Player Game"
+        return f"Game: {self.status.value} (Move {self.move_count})"
 
     @property
     def is_game_over(self) -> bool:
@@ -275,29 +270,20 @@ class Game(Base):
         """
         return self.status in (GameStatus.FINISHED, GameStatus.ABANDONED)
 
-    @property
-    def is_single_player(self) -> bool:
-        """
-        Check if this is a single player game.
-
-        Returns:
-            bool: True if white_player_id is None
-        """
-        return self.white_player_id is None
 
     @property
     def can_start(self) -> bool:
         """
         Check if the game can be started.
 
-        A game can be started if it's in WAITING status.
-        Single player games can start immediately.
-        Two player games need both players.
+        A game can be started if it's in WAITING status and both players are assigned.
 
         Returns:
             bool: True if the game can be started
         """
-        return self.status == GameStatus.WAITING
+        return (self.status == GameStatus.WAITING and 
+                self.black_player_id is not None and 
+                self.white_player_id is not None)
 
     def initialize_board(self, board_size: int) -> None:
         """
@@ -427,42 +413,19 @@ class Game(Base):
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "is_game_over": self.is_game_over,
-            "is_single_player": self.is_single_player,
             "can_start": self.can_start,
         }
 
-    @classmethod
-    def create_single_player_game(
-        cls,
-        black_player_id: int,
-        ruleset_id: int
-    ) -> "Game":
-        """
-        Create a new single-player game.
-
-        Args:
-            black_player_id: ID of the player
-            ruleset_id: ID of the ruleset to use
-
-        Returns:
-            Game: A new Game instance for single player
-        """
-        return cls(
-            black_player_id=black_player_id,
-            white_player_id=None,
-            ruleset_id=ruleset_id,
-            status=GameStatus.WAITING
-        )
 
     @classmethod
-    def create_two_player_game(
+    def create_game(
         cls,
         black_player_id: int,
         white_player_id: int,
         ruleset_id: int
     ) -> "Game":
         """
-        Create a new two-player game.
+        Create a new game.
 
         Args:
             black_player_id: ID of the black player
@@ -470,7 +433,7 @@ class Game(Base):
             ruleset_id: ID of the ruleset to use
 
         Returns:
-            Game: A new Game instance for two players
+            Game: A new Game instance
         """
         return cls(
             black_player_id=black_player_id,

@@ -3,8 +3,7 @@
 from .user import UserBase, UserCreate, UserResponse, UserUpdate
 from .ruleset import RuleSetBase, RuleSetCreate, RuleSetResponse
 from .game import (
-    GameBase, GameCreate, GameCreateSinglePlayer, GameCreateTwoPlayer, 
-    GameResponse, GameState, GameUpdate
+    GameBase, GameCreate, GameResponse, GameState, GameUpdate
 )
 from .gamemove import GameMoveBase, GameMoveCreate, GameMoveResponse
 
@@ -18,8 +17,6 @@ __all__ = [
     "RuleSetResponse", 
     "GameBase",
     "GameCreate",
-    "GameCreateSinglePlayer",
-    "GameCreateTwoPlayer",
     "GameResponse",
     "GameState",
     "GameUpdate",

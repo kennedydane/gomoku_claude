@@ -27,7 +27,7 @@ async def create_game(
     
     - **ruleset_id**: ID of the ruleset to use
     - **black_player_id**: ID of the player who plays black
-    - **white_player_id**: ID of the white player (None for single-player)
+    - **white_player_id**: ID of the white player
     """
     # Verify ruleset exists
     result = await db.execute(select(RuleSet).where(RuleSet.id == game.ruleset_id))
@@ -47,35 +47,27 @@ async def create_game(
             detail="Black player not found"
         )
     
-    # Verify white player exists (if provided)
-    white_player = None
-    if game.white_player_id:
-        result = await db.execute(select(User).where(User.id == game.white_player_id))
-        white_player = result.scalar_one_or_none()
-        if not white_player:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="White player not found"
-            )
-        
-        if game.black_player_id == game.white_player_id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Black and white player cannot be the same"
-            )
+    # Verify white player exists
+    result = await db.execute(select(User).where(User.id == game.white_player_id))
+    white_player = result.scalar_one_or_none()
+    if not white_player:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="White player not found"
+        )
     
-    # Create the appropriate game type
-    if game.white_player_id:
-        db_game = Game.create_two_player_game(
-            black_player_id=game.black_player_id,
-            white_player_id=game.white_player_id,
-            ruleset_id=game.ruleset_id
+    if game.black_player_id == game.white_player_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Black and white player cannot be the same"
         )
-    else:
-        db_game = Game.create_single_player_game(
-            black_player_id=game.black_player_id,
-            ruleset_id=game.ruleset_id
-        )
+    
+    # Create the game
+    db_game = Game.create_game(
+        black_player_id=game.black_player_id,
+        white_player_id=game.white_player_id,
+        ruleset_id=game.ruleset_id
+    )
     
     # Initialize board based on ruleset size
     db_game.initialize_board(ruleset.board_size)
@@ -376,7 +368,6 @@ async def _get_game_response(game: Game, db: AsyncSession) -> GameResponse:
         created_at=game.created_at,
         updated_at=game.updated_at,
         is_game_over=game.is_game_over,
-        is_single_player=game.is_single_player,
         can_start=game.can_start,
         black_player={
             "id": game.black_player.id,
@@ -387,7 +378,7 @@ async def _get_game_response(game: Game, db: AsyncSession) -> GameResponse:
             "id": game.white_player.id,
             "username": game.white_player.username, 
             "display_name": game.white_player.display_name
-        } if game.white_player else None,
+        },
         winner={
             "id": game.winner.id,
             "username": game.winner.username,

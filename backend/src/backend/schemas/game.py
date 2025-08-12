@@ -20,30 +20,8 @@ class GameBase(BaseModel):
     )
 
 
-class GameCreateSinglePlayer(GameBase):
-    """Schema for creating a single-player game."""
-    
-    black_player_id: int = Field(
-        ...,
-        description="ID of the player (will play as black)"
-    )
-
-
-class GameCreateTwoPlayer(GameBase):
-    """Schema for creating a two-player game."""
-    
-    black_player_id: int = Field(
-        ...,
-        description="ID of the black player"
-    )
-    white_player_id: int = Field(
-        ..., 
-        description="ID of the white player"
-    )
-
-
 class GameCreate(BaseModel):
-    """Union schema for creating games."""
+    """Schema for creating games."""
     
     ruleset_id: int = Field(
         ...,
@@ -53,9 +31,9 @@ class GameCreate(BaseModel):
         ...,
         description="ID of the black player"
     )
-    white_player_id: Optional[int] = Field(
-        None,
-        description="ID of the white player (None for single-player)"
+    white_player_id: int = Field(
+        ...,
+        description="ID of the white player"
     )
 
 
@@ -82,7 +60,7 @@ class GameResponse(BaseModel):
     
     id: str = Field(description="Game UUID")
     black_player_id: int
-    white_player_id: Optional[int] = None
+    white_player_id: int
     ruleset_id: int
     status: GameStatus
     current_player: Player
@@ -94,7 +72,6 @@ class GameResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     is_game_over: bool
-    is_single_player: bool
     can_start: bool
     
     # Related data (when included)

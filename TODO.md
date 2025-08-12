@@ -61,16 +61,20 @@
 - ⏳ Write tests for forbidden moves (3-3, 4-4 for Renju)
 - ⏳ Implement forbidden move detection
 
-### 1.4 API Endpoints (TDD)
-- ⏳ Write tests for POST /games/ (create game)
-- ⏳ Implement create game endpoint
-- ⏳ Write tests for GET /games/{id} (get game state)
-- ⏳ Implement get game endpoint
-- ⏳ Write tests for POST /games/{id}/moves/ (make move)
-- ⏳ Implement make move endpoint with validation
-- ⏳ Write tests for GET /games/{id}/moves/ (move history)
-- ⏳ Implement move history endpoint
-- ⏳ Write integration tests for complete game flow
+### 1.4 API Endpoints (TDD) ✅
+- ✅ Write comprehensive API tests with httpx (81 tests total)
+- ✅ Implement User management endpoints (27 tests)
+- ✅ Implement RuleSet management endpoints (23 tests) 
+- ✅ Implement Game lifecycle endpoints (31 tests)
+- ✅ Remove single-player game concept for cleaner architecture
+- ✅ Create game endpoint (POST /api/v1/games/) - two-player only
+- ✅ Get game state endpoint (GET /api/v1/games/{id}/)
+- ✅ Start game endpoint (PUT /api/v1/games/{id}/start)
+- ✅ Make move endpoint (POST /api/v1/games/{id}/moves/) with validation
+- ✅ Get move history endpoint (GET /api/v1/games/{id}/moves/)
+- ✅ Update game status endpoint (PUT /api/v1/games/{id}/)
+- ✅ Complete integration workflow tests
+- ⏳ Fix remaining unit test failures (model tests need updates)
 
 ## Phase 2: Frontend Foundation
 
@@ -173,8 +177,11 @@
 - ✅ **Database Connection**: PostgreSQL working on port 5434 with asyncpg + SQLAlchemy 2.0
 - ✅ **Complete Model Implementation**: All 4 SQLAlchemy models with 148 comprehensive tests
 - ✅ **Database Schema**: Full migrations with constraints, indexes, and foreign key relationships
-- ✅ **Integration Verified**: All models work together with proper validation and querying
+- ✅ **REST API Implementation**: Complete FastAPI endpoints with 81 comprehensive tests using httpx
+- ✅ **Single Player Removal**: Simplified architecture - all games require both players (AI agents will be Users)
+- ✅ **Integration Verified**: All models and API endpoints work together with proper validation
 
 ## Current Focus
 **Phase 1.3**: Ready to implement game logic engine with board representation, move validation, and win detection algorithms.
-**Phase 1.4**: Ready to implement FastAPI endpoints for game management API.
+**Phase 2.x**: Ready to implement AI agents as regular Users and Dear PyGUI frontend interface.
+**Immediate Priority**: Fix remaining unit test failures to achieve 100% test pass rate.
