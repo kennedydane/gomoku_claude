@@ -1,0 +1,1 @@
+"""Client package for API communication with the Gomoku backend."""
