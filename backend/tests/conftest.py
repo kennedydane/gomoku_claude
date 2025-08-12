@@ -159,3 +159,69 @@ def setup_test_logging(caplog):
     making it easier to debug test failures.
     """
     caplog.set_level("INFO")
+
+
+# Sample data fixtures for testing
+@pytest_asyncio.fixture
+async def sample_user(db_session) -> "User":
+    """Create a sample user for testing."""
+    from backend.db.models import User
+    
+    user = User(
+        username="testuser",
+        email="test@example.com",
+        display_name="Test User"
+    )
+    db_session.add(user)
+    await db_session.commit()
+    await db_session.refresh(user)
+    return user
+
+
+@pytest_asyncio.fixture
+async def sample_user2(db_session) -> "User":
+    """Create a second sample user for testing."""
+    from backend.db.models import User
+    
+    user = User(
+        username="testuser2",
+        email="test2@example.com", 
+        display_name="Test User 2"
+    )
+    db_session.add(user)
+    await db_session.commit()
+    await db_session.refresh(user)
+    return user
+
+
+@pytest_asyncio.fixture
+async def sample_ruleset(db_session) -> "RuleSet":
+    """Create a sample ruleset for testing."""
+    from backend.db.models import RuleSet
+    
+    ruleset = RuleSet(
+        name="Test Rules",
+        board_size=15,
+        allow_overlines=False
+    )
+    db_session.add(ruleset)
+    await db_session.commit()
+    await db_session.refresh(ruleset)
+    return ruleset
+
+
+@pytest_asyncio.fixture 
+async def sample_game(db_session, sample_user, sample_ruleset) -> "Game":
+    """Create a sample game for testing."""
+    from backend.db.models import Game, GameStatus
+    
+    game = Game(
+        black_player_id=sample_user.id,
+        white_player_id=None,
+        ruleset_id=sample_ruleset.id,
+        status=GameStatus.ACTIVE
+    )
+    db_session.add(game)
+    await db_session.commit()
+    await db_session.refresh(game)
+    return game

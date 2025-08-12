@@ -15,6 +15,9 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from src.backend.db.database import Base
 from src.backend.core.config import settings
 
+# Import all models so they are registered with Base.metadata
+from src.backend.db.models import RuleSet, User, Game, GameMove
+
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config

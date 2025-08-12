@@ -79,8 +79,7 @@ async def init_db() -> None:
     """Initialize database tables."""
     async with async_engine.begin() as conn:
         # Import all models to register them with Base.metadata
-        from .models import ruleset, user  # noqa: F401
-        # from .models import game  # noqa: F401
+        from .models import ruleset, user, game  # noqa: F401
         
         await conn.run_sync(Base.metadata.create_all)
 
