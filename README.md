@@ -69,8 +69,9 @@ docker compose up -d postgres pgadmin
 
 4. **Run database migrations:**
 ```bash
-# Migrations will be available when models are implemented
-# uv run alembic upgrade head
+# Apply all migrations to set up database schema
+cd backend
+uv run alembic upgrade head
 ```
 
 ## Usage
@@ -79,8 +80,9 @@ docker compose up -d postgres pgadmin
 
 **Start the backend server:**
 ```bash
-# Backend development (when implemented)
-# uv run uvicorn backend.main:app --reload
+# Backend development (ready for API implementation)
+cd backend
+uv run uvicorn src.backend.main:app --reload
 ```
 The API will be available at http://localhost:8000  
 Interactive API docs at http://localhost:8000/docs
@@ -213,27 +215,43 @@ Once the backend is running, interactive API documentation is available at:
 
 ## Current Status
 
-### ✅ Completed (Phase 0 & 1.1)
+### ✅ Completed (Phase 0, 1.1 & 1.2)
 - Project structure with UV workspace and src layout  
 - Docker Compose setup with PostgreSQL and pgAdmin
 - Development/Production network separation for security
 - Python 3.12 environment with all dependencies
 - Database connection tested and working  
-- Alembic migration system configured
+- Alembic migration system configured and working
+- **Complete SQLAlchemy Models** with 148 comprehensive tests:
+  - RuleSet model with JSON configuration (41 tests)
+  - User model with game statistics (44 tests) 
+  - Game model with UUID keys and board state (32 tests)
+  - GameMove model with position validation (31 tests)
+- **Database Schema**: Full migrations with constraints, indexes, relationships
+- **Integration Verified**: All models working together with validation
 
-### 🔄 Next Steps (Phase 1.2)
-- Implement SQLAlchemy models (User, Game, GameMove, RuleSet)
-- Create game logic engine with TDD approach
-- Build FastAPI endpoints for game management
+### 🔄 Next Steps (Phase 1.3 & 1.4)
+- Create game logic engine with TDD approach (board, moves, win detection)
+- Build FastAPI endpoints for game management API
 - Implement Dear PyGUI frontend interface
 
 ### 🎯 Architecture Overview
 ```
 ├── backend/src/backend/    # FastAPI + PostgreSQL + SQLAlchemy 2.0
-├── frontend/src/frontend/  # Dear PyGUI desktop application
-├── data/                   # Development database storage
-└── docker/                 # Container configuration files
+│   ├── db/models/         # ✅ Complete: RuleSet, User, Game, GameMove
+│   ├── db/database.py     # ✅ Async SQLAlchemy connection
+│   ├── core/config.py     # ✅ Settings management
+│   └── api/routes/        # Next: API endpoints
+├── frontend/src/frontend/  # Future: Dear PyGUI desktop application
+├── backend/migrations/     # ✅ Alembic database migrations
+└── backend/tests/         # ✅ 148 comprehensive model tests
 ```
+
+### 📊 Database Schema
+- **rulesets** - Game rule configurations (Standard, Renju, Freestyle, etc.)
+- **users** - Player accounts with game statistics
+- **games** - Active game instances with board state
+- **game_moves** - Individual move history with validation
 
 ## Contributing
 
