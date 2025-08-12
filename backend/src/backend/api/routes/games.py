@@ -13,6 +13,7 @@ from ...db.database import get_db
 from ...db.models import Game, GameMove, GameStatus, Player, RuleSet, User
 from ...schemas.game import GameCreate, GameResponse, GameUpdate
 from ...schemas.gamemove import GameMoveCreate, GameMoveResponse
+from ...services.game_service import GameService
 
 router = APIRouter(prefix="/games", tags=["games"])
 
@@ -243,12 +244,6 @@ async def make_move(
             detail="Game not found"
         )
     
-    if game.status != GameStatus.ACTIVE:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Game is not active"
-        )
-    
     # Verify player is in this game
     if move.player_id not in [game.black_player_id, game.white_player_id]:
         raise HTTPException(
@@ -256,61 +251,17 @@ async def make_move(
             detail="Player is not in this game"
         )
     
-    # Determine player color based on move number
-    move_count = await GameMove.get_move_count(db, game_id)
-    expected_move_number = move_count + 1
-    expected_color = Player.BLACK if expected_move_number % 2 == 1 else Player.WHITE
+    # Use GameService to handle the move logic
+    game_service = GameService(db)
     
-    # Check if it's the correct player's turn
-    expected_player_id = game.black_player_id if expected_color == Player.BLACK else game.white_player_id
-    
-    if move.player_id != expected_player_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"It's {expected_color.value} player's turn"
-        )
-    
-    # Create the move
-    db_move = GameMove(
-        game_id=game_id,
-        player_id=move.player_id,
-        move_number=expected_move_number,
-        row=move.row,
-        col=move.col,
-        player_color=expected_color
-    )
-    
-    # Validate the move
     try:
-        await db_move.validate_before_insert(db)
+        db_move = await game_service.make_move(game, move.player_id, move.row, move.col)
+        return GameMoveResponse.model_validate(db_move)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
-    
-    # Make the move in the game board
-    if not game.is_valid_position(move.row, move.col):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid move position"
-        )
-    
-    # Add move to database
-    db.add(db_move)
-    
-    # Update game board state
-    success = game.make_move(move.row, move.col)
-    if not success:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Move failed"
-        )
-    
-    await db.commit()
-    await db.refresh(db_move)
-    
-    return GameMoveResponse.model_validate(db_move)
 
 
 @router.get("/{game_id}/moves/", response_model=List[GameMoveResponse])

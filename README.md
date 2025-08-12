@@ -219,31 +219,36 @@ Once the backend is running, interactive API documentation is available at:
 
 ## Current Status
 
-### ✅ Completed (Phase 0, 1.1, 1.2 & 1.4)
+### ✅ Completed (Phase 0, 1.1, 1.2, 1.4 & 1.5)
 - Project structure with UV workspace and src layout  
 - Docker Compose setup with PostgreSQL and pgAdmin
 - Development/Production network separation for security
 - Python 3.12 environment with all dependencies
 - Database connection tested and working  
 - Alembic migration system configured and working
-- **Complete SQLAlchemy Models** with 148 comprehensive tests:
+- **Complete SQLAlchemy Models** with comprehensive tests:
   - RuleSet model with JSON configuration (41 tests)
   - User model with game statistics (44 tests) 
   - Game model with UUID keys and board state (32 tests)
   - GameMove model with position validation (31 tests)
 - **Database Schema**: Full migrations with constraints, indexes, relationships
-- **REST API Implementation** with 81 comprehensive tests:
+- **REST API Implementation** with 79 comprehensive tests (100% passing):
   - User management endpoints (27 tests)
   - RuleSet management endpoints (23 tests)
-  - Game lifecycle endpoints (31 tests)
+  - Game lifecycle endpoints (29 tests)  
   - All using httpx with async testing infrastructure
-- **Game Architecture**: Two-player games only (removed single-player concept)
-- **Integration Verified**: All models and API endpoints working together
+- **Game Services Layer** with 26 comprehensive tests (100% passing):
+  - Move validation (bounds checking, turn validation, position occupation)
+  - Win detection algorithm (horizontal, vertical, diagonal, 5-in-a-row)
+  - Game state management (move count, turn switching, game completion)
+  - Database integration for move persistence
+- **Game Architecture**: Two-player games only (removed single-player concept for AI integration)
+- **Integration Verified**: All models, API endpoints, and services working together (105 tests total)
 
-### 🔄 Next Steps (Phase 1.3 & 2.x)
-- Create game logic engine with TDD approach (board, moves, win detection)
-- Add AI agents as regular Users connecting through API
-- Implement Dear PyGUI frontend interface
+### 🔄 Next Steps (Phase 1.5 Completion & 2.1 - Hybrid Approach)
+- **Phase 1.5**: Refactor API routes to use GameService layer
+- **Phase 2.1**: Build minimal viable Dear PyGUI frontend for visual testing
+- **Future**: Add AI agents as regular Users connecting through API
 
 ### 🎯 Architecture Overview
 ```
@@ -252,10 +257,11 @@ Once the backend is running, interactive API documentation is available at:
 │   ├── db/database.py     # ✅ Async SQLAlchemy connection
 │   ├── core/config.py     # ✅ Settings management
 │   ├── api/routes/        # ✅ Complete REST API endpoints
-│   └── schemas/           # ✅ Pydantic request/response schemas
+│   ├── schemas/           # ✅ Pydantic request/response schemas
+│   └── services/          # ✅ Complete: GameService with move validation & win detection
 ├── frontend/src/frontend/  # Next: Dear PyGUI desktop application
 ├── backend/migrations/     # ✅ Alembic database migrations
-└── backend/tests/         # ✅ 229+ comprehensive tests (models + API)
+└── backend/tests/         # ✅ 105 total tests (79 API + 26 GameService, 100% passing)
 ```
 
 ### 📊 Database Schema

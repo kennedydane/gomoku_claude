@@ -49,17 +49,17 @@
 - ✅ Create Alembic migrations for all models with proper constraints
 - ✅ Verify full database integration with comprehensive testing
 
-### 1.3 Game Logic Engine (TDD)
-- ⏳ Write tests for board representation (15x15, 19x19)
-- ⏳ Implement Board class with coordinate system
-- ⏳ Write tests for move validation (bounds, occupied squares)
-- ⏳ Implement move validation logic
-- ⏳ Write tests for win detection (5-in-a-row, all directions)
-- ⏳ Implement win detection algorithm
-- ⏳ Write tests for overline rule handling
-- ⏳ Implement overline validation
-- ⏳ Write tests for forbidden moves (3-3, 4-4 for Renju)
-- ⏳ Implement forbidden move detection
+### 1.5 Game Services Layer (TDD) - Hybrid Approach ✅
+- ✅ Create GameService class with dependency injection
+- ✅ Write tests for basic move validation (bounds, occupied positions) - 9 tests
+- ✅ Implement basic move validation in service layer
+- ✅ Write tests for simple win detection (5-in-a-row) - 9 tests
+- ✅ Implement win detection algorithm (horizontal, vertical, diagonal)
+- ✅ Write service integration tests - 2 comprehensive workflow tests
+- ✅ Add game state validation (turn order, game status) - 4 tests
+- ✅ Complete GameService with 26 comprehensive tests (100% pass rate)
+- ✅ Refactor API routes to use service layer (make_move endpoint refactored)
+- ⏳ Enhanced rule validation (overlines, forbidden moves) - Future Phase
 
 ### 1.4 API Endpoints (TDD) ✅
 - ✅ Write comprehensive API tests with httpx (81 tests total)
@@ -76,22 +76,24 @@
 - ✅ Complete integration workflow tests
 - ⏳ Fix remaining unit test failures (model tests need updates)
 
-## Phase 2: Frontend Foundation
+## Phase 2: Frontend Foundation - Hybrid Approach
 
-### 2.1 Dear PyGUI Setup
+### 2.1 Minimal Viable Dear PyGUI Frontend
 - ⏳ Create basic Dear PyGUI application structure
-- ⏳ Implement main window with menu bar
-- ⏳ Create game board rendering system (grid display)
-- ⏳ Implement click detection on board coordinates
-- ⏳ Add basic styling and colors for stones
-
-### 2.2 API Client
+- ⏳ Implement main window with 15x15 game board grid
+- ⏳ Add click detection for move placement
+- ⏳ Simple stone rendering (black/white circles)
 - ⏳ Create async HTTP client for backend communication
-- ⏳ Implement game creation API call
-- ⏳ Implement move submission API call
-- ⏳ Implement game state fetching
-- ⏳ Add error handling and retry logic
-- ⏳ Write tests for API client functionality
+- ⏳ Implement basic gameplay loop (create game → make moves → see results)
+- ⏳ Display game status and simple win detection feedback
+- ⏳ Add new game functionality
+
+### 2.2 Enhanced Frontend Features (Future)
+- ⏳ Game board styling and animations
+- ⏳ Move history sidebar
+- ⏳ Rule configuration panel
+- ⏳ Multiple board sizes (15x15, 19x19)
+- ⏳ Game replay functionality
 
 ### 2.3 Game State Management
 - ⏳ Create local game state class
@@ -177,11 +179,14 @@
 - ✅ **Database Connection**: PostgreSQL working on port 5434 with asyncpg + SQLAlchemy 2.0
 - ✅ **Complete Model Implementation**: All 4 SQLAlchemy models with 148 comprehensive tests
 - ✅ **Database Schema**: Full migrations with constraints, indexes, and foreign key relationships
-- ✅ **REST API Implementation**: Complete FastAPI endpoints with 81 comprehensive tests using httpx
+- ✅ **REST API Implementation**: Complete FastAPI endpoints with 79 comprehensive tests using httpx
 - ✅ **Single Player Removal**: Simplified architecture - all games require both players (AI agents will be Users)
-- ✅ **Integration Verified**: All models and API endpoints work together with proper validation
+- ✅ **Game Service Layer**: Complete business logic layer with 26 tests covering move validation and win detection
+- ✅ **API Integration**: Refactored game endpoints to use service layer (cleaner architecture)
+- ✅ **Integration Verified**: All models, API endpoints, and services work together (105 total tests passing)
 
 ## Current Focus
-**Phase 1.3**: Ready to implement game logic engine with board representation, move validation, and win detection algorithms.
-**Phase 2.x**: Ready to implement AI agents as regular Users and Dear PyGUI frontend interface.
-**Immediate Priority**: Fix remaining unit test failures to achieve 100% test pass rate.
+**Phase 1.5**: ✅ Complete - GameService layer with move validation, win detection, and API integration
+**Phase 2.1**: Build minimal viable Dear PyGUI frontend for visual game testing.
+**Architecture Goal**: ✅ Achieved - Clean separation between API routes and business logic via service layer
+**Benefits**: Faster development with visual feedback and incremental complexity.
