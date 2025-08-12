@@ -58,8 +58,8 @@ class GameMoveResponse(GameMoveBase):
     is_white_move: bool = Field(description="Whether this is a white move")
     position_tuple: list[int] = Field(description="Position as [row, col] array")
     
-    # Related data (when included)
-    player: Optional[dict] = None
-    game: Optional[dict] = None
+    # Related data (when included) - won't be loaded by default
+    # player: Optional[dict] = None
+    # game: Optional[dict] = None
     
     model_config = {"from_attributes": True}

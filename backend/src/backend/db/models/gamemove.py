@@ -92,7 +92,7 @@ class GameMove(Base):
 
     # Player color for this move
     player_color: Mapped[Player] = mapped_column(
-        SQLEnum(Player),
+        SQLEnum(Player, values_callable=lambda obj: [e.value for e in obj]),
         nullable=False,
         index=True,
         comment="Color of the player making the move (BLACK or WHITE)"

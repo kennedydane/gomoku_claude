@@ -36,8 +36,8 @@ class TestCreateGame:
         assert data["black_player_id"] == sample_user.id
         assert data["white_player_id"] is None
         assert data["ruleset_id"] == sample_ruleset.id
-        assert data["status"] == "WAITING"
-        assert data["current_player"] == "BLACK"
+        assert data["status"] == "waiting"
+        assert data["current_player"] == "black"
         assert data["move_count"] == 0
         assert data["is_single_player"] is True
         assert data["can_start"] is True
@@ -179,14 +179,14 @@ class TestListGames:
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 1
-        assert data[0]["status"] == "WAITING"
+        assert data[0]["status"] == "waiting"
         
         # Filter by ACTIVE status
         response = await async_client.get("/api/v1/games/?status=ACTIVE")
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 1
-        assert data[0]["status"] == "ACTIVE"
+        assert data[0]["status"] == "active"
     
     async def test_list_games_filter_by_player(self, async_client: AsyncClient, db_session: AsyncSession, sample_user, sample_user2, sample_ruleset):
         """Test filtering games by player ID."""
@@ -249,9 +249,9 @@ class TestStartGame:
         
         assert response.status_code == 200
         data = response.json()
-        assert data["status"] == "ACTIVE"
+        assert data["status"] == "active"
         assert data["started_at"] is not None
-        assert data["current_player"] == "BLACK"
+        assert data["current_player"] == "black"
     
     async def test_start_game_not_found(self, async_client: AsyncClient):
         """Test starting non-existent game."""
@@ -296,7 +296,7 @@ class TestUpdateGame:
         
         assert response.status_code == 200
         data = response.json()
-        assert data["status"] == "FINISHED"
+        assert data["status"] == "finished"
         assert data["winner_id"] == sample_user.id
         assert data["finished_at"] is not None
         assert data["is_game_over"] is True
@@ -318,7 +318,7 @@ class TestUpdateGame:
         
         assert response.status_code == 200
         data = response.json()
-        assert data["status"] == "ABANDONED"
+        assert data["status"] == "abandoned"
         assert data["winner_id"] is None
         assert data["finished_at"] is not None
         assert data["is_game_over"] is True
@@ -360,7 +360,7 @@ class TestMakeMove:
         assert data["move_number"] == 1
         assert data["row"] == 7
         assert data["col"] == 7
-        assert data["player_color"] == "BLACK"
+        assert data["player_color"] == "black"
         assert data["is_winning_move"] is False
     
     async def test_make_move_two_player_alternating(self, async_client: AsyncClient, db_session: AsyncSession, sample_user, sample_user2, sample_ruleset):
@@ -381,7 +381,7 @@ class TestMakeMove:
         
         response1 = await async_client.post(f"/api/v1/games/{game.id}/moves/", json=move1_data)
         assert response1.status_code == 201
-        assert response1.json()["player_color"] == "BLACK"
+        assert response1.json()["player_color"] == "black"
         
         # Second move (WHITE player)
         move2_data = {
@@ -392,7 +392,7 @@ class TestMakeMove:
         
         response2 = await async_client.post(f"/api/v1/games/{game.id}/moves/", json=move2_data)
         assert response2.status_code == 201
-        assert response2.json()["player_color"] == "WHITE"
+        assert response2.json()["player_color"] == "white"
     
     async def test_make_move_game_not_found(self, async_client: AsyncClient, sample_user):
         """Test making move in non-existent game."""
@@ -445,7 +445,7 @@ class TestMakeMove:
         response = await async_client.post(f"/api/v1/games/{game.id}/moves/", json=move_data)
         
         assert response.status_code == 400
-        assert "BLACK player's turn" in response.json()["detail"]
+        assert "black player's turn" in response.json()["detail"]
     
     async def test_make_move_invalid_position(self, async_client: AsyncClient, db_session: AsyncSession, sample_user, sample_ruleset):
         """Test making move at invalid position."""
@@ -467,27 +467,31 @@ class TestMakeMove:
         assert response.status_code == 422
         assert "less than or equal to 14" in str(response.json())
     
-    async def test_make_move_occupied_position(self, async_client: AsyncClient, db_session: AsyncSession, sample_user, sample_ruleset):
+    async def test_make_move_occupied_position(self, async_client: AsyncClient, db_session: AsyncSession, sample_user, sample_user2, sample_ruleset):
         """Test making move at already occupied position."""
-        # Create and start game
-        game = Game.create_single_player_game(sample_user.id, sample_ruleset.id)
+        # Create and start two-player game 
+        game = Game.create_two_player_game(sample_user.id, sample_user2.id, sample_ruleset.id)
         game.start_game()
         db_session.add(game)
         await db_session.commit()
         await db_session.refresh(game)
         
-        move_data = {
+        # First move (BLACK player)
+        move1_data = {
             "player_id": sample_user.id,
             "row": 7,
             "col": 7
         }
-        
-        # First move
-        response1 = await async_client.post(f"/api/v1/games/{game.id}/moves/", json=move_data)
+        response1 = await async_client.post(f"/api/v1/games/{game.id}/moves/", json=move1_data)
         assert response1.status_code == 201
         
-        # Try same position again
-        response2 = await async_client.post(f"/api/v1/games/{game.id}/moves/", json=move_data)
+        # Try same position with WHITE player (should fail due to occupied position)
+        move2_data = {
+            "player_id": sample_user2.id,
+            "row": 7,
+            "col": 7  # Same position
+        }
+        response2 = await async_client.post(f"/api/v1/games/{game.id}/moves/", json=move2_data)
         assert response2.status_code == 400
         assert "already occupied" in response2.json()["detail"]
 
@@ -528,8 +532,8 @@ class TestGetGameMoves:
         # Should be ordered by move_number
         assert data[0]["move_number"] == 1
         assert data[1]["move_number"] == 2
-        assert data[0]["player_color"] == "BLACK"
-        assert data[1]["player_color"] == "WHITE"
+        assert data[0]["player_color"] == "black"
+        assert data[1]["player_color"] == "white"
     
     async def test_get_game_moves_not_found(self, async_client: AsyncClient):
         """Test getting moves for non-existent game."""
@@ -559,7 +563,7 @@ class TestGameAPIIntegration:
         # 2. Start game
         start_response = await async_client.put(f"/api/v1/games/{game_id}/start")
         assert start_response.status_code == 200
-        assert start_response.json()["status"] == "ACTIVE"
+        assert start_response.json()["status"] == "active"
         
         # 3. Make some moves
         moves = [
@@ -586,7 +590,7 @@ class TestGameAPIIntegration:
         
         end_response = await async_client.put(f"/api/v1/games/{game_id}", json=update_data)
         assert end_response.status_code == 200
-        assert end_response.json()["status"] == "FINISHED"
+        assert end_response.json()["status"] == "finished"
         assert end_response.json()["winner_id"] == sample_user.id
     
     async def test_single_player_game_workflow(self, async_client: AsyncClient, sample_user, sample_ruleset):
@@ -614,4 +618,4 @@ class TestGameAPIIntegration:
             "col": 7
         })
         assert move_response.status_code == 201
-        assert move_response.json()["player_color"] == "BLACK"
+        assert move_response.json()["player_color"] == "black"

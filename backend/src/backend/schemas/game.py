@@ -62,7 +62,7 @@ class GameCreate(BaseModel):
 class GameUpdate(BaseModel):
     """Schema for updating game state."""
     
-    status: Optional[GameStatus] = None
+    status: Optional[str] = Field(None, pattern="^(WAITING|ACTIVE|FINISHED|ABANDONED)$")
     winner_id: Optional[int] = None
 
 

@@ -96,7 +96,7 @@ class Game(Base):
 
     # Game status
     status: Mapped[GameStatus] = mapped_column(
-        SQLEnum(GameStatus),
+        SQLEnum(GameStatus, values_callable=lambda obj: [e.value for e in obj]),
         nullable=False,
         default=GameStatus.WAITING,
         index=True,
@@ -105,7 +105,7 @@ class Game(Base):
 
     # Current player turn
     current_player: Mapped[Player] = mapped_column(
-        SQLEnum(Player),
+        SQLEnum(Player, values_callable=lambda obj: [e.value for e in obj]),
         nullable=False,
         default=Player.BLACK,
         index=True,

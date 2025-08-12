@@ -91,7 +91,7 @@ async def create_game(
 async def list_games(
     skip: int = Query(0, ge=0, description="Number of games to skip"),
     limit: int = Query(50, ge=1, le=100, description="Number of games to return"),
-    status: Optional[GameStatus] = Query(None, description="Filter by game status"),
+    status: Optional[str] = Query(None, description="Filter by game status"),
     player_id: Optional[int] = Query(None, description="Filter by player ID"),
     db: AsyncSession = Depends(get_db)
 ) -> List[GameResponse]:
@@ -106,7 +106,14 @@ async def list_games(
     query = select(Game)
     
     if status:
-        query = query.where(Game.status == status)
+        try:
+            status_enum = GameStatus(status.lower())
+            query = query.where(Game.status == status_enum)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Invalid status value. Must be one of: {[s.value for s in GameStatus]}"
+            )
     
     if player_id:
         query = query.where(
@@ -204,14 +211,14 @@ async def update_game(
         )
     
     # Update only provided fields
-    update_data = game_update.dict(exclude_unset=True)
+    update_data = game_update.model_dump(exclude_unset=True)
     
     if "status" in update_data:
-        new_status = update_data["status"]
-        if new_status == GameStatus.FINISHED:
+        new_status_str = update_data["status"]
+        if new_status_str == "FINISHED":
             winner_id = update_data.get("winner_id")
             game.end_game(winner_id)
-        elif new_status == GameStatus.ABANDONED:
+        elif new_status_str == "ABANDONED":
             game.abandon_game()
     
     await db.commit()
