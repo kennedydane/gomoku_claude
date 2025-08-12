@@ -17,21 +17,21 @@ def draw_board():
     """Draw the game board."""
     dpg.delete_item("board_drawing", children_only=True)
     
-    # Draw grid
-    for i in range(16):
+    # Draw grid (15x15 board = 14 spaces between lines)
+    for i in range(15):
         # Vertical lines
-        dpg.draw_line((i * 30, 0), (i * 30, 450), 
+        dpg.draw_line((i * 30 + 15, 15), (i * 30 + 15, 435), 
                      color=(100, 100, 100), parent="board_drawing")
         # Horizontal lines
-        dpg.draw_line((0, i * 30), (450, i * 30), 
+        dpg.draw_line((15, i * 30 + 15), (435, i * 30 + 15), 
                      color=(100, 100, 100), parent="board_drawing")
     
-    # Draw stones
+    # Draw stones at intersections
     for row in range(15):
         for col in range(15):
             if board_state[row][col]:
                 color = (20, 20, 20) if board_state[row][col] == "black" else (240, 240, 240)
-                dpg.draw_circle((col * 30, row * 30), 12, 
+                dpg.draw_circle((col * 30 + 15, row * 30 + 15), 12, 
                               color=color, fill=color, parent="board_drawing")
 
 def cell_clicked(sender, app_data, user_data):
@@ -147,16 +147,12 @@ with dpg.window(label="Simple Gomoku", tag="main_window"):
 def handle_board_click():
     """Handle clicks on the board."""
     if dpg.is_item_hovered("board_drawing"):
-        mouse_pos = dpg.get_mouse_pos(local=False)
-        board_pos = dpg.get_item_pos("board_drawing")
+        # Get drawing position relative to window
+        draw_mouse_pos = dpg.get_drawing_mouse_pos()
         
-        # Calculate relative position
-        rel_x = mouse_pos[0] - board_pos[0]
-        rel_y = mouse_pos[1] - board_pos[1]
-        
-        # Convert to grid coordinates
-        col = round(rel_x / 30)
-        row = round(rel_y / 30)
+        # Convert to grid coordinates (offset by 15 pixels for border)
+        col = round((draw_mouse_pos[0] - 15) / 30)
+        row = round((draw_mouse_pos[1] - 15) / 30)
         
         if 0 <= row < 15 and 0 <= col < 15:
             cell_clicked(None, None, (row, col))
