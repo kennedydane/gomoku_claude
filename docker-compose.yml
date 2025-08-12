@@ -1,0 +1,191 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: gomoku_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-gomoku_db}
+      POSTGRES_USER: ${POSTGRES_USER:-gomoku_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=peer"
+    # Remove port exposure for production - only expose for development
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/init-db:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-gomoku_user} -d ${POSTGRES_DB:-gomoku_db}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    networks:
+      - backend_network
+    # Resource limits for better stability
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+
+  # pgAdmin Web Interface
+  pgadmin:
+    image: dpage/pgadmin4:8
+    container_name: gomoku_pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@gomoku.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+      PGADMIN_LISTEN_PORT: 80
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+      - ./docker/pgadmin/servers.json:/pgadmin4/servers.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - backend_network
+    profiles:
+      - development
+      - admin
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.25'
+
+  # FastAPI Backend (for production)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+    container_name: gomoku_backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-gomoku_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-gomoku_db}
+      DEBUG: "false"
+      HOST: "0.0.0.0"
+      PORT: "8000"
+      SECRET_KEY: ${SECRET_KEY}
+      LOG_LEVEL: "INFO"
+    ports:
+      - "${API_PORT:-8000}:8000"
+    volumes:
+      - ./backend/logs:/app/logs
+      - backend_static:/app/static
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - backend_network
+      - frontend_network
+    profiles:
+      - production
+    # Security context
+    security_opt:
+      - no-new-privileges:true
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+    # Read-only root filesystem for security
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,size=100m
+      - /app/logs:noexec,nosuid,size=200m
+
+  # Development Backend (for development with hot reload)
+  backend-dev:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+      target: development
+    container_name: gomoku_backend_dev
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-gomoku_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-gomoku_db}
+      DEBUG: "true"
+      HOST: "0.0.0.0"
+      PORT: "8000"
+      SECRET_KEY: ${SECRET_KEY:-dev-secret-key-not-for-production}
+      LOG_LEVEL: "DEBUG"
+    ports:
+      - "${API_PORT:-8000}:8000"
+    volumes:
+      - ./backend:/app
+      - /app/.venv  # Anonymous volume to avoid mounting .venv
+      - backend_dev_cache:/app/.mypy_cache
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - backend_network
+      - frontend_network
+    profiles:
+      - development
+    # Resource limits (more lenient for development)
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '2.0'
+
+volumes:
+  postgres_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/postgres
+  pgadmin_data:
+    driver: local
+    driver_opts:
+      type: none  
+      o: bind
+      device: ./data/pgadmin
+  backend_static:
+    driver: local
+  backend_dev_cache:
+    driver: local
+
+networks:
+  # Internal network for backend services (database, API)
+  backend_network:
+    name: gomoku_backend
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.20.1.0/24
+  
+  # Network for frontend-backend communication
+  frontend_network:
+    name: gomoku_frontend
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.2.0/24

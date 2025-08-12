@@ -1,0 +1,22 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "Gomoku Database (Local)",
+      "Group": "Development",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "gomoku_db",
+      "Username": "gomoku_user",
+      "SSLMode": "prefer",
+      "SSLCompression": 0,
+      "Timeout": 30,
+      "UseSSHTunnel": 0,
+      "TunnelPort": "22",
+      "TunnelAuthentication": 0,
+      "Shared": true,
+      "BGColor": "#3498db",
+      "FGColor": "#ffffff",
+      "Comment": "Local development database for Gomoku game"
+    }
+  }
+}
