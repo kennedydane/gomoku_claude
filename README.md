@@ -42,7 +42,7 @@ This implementation consists of two main components:
 
 ### Prerequisites
 
-- Python 3.9 or higher
+- Python 3.12 or higher (3.9+ supported)
 - [UV package manager](https://github.com/astral-sh/uv) 
 - Docker and Docker Compose
 - Git
@@ -57,26 +57,20 @@ cd gomoku_claude
 
 2. **Install dependencies with UV:**
 ```bash
-# Install backend dependencies
-cd backend
+# Install all dependencies (workspace setup)
 uv sync
-
-# Install frontend dependencies  
-cd ../frontend
-uv sync
-cd ..
 ```
 
 3. **Start the database services:**
 ```bash
+# Development mode (database port exposed on 5434)
 docker compose up -d postgres pgadmin
 ```
 
 4. **Run database migrations:**
 ```bash
-cd backend
-uv run alembic upgrade head
-cd ..
+# Migrations will be available when models are implemented
+# uv run alembic upgrade head
 ```
 
 ## Usage
@@ -85,38 +79,41 @@ cd ..
 
 **Start the backend server:**
 ```bash
-cd backend
-uv run fastapi dev app/main.py
+# Backend development (when implemented)
+# uv run uvicorn backend.main:app --reload
 ```
-The API will be available at http://localhost:8000
+The API will be available at http://localhost:8000  
 Interactive API docs at http://localhost:8000/docs
 
 **Start the frontend application:**
 ```bash
-cd frontend
-uv run python -m gomoku_gui.main
+# Frontend GUI (when implemented)  
+# uv run python -m frontend.main --debug
 ```
 
-**Enable debug logging:**
-```bash
-# Backend
-uv run fastapi dev app/main.py --debug
-
-# Frontend  
-uv run python -m gomoku_gui.main --debug
-```
+**Database Access:**
+- PostgreSQL: `localhost:5434` (exposed for development tools)
+- pgAdmin: http://localhost:5050 (admin@gomoku.com / [see .env])
 
 ### Production Mode
 
-**Start all services:**
+**Start production services:**
 ```bash
-docker compose up -d
+# Production mode (database port NOT exposed - secure)
+COMPOSE_FILE=docker-compose.yml docker compose up -d
 ```
 
-This starts:
-- PostgreSQL database on port 5432
-- FastAPI backend on port 8000
-- pgAdmin web interface on port 5050
+**Or use production environment:**
+```bash
+cp .env.prod.example .env.prod
+# Edit .env.prod with secure production values
+docker compose --env-file .env.prod up -d
+```
+
+**Production Security:**
+- PostgreSQL: Internal network only (no external port access)
+- Database accessible only via FastAPI backend
+- pgAdmin disabled in production
 
 ### Database Management
 
@@ -213,6 +210,30 @@ Once the backend is running, interactive API documentation is available at:
 - `POST /games/{game_id}/moves/` - Make a move
 - `GET /games/{game_id}/moves/` - Get move history
 - `PUT /games/{game_id}/rules/` - Update rule configuration
+
+## Current Status
+
+### ✅ Completed (Phase 0 & 1.1)
+- Project structure with UV workspace and src layout  
+- Docker Compose setup with PostgreSQL and pgAdmin
+- Development/Production network separation for security
+- Python 3.12 environment with all dependencies
+- Database connection tested and working  
+- Alembic migration system configured
+
+### 🔄 Next Steps (Phase 1.2)
+- Implement SQLAlchemy models (User, Game, GameMove, RuleSet)
+- Create game logic engine with TDD approach
+- Build FastAPI endpoints for game management
+- Implement Dear PyGUI frontend interface
+
+### 🎯 Architecture Overview
+```
+├── backend/src/backend/    # FastAPI + PostgreSQL + SQLAlchemy 2.0
+├── frontend/src/frontend/  # Dear PyGUI desktop application
+├── data/                   # Development database storage
+└── docker/                 # Container configuration files
+```
 
 ## Contributing
 

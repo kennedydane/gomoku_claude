@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # PostgreSQL Database
   postgres:
@@ -10,10 +8,10 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-gomoku_db}
       POSTGRES_USER: ${POSTGRES_USER:-gomoku_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=peer"
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=scram-sha-256"
     # Remove port exposure for production - only expose for development
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "5434:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/init-db:/docker-entrypoint-initdb.d:ro
@@ -173,11 +171,11 @@ volumes:
     driver: local
 
 networks:
-  # Internal network for backend services (database, API)
+  # Internal network for backend services (database, API) - PRODUCTION SECURE
   backend_network:
     name: gomoku_backend
     driver: bridge
-    internal: true
+    internal: true  # Secure by default - no external port access in production
     ipam:
       config:
         - subnet: 172.20.1.0/24
