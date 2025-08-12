@@ -8,6 +8,7 @@ Separates business logic from API routes for better architecture.
 
 from typing import Optional, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import flag_modified
 
 from ..db.models import Game, GameMove, GameStatus, Player, User
 
@@ -108,6 +109,9 @@ class GameService:
         # Update the board state
         game.board_state["board"][row][col] = player_color.value
         game.move_count += 1
+        
+        # Mark the board_state field as modified so SQLAlchemy knows to update it
+        flag_modified(game, "board_state")
         
         # Check for win
         is_winning_move = self.check_win(game.board_state["board"], row, col, player_color.value)

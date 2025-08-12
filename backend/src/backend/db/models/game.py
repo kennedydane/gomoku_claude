@@ -21,16 +21,16 @@ from ..database import Base
 
 class GameStatus(Enum):
     """Enumeration of possible game statuses."""
-    WAITING = "waiting"      # Waiting for second player
-    ACTIVE = "active"        # Game in progress  
-    FINISHED = "finished"    # Game completed
-    ABANDONED = "abandoned"  # Game abandoned
+    WAITING = "WAITING"      # Waiting for second player
+    ACTIVE = "ACTIVE"        # Game in progress  
+    FINISHED = "FINISHED"    # Game completed
+    ABANDONED = "ABANDONED"  # Game abandoned
 
 
 class Player(Enum):
     """Enumeration of players in the game."""
-    BLACK = "black"
-    WHITE = "white"
+    BLACK = "BLACK"
+    WHITE = "WHITE"
 
 
 class Game(Base):
