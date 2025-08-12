@@ -11,6 +11,7 @@ from loguru import logger
 
 from .core.config import settings
 from .db.database import close_db, init_db
+from .api.router import api_router
 
 
 @asynccontextmanager
@@ -63,6 +64,9 @@ def create_app() -> FastAPI:
         allow_methods=settings.allowed_methods,
         allow_headers=settings.allowed_headers,
     )
+    
+    # Include API routes
+    app.include_router(api_router)
     
     # Health check endpoint
     @app.get("/health")
