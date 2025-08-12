@@ -5,14 +5,12 @@ This module contains tests for the RuleSet SQLAlchemy model following TDD princi
 Tests cover model creation, validation, relationships, and edge cases.
 """
 
-import json
-from datetime import datetime, timezone
-from typing import Any, Dict
+from datetime import datetime
 
 import pytest
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.db.models.ruleset import RuleSet
 
@@ -28,11 +26,11 @@ class TestRuleSetModel:
             allow_overlines=False,
             description="Standard Gomoku rules - exactly 5 in a row wins"
         )
-        
+
         db_session.add(ruleset)
         await db_session.commit()
         await db_session.refresh(ruleset)
-        
+
         assert ruleset.id is not None
         assert ruleset.name == "Standard"
         assert ruleset.board_size == 15
@@ -55,7 +53,7 @@ class TestRuleSetModel:
             },
             "board_size_restriction": 15
         }
-        
+
         ruleset = RuleSet(
             name="Renju",
             board_size=15,
@@ -63,11 +61,11 @@ class TestRuleSetModel:
             forbidden_moves=forbidden_moves,
             description="Renju rules with forbidden moves for Black"
         )
-        
+
         db_session.add(ruleset)
         await db_session.commit()
         await db_session.refresh(ruleset)
-        
+
         assert ruleset.name == "Renju"
         assert ruleset.board_size == 15
         assert ruleset.allow_overlines is False
@@ -82,11 +80,11 @@ class TestRuleSetModel:
             allow_overlines=True,
             description="Freestyle Gomoku - overlines count as wins"
         )
-        
+
         db_session.add(ruleset)
         await db_session.commit()
         await db_session.refresh(ruleset)
-        
+
         assert ruleset.name == "Freestyle"
         assert ruleset.board_size == 15
         assert ruleset.allow_overlines is True
@@ -98,7 +96,7 @@ class TestRuleSetModel:
             "win_condition": "unblocked_five_or_overline",
             "blocking_required": True
         }
-        
+
         ruleset = RuleSet(
             name="Caro",
             board_size=15,
@@ -106,11 +104,11 @@ class TestRuleSetModel:
             forbidden_moves=caro_rules,
             description="Caro rules - unblocked 5-in-a-row or overlines"
         )
-        
+
         db_session.add(ruleset)
         await db_session.commit()
         await db_session.refresh(ruleset)
-        
+
         assert ruleset.name == "Caro"
         assert ruleset.forbidden_moves == caro_rules
 
@@ -121,7 +119,7 @@ class TestRuleSetModel:
             "tournament_format": True,
             "phases": ["initial_moves", "swap_decision", "normal_play"]
         }
-        
+
         ruleset = RuleSet(
             name="Swap2",
             board_size=15,
@@ -129,11 +127,11 @@ class TestRuleSetModel:
             forbidden_moves=swap2_rules,
             description="Swap2 tournament opening rule"
         )
-        
+
         db_session.add(ruleset)
         await db_session.commit()
         await db_session.refresh(ruleset)
-        
+
         assert ruleset.name == "Swap2"
         assert ruleset.forbidden_moves == swap2_rules
 
@@ -174,7 +172,7 @@ class TestRuleSetValidation:
     async def test_valid_board_sizes(self, db_session: AsyncSession) -> None:
         """Test various valid board sizes."""
         valid_sizes = [15, 19, 13, 9]
-        
+
         for size in valid_sizes:
             ruleset = RuleSet(
                 name=f"Test_{size}",
@@ -182,9 +180,9 @@ class TestRuleSetValidation:
                 allow_overlines=False
             )
             db_session.add(ruleset)
-        
+
         await db_session.commit()
-        
+
         # Verify all were created
         result = await db_session.execute(select(RuleSet))
         rulesets = result.scalars().all()
@@ -200,7 +198,7 @@ class TestRuleSetValidation:
         )
         db_session.add(ruleset1)
         await db_session.commit()
-        
+
         # Try to create another with same name
         with pytest.raises(IntegrityError):
             ruleset2 = RuleSet(
@@ -218,11 +216,11 @@ class TestRuleSetValidation:
             board_size=15,
             allow_overlines=False
         )
-        
+
         db_session.add(ruleset)
         await db_session.commit()
         await db_session.refresh(ruleset)
-        
+
         assert ruleset.description is None
 
 
@@ -236,11 +234,11 @@ class TestRuleSetJSONField:
             board_size=15,
             allow_overlines=False
         )
-        
+
         db_session.add(ruleset)
         await db_session.commit()
         await db_session.refresh(ruleset)
-        
+
         assert ruleset.forbidden_moves == {}
 
     async def test_complex_forbidden_moves_structure(self, db_session: AsyncSession) -> None:
@@ -263,18 +261,18 @@ class TestRuleSetJSONField:
                 "opening_book": {"enabled": False, "depth": 0}
             }
         }
-        
+
         ruleset = RuleSet(
             name="Complex Rules",
             board_size=15,
             allow_overlines=False,
             forbidden_moves=complex_rules
         )
-        
+
         db_session.add(ruleset)
         await db_session.commit()
         await db_session.refresh(ruleset)
-        
+
         assert ruleset.forbidden_moves == complex_rules
         assert ruleset.forbidden_moves["renju"]["black_restrictions"]["three_three"]["enabled"] is True
 
@@ -286,18 +284,18 @@ class TestRuleSetJSONField:
             "number": 42.5,
             "unicode": "测试🎮"
         }
-        
+
         ruleset = RuleSet(
             name="JSON Test",
             board_size=15,
             allow_overlines=False,
             forbidden_moves=original_data
         )
-        
+
         db_session.add(ruleset)
         await db_session.commit()
         await db_session.refresh(ruleset)
-        
+
         assert ruleset.forbidden_moves == original_data
 
     async def test_update_forbidden_moves(self, db_session: AsyncSession) -> None:
@@ -308,17 +306,17 @@ class TestRuleSetJSONField:
             allow_overlines=False,
             forbidden_moves={"initial": "value"}
         )
-        
+
         db_session.add(ruleset)
         await db_session.commit()
         await db_session.refresh(ruleset)
-        
+
         # Update the JSON field
         new_rules = {"updated": "value", "count": 123}
         ruleset.forbidden_moves = new_rules
         await db_session.commit()
         await db_session.refresh(ruleset)
-        
+
         assert ruleset.forbidden_moves == new_rules
 
 
@@ -332,16 +330,16 @@ class TestRuleSetTimestamps:
             board_size=15,
             allow_overlines=False
         )
-        
+
         db_session.add(ruleset)
         await db_session.commit()
         await db_session.refresh(ruleset)
-        
+
         # Just verify that created_at is set to a valid datetime
         assert ruleset.created_at is not None
         assert isinstance(ruleset.created_at, datetime)
         assert ruleset.created_at.tzinfo is None  # SQLite compatibility
-        
+
         # Verify it's recent (within last few hours to account for timezone differences)
         now = datetime.now()
         time_diff = abs((now - ruleset.created_at).total_seconds())
@@ -354,11 +352,11 @@ class TestRuleSetTimestamps:
             board_size=15,
             allow_overlines=False
         )
-        
+
         db_session.add(ruleset)
         await db_session.commit()
         await db_session.refresh(ruleset)
-        
+
         assert ruleset.updated_at is not None
         assert ruleset.updated_at.tzinfo is None  # SQLite compatibility
         # On creation, updated_at should be very close to created_at
@@ -372,21 +370,21 @@ class TestRuleSetTimestamps:
             board_size=15,
             allow_overlines=False
         )
-        
+
         db_session.add(ruleset)
         await db_session.commit()
         await db_session.refresh(ruleset)
-        
+
         original_updated_at = ruleset.updated_at
-        
+
         # Wait a small amount and update
         import asyncio
         await asyncio.sleep(0.1)
-        
+
         ruleset.description = "Updated description"
         await db_session.commit()
         await db_session.refresh(ruleset)
-        
+
         assert ruleset.updated_at > original_updated_at
 
     async def test_created_at_unchanged_on_update(self, db_session: AsyncSession) -> None:
@@ -396,18 +394,18 @@ class TestRuleSetTimestamps:
             board_size=15,
             allow_overlines=False
         )
-        
+
         db_session.add(ruleset)
         await db_session.commit()
         await db_session.refresh(ruleset)
-        
+
         original_created_at = ruleset.created_at
-        
+
         # Update the record
         ruleset.description = "Updated description"
         await db_session.commit()
         await db_session.refresh(ruleset)
-        
+
         assert ruleset.created_at == original_created_at
 
 
@@ -421,17 +419,17 @@ class TestRuleSetQueries:
             RuleSet(name="Renju", board_size=15, allow_overlines=False),
             RuleSet(name="Freestyle", board_size=15, allow_overlines=True),
         ]
-        
+
         for ruleset in rulesets:
             db_session.add(ruleset)
         await db_session.commit()
-        
+
         # Query for specific ruleset
         result = await db_session.execute(
             select(RuleSet).where(RuleSet.name == "Renju")
         )
         renju_ruleset = result.scalar_one()
-        
+
         assert renju_ruleset.name == "Renju"
         assert renju_ruleset.allow_overlines is False
 
@@ -442,17 +440,17 @@ class TestRuleSetQueries:
             RuleSet(name="Standard", board_size=15, allow_overlines=False),
             RuleSet(name="Large", board_size=19, allow_overlines=False),
         ]
-        
+
         for ruleset in rulesets:
             db_session.add(ruleset)
         await db_session.commit()
-        
+
         # Query for 15x15 boards
         result = await db_session.execute(
             select(RuleSet).where(RuleSet.board_size == 15)
         )
         standard_ruleset = result.scalar_one()
-        
+
         assert standard_ruleset.board_size == 15
         assert standard_ruleset.name == "Standard"
 
@@ -463,17 +461,17 @@ class TestRuleSetQueries:
             RuleSet(name="Freestyle", board_size=15, allow_overlines=True),
             RuleSet(name="Caro", board_size=15, allow_overlines=True),
         ]
-        
+
         for ruleset in rulesets:
             db_session.add(ruleset)
         await db_session.commit()
-        
+
         # Query for rulesets that allow overlines
         result = await db_session.execute(
-            select(RuleSet).where(RuleSet.allow_overlines == True)
+            select(RuleSet).where(RuleSet.allow_overlines.is_(True))
         )
         overline_rulesets = result.scalars().all()
-        
+
         assert len(overline_rulesets) == 2
         names = {rs.name for rs in overline_rulesets}
         assert names == {"Freestyle", "Caro"}
@@ -481,23 +479,23 @@ class TestRuleSetQueries:
     async def test_order_by_created_at(self, db_session: AsyncSession) -> None:
         """Test ordering rulesets by creation time."""
         import asyncio
-        
+
         ruleset1 = RuleSet(name="First", board_size=15, allow_overlines=False)
         db_session.add(ruleset1)
         await db_session.commit()
-        
+
         await asyncio.sleep(0.1)  # Ensure different timestamps
-        
+
         ruleset2 = RuleSet(name="Second", board_size=15, allow_overlines=False)
         db_session.add(ruleset2)
         await db_session.commit()
-        
+
         # Query ordered by created_at
         result = await db_session.execute(
             select(RuleSet).order_by(RuleSet.created_at)
         )
         ordered_rulesets = result.scalars().all()
-        
+
         assert len(ordered_rulesets) == 2
         assert ordered_rulesets[0].name == "First"
         assert ordered_rulesets[1].name == "Second"
@@ -510,17 +508,17 @@ class TestRuleSetEdgeCases:
     async def test_extremely_long_name(self, db_session: AsyncSession) -> None:
         """Test handling of very long ruleset names."""
         long_name = "A" * 500  # Very long name
-        
+
         ruleset = RuleSet(
             name=long_name,
             board_size=15,
             allow_overlines=False
         )
-        
+
         db_session.add(ruleset)
         await db_session.commit()
         await db_session.refresh(ruleset)
-        
+
         assert ruleset.name == long_name
 
     async def test_large_json_forbidden_moves(self, db_session: AsyncSession) -> None:
@@ -533,18 +531,18 @@ class TestRuleSetEdgeCases:
             }
             for i in range(1, 101)  # 100 rules
         }
-        
+
         ruleset = RuleSet(
             name="Large JSON",
             board_size=15,
             allow_overlines=False,
             forbidden_moves=large_data
         )
-        
+
         db_session.add(ruleset)
         await db_session.commit()
         await db_session.refresh(ruleset)
-        
+
         assert len(ruleset.forbidden_moves) == 100
         assert ruleset.forbidden_moves["rule_50"]["metadata"]["priority"] == 50
 
@@ -558,7 +556,7 @@ class TestRuleSetEdgeCases:
             "русский": "тест",
             "emoji": "🎮🔥⭐"
         }
-        
+
         ruleset = RuleSet(
             name="Unicode测试🎮",
             board_size=15,
@@ -566,11 +564,11 @@ class TestRuleSetEdgeCases:
             forbidden_moves=unicode_data,
             description="Description with 中文, 日本語, and emoji 🎮"
         )
-        
+
         db_session.add(ruleset)
         await db_session.commit()
         await db_session.refresh(ruleset)
-        
+
         assert ruleset.name == "Unicode测试🎮"
         assert "🎮🔥⭐" in ruleset.forbidden_moves["emoji"]
         assert "中文" in ruleset.description
@@ -584,7 +582,7 @@ class TestRuleSetEdgeCases:
             allow_overlines=False,
             forbidden_moves=None
         )
-        
+
         # Test with explicit empty dict
         ruleset2 = RuleSet(
             name="Empty Dict",
@@ -592,12 +590,12 @@ class TestRuleSetEdgeCases:
             allow_overlines=False,
             forbidden_moves={}
         )
-        
+
         db_session.add_all([ruleset1, ruleset2])
         await db_session.commit()
         await db_session.refresh(ruleset1)
         await db_session.refresh(ruleset2)
-        
+
         # Both should result in empty dict due to default value
         assert ruleset1.forbidden_moves == {}
         assert ruleset2.forbidden_moves == {}
@@ -609,18 +607,18 @@ class TestRuleSetClassMethods:
     async def test_create_standard_ruleset_factory(self, db_session: AsyncSession) -> None:
         """Test the create_standard_ruleset factory method."""
         ruleset = RuleSet.create_standard_ruleset()
-        
+
         assert ruleset.name == "Standard"
         assert ruleset.board_size == 15
         assert ruleset.allow_overlines is False
         assert ruleset.forbidden_moves == {}
         assert ruleset.description == "Standard Gomoku rules - exactly 5 in a row wins"
-        
+
         # Test that it can be persisted
         db_session.add(ruleset)
         await db_session.commit()
         await db_session.refresh(ruleset)
-        
+
         assert ruleset.id is not None
         assert ruleset.is_standard_gomoku is True
         assert ruleset.is_renju is False
@@ -629,7 +627,7 @@ class TestRuleSetClassMethods:
     async def test_create_renju_ruleset_factory(self, db_session: AsyncSession) -> None:
         """Test the create_renju_ruleset factory method."""
         ruleset = RuleSet.create_renju_ruleset()
-        
+
         assert ruleset.name == "Renju"
         assert ruleset.board_size == 15
         assert ruleset.allow_overlines is False
@@ -638,12 +636,12 @@ class TestRuleSetClassMethods:
         assert ruleset.forbidden_moves["black_forbidden"]["four_four"] is True
         assert ruleset.forbidden_moves["black_forbidden"]["overlines"] is True
         assert ruleset.description == "Renju rules with forbidden moves for Black (3-3, 4-4, overlines)"
-        
+
         # Test that it can be persisted
         db_session.add(ruleset)
         await db_session.commit()
         await db_session.refresh(ruleset)
-        
+
         assert ruleset.id is not None
         assert ruleset.is_standard_gomoku is False
         assert ruleset.is_renju is True
@@ -652,18 +650,18 @@ class TestRuleSetClassMethods:
     async def test_create_freestyle_ruleset_factory(self, db_session: AsyncSession) -> None:
         """Test the create_freestyle_ruleset factory method."""
         ruleset = RuleSet.create_freestyle_ruleset()
-        
+
         assert ruleset.name == "Freestyle"
         assert ruleset.board_size == 15
         assert ruleset.allow_overlines is True
         assert ruleset.forbidden_moves == {}
         assert ruleset.description == "Freestyle Gomoku - overlines count as wins"
-        
+
         # Test that it can be persisted
         db_session.add(ruleset)
         await db_session.commit()
         await db_session.refresh(ruleset)
-        
+
         assert ruleset.id is not None
         assert ruleset.is_standard_gomoku is False
         assert ruleset.is_renju is False
@@ -672,7 +670,7 @@ class TestRuleSetClassMethods:
     async def test_create_caro_ruleset_factory(self, db_session: AsyncSession) -> None:
         """Test the create_caro_ruleset factory method."""
         ruleset = RuleSet.create_caro_ruleset()
-        
+
         assert ruleset.name == "Caro"
         assert ruleset.board_size == 15
         assert ruleset.allow_overlines is True
@@ -680,18 +678,18 @@ class TestRuleSetClassMethods:
         assert ruleset.forbidden_moves["win_condition"] == "unblocked_five_or_overline"
         assert ruleset.forbidden_moves["blocking_required"] is True
         assert ruleset.description == "Caro rules - unblocked 5-in-a-row or overlines to win"
-        
+
         # Test that it can be persisted
         db_session.add(ruleset)
         await db_session.commit()
         await db_session.refresh(ruleset)
-        
+
         assert ruleset.id is not None
 
     async def test_create_swap2_ruleset_factory(self, db_session: AsyncSession) -> None:
         """Test the create_swap2_ruleset factory method."""
         ruleset = RuleSet.create_swap2_ruleset()
-        
+
         assert ruleset.name == "Swap2"
         assert ruleset.board_size == 15
         assert ruleset.allow_overlines is False
@@ -700,12 +698,12 @@ class TestRuleSetClassMethods:
         assert ruleset.forbidden_moves["tournament_format"] is True
         assert "phases" in ruleset.forbidden_moves
         assert ruleset.description == "Swap2 tournament opening rule"
-        
+
         # Test that it can be persisted
         db_session.add(ruleset)
         await db_session.commit()
         await db_session.refresh(ruleset)
-        
+
         assert ruleset.id is not None
         assert ruleset.has_opening_rule() is True
 
@@ -718,17 +716,17 @@ class TestRuleSetClassMethods:
             RuleSet.create_caro_ruleset(),
             RuleSet.create_swap2_ruleset(),
         ]
-        
+
         names = {rs.name for rs in rulesets}
         assert len(names) == 5  # All names should be unique
         assert names == {"Standard", "Renju", "Freestyle", "Caro", "Swap2"}
-        
+
         # Test that they can all be persisted
         for ruleset in rulesets:
             db_session.add(ruleset)
-        
+
         await db_session.commit()
-        
+
         # Verify all were saved
         result = await db_session.execute(select(RuleSet))
         saved_rulesets = result.scalars().all()
@@ -743,15 +741,15 @@ class TestRuleSetProperties:
         # Standard ruleset should return True
         standard = RuleSet.create_standard_ruleset()
         assert standard.is_standard_gomoku is True
-        
+
         # Renju should return False (has forbidden moves)
         renju = RuleSet.create_renju_ruleset()
         assert renju.is_standard_gomoku is False
-        
+
         # Freestyle should return False (allows overlines)
         freestyle = RuleSet.create_freestyle_ruleset()
         assert freestyle.is_standard_gomoku is False
-        
+
         # Custom standard-like but with wrong board size
         custom = RuleSet(
             name="Custom",
@@ -759,7 +757,7 @@ class TestRuleSetProperties:
             allow_overlines=False
         )
         assert custom.is_standard_gomoku is True  # Still valid for different sizes
-        
+
         # Custom with forbidden moves
         custom_with_rules = RuleSet(
             name="Custom Rules",
@@ -774,11 +772,11 @@ class TestRuleSetProperties:
         # Renju ruleset should return True
         renju = RuleSet.create_renju_ruleset()
         assert renju.is_renju is True
-        
+
         # Standard should return False
         standard = RuleSet.create_standard_ruleset()
         assert standard.is_renju is False
-        
+
         # Custom renju-like with black_forbidden
         custom_renju = RuleSet(
             name="Custom Renju",
@@ -787,7 +785,7 @@ class TestRuleSetProperties:
             forbidden_moves={"black_forbidden": {"three_three": True}}
         )
         assert custom_renju.is_renju is True
-        
+
         # Wrong board size for renju
         wrong_size = RuleSet(
             name="Wrong Size",
@@ -802,11 +800,11 @@ class TestRuleSetProperties:
         # Freestyle ruleset should return True
         freestyle = RuleSet.create_freestyle_ruleset()
         assert freestyle.is_freestyle is True
-        
+
         # Standard should return False
         standard = RuleSet.create_standard_ruleset()
         assert standard.is_freestyle is False
-        
+
         # Custom freestyle with overlines but no black forbidden moves
         custom_freestyle = RuleSet(
             name="Custom Freestyle",
@@ -815,7 +813,7 @@ class TestRuleSetProperties:
             forbidden_moves={"other": "rules"}
         )
         assert custom_freestyle.is_freestyle is True
-        
+
         # Allows overlines but has black forbidden moves (not pure freestyle)
         mixed = RuleSet(
             name="Mixed",
@@ -829,14 +827,14 @@ class TestRuleSetProperties:
         """Test the get_forbidden_moves_for_player method."""
         # Renju ruleset with black forbidden moves
         renju = RuleSet.create_renju_ruleset()
-        
+
         black_rules = renju.get_forbidden_moves_for_player(is_black=True)
         assert "three_three" in black_rules
         assert black_rules["three_three"] is True
-        
+
         white_rules = renju.get_forbidden_moves_for_player(is_black=False)
         assert white_rules == {}  # No white restrictions in standard Renju
-        
+
         # Custom ruleset with both black and white rules
         custom = RuleSet(
             name="Custom",
@@ -847,13 +845,13 @@ class TestRuleSetProperties:
                 "white_forbidden": {"some_rule": True}
             }
         )
-        
+
         black_rules = custom.get_forbidden_moves_for_player(is_black=True)
         assert black_rules == {"three_three": True}
-        
+
         white_rules = custom.get_forbidden_moves_for_player(is_black=False)
         assert white_rules == {"some_rule": True}
-        
+
         # Empty ruleset
         empty = RuleSet.create_standard_ruleset()
         assert empty.get_forbidden_moves_for_player(is_black=True) == {}
@@ -864,11 +862,11 @@ class TestRuleSetProperties:
         # Swap2 should have opening rule
         swap2 = RuleSet.create_swap2_ruleset()
         assert swap2.has_opening_rule() is True
-        
+
         # Standard should not
         standard = RuleSet.create_standard_ruleset()
         assert standard.has_opening_rule() is False
-        
+
         # Custom with tournament settings
         tournament = RuleSet(
             name="Tournament",
@@ -883,11 +881,11 @@ class TestRuleSetProperties:
         # Standard Gomoku
         standard = RuleSet.create_standard_ruleset()
         assert standard.get_win_condition() == "Exactly 5 in a row"
-        
+
         # Freestyle allows overlines
         freestyle = RuleSet.create_freestyle_ruleset()
         assert freestyle.get_win_condition() == "5 or more in a row"
-        
+
         # Custom without overlines
         custom = RuleSet(
             name="Custom",
@@ -899,13 +897,13 @@ class TestRuleSetProperties:
     async def test_to_dict_method(self, db_session: AsyncSession) -> None:
         """Test the to_dict serialization method."""
         ruleset = RuleSet.create_renju_ruleset()
-        
+
         db_session.add(ruleset)
         await db_session.commit()
         await db_session.refresh(ruleset)
-        
+
         result = ruleset.to_dict()
-        
+
         # Check all expected keys are present
         expected_keys = {
             "id", "name", "board_size", "allow_overlines", "forbidden_moves",
@@ -913,7 +911,7 @@ class TestRuleSetProperties:
             "is_standard_gomoku", "is_renju", "is_freestyle", "has_opening_rule"
         }
         assert set(result.keys()) == expected_keys
-        
+
         # Check values
         assert result["id"] == ruleset.id
         assert result["name"] == "Renju"
@@ -932,15 +930,15 @@ class TestRuleSetProperties:
             board_size=15,
             allow_overlines=False
         )
-        
+
         db_session.add(ruleset)
         await db_session.commit()
         await db_session.refresh(ruleset)
-        
+
         # Test __str__
         str_result = str(ruleset)
         assert str_result == "Test (15x15)"
-        
+
         # Test __repr__
         repr_result = repr(ruleset)
         expected = f"<RuleSet(id={ruleset.id}, name='Test', board_size=15, allow_overlines=False)>"
