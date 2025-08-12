@@ -211,13 +211,13 @@ async def sample_ruleset(db_session) -> "RuleSet":
 
 
 @pytest_asyncio.fixture 
-async def sample_game(db_session, sample_user, sample_ruleset) -> "Game":
+async def sample_game(db_session, sample_user, sample_user2, sample_ruleset) -> "Game":
     """Create a sample game for testing."""
     from backend.db.models import Game, GameStatus
     
     game = Game(
         black_player_id=sample_user.id,
-        white_player_id=None,
+        white_player_id=sample_user2.id,
         ruleset_id=sample_ruleset.id,
         status=GameStatus.ACTIVE
     )

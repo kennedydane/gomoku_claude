@@ -49,9 +49,16 @@ class TestGameModel:
         await db_session.refresh(black_player)
         await db_session.refresh(ruleset)
 
+        # Create white player 
+        white_player = User(username="whitetest")
+        db_session.add(white_player)
+        await db_session.commit()
+        await db_session.refresh(white_player)
+        
         # Create game
         game = Game(
             black_player_id=black_player.id,
+            white_player_id=white_player.id,
             ruleset_id=ruleset.id
         )
 
@@ -63,7 +70,7 @@ class TestGameModel:
         assert isinstance(game.id, str)  # UUID as string
         assert len(game.id) == 36  # UUID format
         assert game.black_player_id == black_player.id
-        assert game.white_player_id is None
+        assert game.white_player_id == white_player.id
         assert game.ruleset_id == ruleset.id
         assert game.status == GameStatus.WAITING
         assert game.current_player == Player.BLACK
