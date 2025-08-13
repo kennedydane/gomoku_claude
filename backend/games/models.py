@@ -97,6 +97,7 @@ class Game(models.Model):
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name='games_as_black',
+        db_index=True,  # Index for player queries
         help_text="Player with black stones"
     )
     
@@ -104,6 +105,7 @@ class Game(models.Model):
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name='games_as_white',
+        db_index=True,  # Index for player queries
         help_text="Player with white stones"
     )
     
@@ -111,6 +113,7 @@ class Game(models.Model):
         RuleSet,
         on_delete=models.RESTRICT,
         related_name='games',
+        db_index=True,  # Index for ruleset queries
         help_text="Rule set for this game"
     )
     
@@ -160,7 +163,10 @@ class Game(models.Model):
         help_text="When the game finished"
     )
     
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        db_index=True  # Index for date-based queries
+    )
     updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
@@ -170,6 +176,9 @@ class Game(models.Model):
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['status', 'created_at']),
+            models.Index(fields=['black_player', 'status']),
+            models.Index(fields=['white_player', 'status']),
+            models.Index(fields=['finished_at']),
         ]
     
     def __str__(self):
@@ -217,6 +226,7 @@ class GameMove(models.Model):
         Game,
         on_delete=models.CASCADE,
         related_name='moves',
+        db_index=True,  # Index for game-specific move queries
         help_text="Game this move belongs to"
     )
     
@@ -224,6 +234,7 @@ class GameMove(models.Model):
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name='moves',
+        db_index=True,  # Index for player move history
         help_text="Player who made this move"
     )
     
@@ -252,7 +263,10 @@ class GameMove(models.Model):
         help_text="Whether this move won the game"
     )
     
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        db_index=True  # Index for chronological move queries
+    )
     
     class Meta:
         db_table = 'game_moves'
@@ -262,6 +276,11 @@ class GameMove(models.Model):
         unique_together = [
             ['game', 'move_number'],
             ['game', 'row', 'col']
+        ]
+        indexes = [
+            models.Index(fields=['game', 'move_number']),
+            models.Index(fields=['player', 'created_at']),
+            models.Index(fields=['is_winning_move']),
         ]
     
     def __str__(self):

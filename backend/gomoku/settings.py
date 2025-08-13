@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     
     # Third party apps
     'rest_framework',
+    'rest_framework.authtoken',
     'corsheaders',
     'django_extensions',
     'django_eventstream',
@@ -153,6 +154,14 @@ REST_FRAMEWORK = {
     'DEFAULT_PARSER_CLASSES': [
         'rest_framework.parsers.JSONParser',
     ],
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.SessionAuthentication',
+        'rest_framework.authentication.TokenAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+    'EXCEPTION_HANDLER': 'core.exceptions.custom_exception_handler',
 }
 
 # CORS settings
@@ -166,9 +175,16 @@ CORS_ALLOW_CREDENTIALS = True
 # Session settings
 SESSION_SERIALIZER = 'django.contrib.sessions.serializers.JSONSerializer'
 
-# Debug settings
+# Debug settings - more secure CORS configuration
 if DEBUG:
-    CORS_ALLOW_ALL_ORIGINS = True
+    # Allow localhost origins for development
+    CORS_ALLOWED_ORIGINS += [
+        'http://localhost:8080',
+        'http://127.0.0.1:8080',
+    ]
+else:
+    # Production should only allow specific origins
+    pass
 
 # Fix URL slash issues for development
 APPEND_SLASH = False

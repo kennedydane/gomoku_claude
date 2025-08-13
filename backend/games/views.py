@@ -5,8 +5,10 @@ DRF viewsets for game management.
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import ValidationError, APIException
+from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
+from core.exceptions import GameError, InvalidMoveError, GameStateError, PlayerError
 
 from .models import (
     RuleSet, Game, GameMove, PlayerSession,
@@ -32,7 +34,32 @@ class GameViewSet(viewsets.ModelViewSet):
     """
     ViewSet for Game management.
     """
-    queryset = Game.objects.all()
+    queryset = Game.objects.select_related(
+        'black_player', 'white_player', 'winner', 'ruleset'
+    ).prefetch_related('moves')
+    permission_classes = [IsAuthenticated]
+    http_method_names = ['get', 'post']  # Only allow GET (list/retrieve) and POST (create/actions)
+    
+    def update(self, request, *args, **kwargs):
+        """Disable PUT/PATCH updates."""
+        return Response(
+            {'error': {'code': 'METHOD_NOT_ALLOWED', 'message': 'Games cannot be updated directly'}},
+            status=status.HTTP_405_METHOD_NOT_ALLOWED
+        )
+    
+    def partial_update(self, request, *args, **kwargs):
+        """Disable PATCH updates."""
+        return Response(
+            {'error': {'code': 'METHOD_NOT_ALLOWED', 'message': 'Games cannot be updated directly'}},
+            status=status.HTTP_405_METHOD_NOT_ALLOWED
+        )
+    
+    def destroy(self, request, *args, **kwargs):
+        """Disable DELETE."""
+        return Response(
+            {'error': {'code': 'METHOD_NOT_ALLOWED', 'message': 'Games cannot be deleted'}},
+            status=status.HTTP_405_METHOD_NOT_ALLOWED
+        )
     
     def get_serializer_class(self):
         """Use different serializers for different actions."""
@@ -48,37 +75,34 @@ class GameViewSet(viewsets.ModelViewSet):
             game.start_game()
             serializer = GameSerializer(game)
             return Response(serializer.data)
-        except ValueError as e:
-            return Response(
-                {'error': str(e)},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        except (ValueError, GameError) as e:
+            # Convert to DRF exception for proper handling
+            raise ValidationError(str(e))
     
     @action(detail=True, methods=['post'])
     def move(self, request, pk=None):
         """Make a move in the game."""
         game = self.get_object()
-        serializer = MakeMoveSerializer(data=request.data)
         
+        # Check if authenticated user is a player in this game
+        user = request.user
+        if user.id not in [game.black_player_id, game.white_player_id]:
+            return Response(
+                {'error': 'You are not a player in this game'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        serializer = MakeMoveSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(
                 serializer.errors,
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Get player ID from request (assuming authentication is set up)
-        # For now, we'll require it in the request
-        player_id = request.data.get('player_id')
-        if not player_id:
-            return Response(
-                {'error': 'player_id is required'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
         try:
             move = GameService.make_move(
                 game,
-                player_id,
+                user.id,
                 serializer.validated_data['row'],
                 serializer.validated_data['col']
             )
@@ -106,17 +130,18 @@ class GameViewSet(viewsets.ModelViewSet):
             
             return Response(GameMoveSerializer(move).data)
             
+        except (InvalidMoveError, GameStateError, PlayerError) as e:
+            # These will be handled by our custom exception handler
+            raise ValidationError(str(e))
         except ValueError as e:
-            return Response(
-                {'error': str(e)},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            # Fallback for any other ValueError
+            raise ValidationError(str(e))
     
     @action(detail=True, methods=['get'])
     def moves(self, request, pk=None):
         """Get all moves for a game."""
         game = self.get_object()
-        moves = game.moves.all()
+        moves = game.moves.select_related('player').all()
         serializer = GameMoveSerializer(moves, many=True)
         return Response(serializer.data)
     
@@ -124,16 +149,17 @@ class GameViewSet(viewsets.ModelViewSet):
     def resign(self, request, pk=None):
         """Resign from a game."""
         game = self.get_object()
-        player_id = request.data.get('player_id')
         
-        if not player_id:
+        # Check if authenticated user is a player in this game
+        user = request.user
+        if user.id not in [game.black_player_id, game.white_player_id]:
             return Response(
-                {'error': 'player_id is required'},
-                status=status.HTTP_400_BAD_REQUEST
+                {'error': 'You are not a player in this game'},
+                status=status.HTTP_403_FORBIDDEN
             )
         
         try:
-            GameService.resign_game(game, player_id)
+            GameService.resign_game(game, user.id)
             
             # Create game event
             for player in [game.black_player, game.white_player]:
@@ -142,18 +168,19 @@ class GameViewSet(viewsets.ModelViewSet):
                     event_type='resign',
                     event_data={
                         'game_id': str(game.id),
-                        'resigned_player_id': player_id,
+                        'resigned_player_id': user.id,
                         'winner_id': game.winner_id
                     }
                 )
             
             return Response(GameSerializer(game).data)
             
+        except (GameStateError, PlayerError) as e:
+            # These will be handled by our custom exception handler
+            raise ValidationError(str(e))
         except ValueError as e:
-            return Response(
-                {'error': str(e)},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            # Fallback for any other ValueError
+            raise ValidationError(str(e))
 
 
 class PlayerSessionViewSet(viewsets.ModelViewSet):
@@ -186,7 +213,7 @@ class ChallengeViewSet(viewsets.ModelViewSet):
     """
     ViewSet for Challenge management.
     """
-    queryset = Challenge.objects.all()
+    queryset = Challenge.objects.select_related('challenger', 'challenged')
     serializer_class = ChallengeSerializer
     
     def create(self, request, *args, **kwargs):

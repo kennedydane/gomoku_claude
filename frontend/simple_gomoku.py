@@ -19,6 +19,7 @@ current_player = "black"
 game_id: Optional[str] = None
 black_player_id = 1
 white_player_id = 2
+auth_token: Optional[str] = None
 
 logger.info("Gomoku GUI initialized")
 logger.debug(f"Player IDs - Black: {black_player_id}, White: {white_player_id}")
@@ -47,7 +48,7 @@ def draw_board():
 
 def cell_clicked(sender, app_data, user_data):
     """Handle cell click."""
-    global current_player, game_id
+    global current_player, game_id, auth_token
     row, col = user_data
     
     logger.debug(f"Cell clicked at ({row}, {col})")
@@ -62,6 +63,11 @@ def cell_clicked(sender, app_data, user_data):
         logger.error("No active game - cannot make move")
         dpg.set_value("status_text", "Please create a game first!")
         return
+        
+    if not auth_token:
+        logger.error("Not authenticated - cannot make move")
+        dpg.set_value("status_text", "Please login first!")
+        return
     
     # Make the move via API
     player_id = black_player_id if current_player == "black" else white_player_id
@@ -70,13 +76,16 @@ def cell_clicked(sender, app_data, user_data):
         global current_player
         logger.info(f"Making move: player={current_player}, position=({row}, {col}), game_id={game_id}")
         
+        headers = {"Authorization": f"Token {auth_token}"}
+        
         async with httpx.AsyncClient() as client:
             try:
                 url = f"http://localhost:8001/api/v1/games/{game_id}/move/"
-                payload = {"player_id": player_id, "row": row, "col": col}
+                payload = {"row": row, "col": col}
                 logger.debug(f"POST {url} with payload: {payload}")
+                logger.debug(f"Headers: {headers}")
                 
-                response = await client.post(url, json=payload)
+                response = await client.post(url, json=payload, headers=headers)
                 logger.debug(f"Response status: {response.status_code}")
                 logger.debug(f"Response headers: {dict(response.headers)}")
                 
@@ -124,13 +133,57 @@ def cell_clicked(sender, app_data, user_data):
     
     asyncio.run(make_move())
 
+def login_user():
+    """Login user and get auth token."""
+    global auth_token
+    
+    async def authenticate():
+        global auth_token
+        logger.info("Logging in user...")
+        
+        async with httpx.AsyncClient() as client:
+            try:
+                # For demo purposes, login as admin user
+                auth_payload = {
+                    "username": "admin",
+                    "password": "admin123"
+                }
+                url = "http://localhost:8001/api/v1/auth/token/"
+                logger.debug(f"Auth request to {url}")
+                
+                response = await client.post(url, json=auth_payload)
+                logger.debug(f"Auth response status: {response.status_code}")
+                
+                if response.status_code == 200:
+                    token_data = response.json()
+                    auth_token = token_data["token"]
+                    logger.info(f"Authentication successful, token: {auth_token[:10]}...")
+                    dpg.set_value("status_text", "Login successful!")
+                else:
+                    error_data = response.json() if response.text else {"error": "Unknown error"}
+                    logger.error(f"Authentication failed: {error_data}")
+                    dpg.set_value("status_text", f"Login failed: {error_data.get('error', 'Unknown')}")
+                    
+            except Exception as e:
+                logger.error(f"Login error: {e}")
+                dpg.set_value("status_text", f"Login error: {e}")
+    
+    asyncio.run(authenticate())
+
 def create_new_game():
     """Create a new game."""
-    global game_id, board_state, current_player
+    global game_id, board_state, current_player, auth_token
+    
+    if not auth_token:
+        logger.warning("Not authenticated! Please login first.")
+        dpg.set_value("status_text", "Not authenticated! Login first.")
+        return
     
     async def create():
         global game_id, board_state, current_player
         logger.info("Creating new game...")
+        
+        headers = {"Authorization": f"Token {auth_token}"}
         
         async with httpx.AsyncClient() as client:
             try:
@@ -144,7 +197,8 @@ def create_new_game():
                 
                 response = await client.post(
                     "http://localhost:8001/api/v1/games/",
-                    json=create_payload
+                    json=create_payload,
+                    headers=headers
                 )
                 
                 logger.debug(f"Create game response status: {response.status_code}")
@@ -159,7 +213,7 @@ def create_new_game():
                     start_url = f"http://localhost:8001/api/v1/games/{game_id}/start/"
                     logger.debug(f"Starting game at: {start_url}")
                     
-                    response = await client.post(start_url)
+                    response = await client.post(start_url, headers=headers)
                     logger.debug(f"Start game response status: {response.status_code}")
                     logger.debug(f"Start game response: {response.text}")
                     
@@ -202,6 +256,7 @@ with dpg.window(label="Simple Gomoku", tag="main_window"):
     dpg.add_text("Simple Gomoku Game")
     dpg.add_separator()
     
+    dpg.add_button(label="Login", callback=login_user)
     dpg.add_button(label="New Game", callback=create_new_game)
     dpg.add_text("Click on the board to make moves", color=(150, 150, 150))
     dpg.add_text("Status: Ready", tag="status_text")

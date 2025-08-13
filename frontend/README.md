@@ -7,15 +7,18 @@ A Python-based GUI frontend for the Gomoku game that connects to a Django REST A
 This frontend provides a clean, intuitive interface for playing Gomoku (Five-in-a-Row) with the following features:
 
 - **Interactive Board**: Click-to-place stone mechanics on a 15x15 grid
+- **Authentication**: Login system with token-based authentication
 - **Real-time Gameplay**: Alternating turns between black and white players
 - **Win Detection**: Automatic detection of 5-in-a-row victories
-- **Game Management**: Start new games, reset board state
-- **Backend Integration**: Communicates with Django REST API for game logic
+- **Game Management**: Login, start new games, reset board state
+- **Debug Logging**: Comprehensive logging with loguru for troubleshooting
+- **Backend Integration**: Secure REST API communication with Django backend
 
 ## Architecture
 
-- **GUI Framework**: Tkinter (Python standard library)
-- **API Client**: Custom HTTP client using `requests` library
+- **GUI Framework**: DearPyGui (Modern OpenGL-based interface)
+- **API Client**: httpx async HTTP client with comprehensive logging
+- **Authentication**: Token-based authentication system
 - **Backend**: Django REST API running on `http://localhost:8001`
 
 ## Quick Start
@@ -47,9 +50,19 @@ This frontend provides a clean, intuitive interface for playing Gomoku (Five-in-
 
 ## Game Controls
 
-- **Mouse Click**: Place stones on board intersections
-- **New Game Button**: Start a fresh game
+- **Login Button**: Authenticate with backend (username: admin, password: admin123)
+- **New Game Button**: Start a fresh game (requires login)
+- **Mouse Click**: Place stones on board intersections (requires active game)
 - **Window Close**: Exit the application
+
+## Authentication
+
+The frontend requires authentication to interact with the backend:
+
+1. Click "Login" button (uses hardcoded admin credentials)
+2. Backend returns authentication token
+3. All subsequent API calls include token in Authorization header
+4. Without authentication, moves and game creation will fail
 
 ## Game Rules
 
@@ -86,12 +99,14 @@ The frontend connects to the Django backend's REST API:
 
 - **Base URL**: `http://localhost:8001/api/v1/`
 - **Endpoints Used**:
+  - `POST /auth/token/` - Get authentication token
   - `GET /games/` - List games
   - `POST /games/` - Create new game
   - `POST /games/{id}/start/` - Start game
-  - `POST /games/{id}/move/` - Make move
+  - `POST /games/{id}/move/` - Make move (authenticated)
   - `GET /users/` - Get player information
   - `GET /rulesets/` - Get game rules
+- **Authentication**: All requests include `Authorization: Token <token>` header
 
 ## Testing
 

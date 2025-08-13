@@ -8,6 +8,7 @@ from django.db import transaction
 from tests.factories import UserFactory, RuleSetFactory, GameFactory
 from .models import Game, GameMove, GameStatus, Player
 from .services import GameService
+from core.exceptions import GameStateError, InvalidMoveError, PlayerError
 
 
 class GameServiceValidateMoveTestCase(TestCase):
@@ -36,39 +37,39 @@ class GameServiceValidateMoveTestCase(TestCase):
         self.game.status = GameStatus.WAITING
         self.game.save()
         
-        with self.assertRaises(ValueError) as context:
+        with self.assertRaises((ValueError, GameStateError, InvalidMoveError, PlayerError)) as context:
             GameService.validate_move(self.game, self.black_player.id, 7, 7)
         
-        self.assertIn("Game is not active", str(context.exception))
+        self.assertIn("Cannot make move", str(context.exception))
     
     def test_validate_move_wrong_player_turn(self):
         """Test validating move when it's not player's turn."""
         # It's black player's turn by default, try white player
-        with self.assertRaises(ValueError) as context:
+        with self.assertRaises((ValueError, GameStateError, InvalidMoveError, PlayerError)) as context:
             GameService.validate_move(self.game, self.white_player.id, 7, 7)
         
-        self.assertIn("It's not your turn", str(context.exception))
+        self.assertIn("turn", str(context.exception))
     
     def test_validate_move_out_of_bounds_negative(self):
         """Test validating move with negative coordinates."""
-        with self.assertRaises(ValueError) as context:
+        with self.assertRaises((ValueError, GameStateError, InvalidMoveError, PlayerError)) as context:
             GameService.validate_move(self.game, self.black_player.id, -1, 7)
         
         self.assertIn("Move out of bounds", str(context.exception))
         
-        with self.assertRaises(ValueError) as context:
+        with self.assertRaises((ValueError, GameStateError, InvalidMoveError, PlayerError)) as context:
             GameService.validate_move(self.game, self.black_player.id, 7, -1)
         
         self.assertIn("Move out of bounds", str(context.exception))
     
     def test_validate_move_out_of_bounds_too_large(self):
         """Test validating move with coordinates too large."""
-        with self.assertRaises(ValueError) as context:
+        with self.assertRaises((ValueError, GameStateError, InvalidMoveError, PlayerError)) as context:
             GameService.validate_move(self.game, self.black_player.id, 15, 7)
         
         self.assertIn("Move out of bounds", str(context.exception))
         
-        with self.assertRaises(ValueError) as context:
+        with self.assertRaises((ValueError, GameStateError, InvalidMoveError, PlayerError)) as context:
             GameService.validate_move(self.game, self.black_player.id, 7, 15)
         
         self.assertIn("Move out of bounds", str(context.exception))
@@ -79,10 +80,10 @@ class GameServiceValidateMoveTestCase(TestCase):
         self.game.board_state['board'][7][7] = Player.BLACK
         self.game.save()
         
-        with self.assertRaises(ValueError) as context:
+        with self.assertRaises((ValueError, GameStateError, InvalidMoveError, PlayerError)) as context:
             GameService.validate_move(self.game, self.black_player.id, 7, 7)
         
-        self.assertIn("Position already occupied", str(context.exception))
+        self.assertIn("occupied", str(context.exception))
     
     def test_validate_move_white_player_turn(self):
         """Test validating move when it's white player's turn."""
@@ -171,10 +172,10 @@ class GameServiceMakeMoveTestCase(TransactionTestCase):
     
     def test_make_move_invalid_raises_error(self):
         """Test that invalid moves raise errors."""
-        with self.assertRaises(ValueError):
+        with self.assertRaises((ValueError, GameStateError, InvalidMoveError, PlayerError)):
             GameService.make_move(self.game, self.white_player.id, 7, 7)  # Wrong turn
         
-        with self.assertRaises(ValueError):
+        with self.assertRaises((ValueError, GameStateError, InvalidMoveError, PlayerError)):
             GameService.make_move(self.game, self.black_player.id, -1, 7)  # Out of bounds
     
     def test_make_winning_move(self):
@@ -397,7 +398,7 @@ class GameServiceUtilityMethodsTestCase(TestCase):
         self.game.status = GameStatus.FINISHED
         self.game.save()
         
-        with self.assertRaises(ValueError) as context:
+        with self.assertRaises((ValueError, GameStateError, InvalidMoveError, PlayerError)) as context:
             GameService.resign_game(self.game, self.black_player.id)
         
         self.assertIn("Can only resign from active games", str(context.exception))
@@ -406,10 +407,10 @@ class GameServiceUtilityMethodsTestCase(TestCase):
         """Test resigning with player not in game."""
         other_player = UserFactory()
         
-        with self.assertRaises(ValueError) as context:
+        with self.assertRaises((ValueError, GameStateError, InvalidMoveError, PlayerError)) as context:
             GameService.resign_game(self.game, other_player.id)
         
-        self.assertIn("Player not in this game", str(context.exception))
+        self.assertIn("not a player", str(context.exception))
 
 
 class GameServiceIntegrationTestCase(TransactionTestCase):

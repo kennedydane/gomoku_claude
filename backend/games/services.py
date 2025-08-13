@@ -7,6 +7,7 @@ win detection, and game state management.
 
 from typing import Optional, Tuple
 from django.db import transaction
+from core.exceptions import InvalidMoveError, GameStateError, PlayerError
 
 from .models import Game, GameMove, GameStatus, Player
 
@@ -34,7 +35,10 @@ class GameService:
         """
         # Check if game is active
         if game.status != GameStatus.ACTIVE:
-            raise ValueError("Game is not active")
+            raise GameStateError(
+                f"Cannot make move in game with status: {game.status}",
+                details={'current_status': game.status, 'game_id': str(game.id)}
+            )
         
         # Check if it's the correct player's turn
         if game.current_player == Player.BLACK:
@@ -43,17 +47,35 @@ class GameService:
             expected_player_id = game.white_player_id
         
         if player_id != expected_player_id:
-            raise ValueError("It's not your turn")
+            current_player_name = "Black" if game.current_player == Player.BLACK else "White"
+            raise PlayerError(
+                f"It's {current_player_name}'s turn, not yours",
+                details={
+                    'current_player': current_player_name,
+                    'expected_player_id': expected_player_id,
+                    'actual_player_id': player_id
+                }
+            )
         
         # Check board boundaries
         board_size = game.ruleset.board_size
         if row < 0 or row >= board_size or col < 0 or col >= board_size:
-            raise ValueError(f"Move out of bounds. Board size is {board_size}x{board_size}")
+            raise InvalidMoveError(
+                f"Move out of bounds. Board size is {board_size}x{board_size}",
+                details={
+                    'row': row, 'col': col, 
+                    'board_size': board_size,
+                    'valid_range': f"0-{board_size-1}"
+                }
+            )
         
         # Check if position is already occupied
         board = game.board_state.get('board', [])
         if board and board[row][col] is not None:
-            raise ValueError("Position already occupied")
+            raise InvalidMoveError(
+                f"Position ({row}, {col}) is already occupied",
+                details={'row': row, 'col': col, 'occupied_by': board[row][col]}
+            )
     
     @staticmethod
     @transaction.atomic
@@ -73,6 +95,9 @@ class GameService:
         Raises:
             ValueError: If the move is invalid
         """
+        # Refresh game from database with lock to prevent race conditions
+        game = Game.objects.select_for_update().get(pk=game.pk)
+        
         # Validate the move
         GameService.validate_move(game, player_id, row, col)
         
@@ -218,7 +243,10 @@ class GameService:
             player_id: ID of the resigning player
         """
         if game.status != GameStatus.ACTIVE:
-            raise ValueError("Can only resign from active games")
+            raise GameStateError(
+                f"Can only resign from active games, current status: {game.status}",
+                details={'current_status': game.status, 'game_id': str(game.id)}
+            )
         
         # Determine winner (the other player)
         if player_id == game.black_player_id:
@@ -226,6 +254,14 @@ class GameService:
         elif player_id == game.white_player_id:
             winner = game.black_player
         else:
-            raise ValueError("Player not in this game")
+            raise PlayerError(
+                "You are not a player in this game",
+                details={
+                    'player_id': player_id,
+                    'black_player_id': game.black_player_id,
+                    'white_player_id': game.white_player_id,
+                    'game_id': str(game.id)
+                }
+            )
         
         game.finish_game(winner=winner)

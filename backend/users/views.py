@@ -13,7 +13,9 @@ class UserViewSet(viewsets.ModelViewSet):
     """
     ViewSet for User CRUD operations.
     """
-    queryset = User.objects.filter(is_active=True)
+    queryset = User.objects.filter(is_active=True).prefetch_related(
+        'games_as_black', 'games_as_white', 'moves'
+    )
     
     def get_serializer_class(self):
         """Use different serializers for different actions."""

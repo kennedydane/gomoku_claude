@@ -63,6 +63,29 @@ class GameSerializer(serializers.ModelSerializer):
             'id', 'status', 'current_player', 'board_state', 'winner',
             'move_count', 'started_at', 'finished_at', 'created_at', 'updated_at'
         ]
+    
+    def validate(self, data):
+        """Custom validation for game creation."""
+        black_player_id = data.get('black_player_id')
+        white_player_id = data.get('white_player_id')
+        ruleset_id = data.get('ruleset_id')
+        
+        # Validate players are different
+        if black_player_id and white_player_id:
+            if black_player_id == white_player_id:
+                raise serializers.ValidationError(
+                    "Black player and white player must be different users."
+                )
+        
+        # Validate ruleset exists
+        if ruleset_id:
+            from .models import RuleSet
+            if not RuleSet.objects.filter(id=ruleset_id).exists():
+                raise serializers.ValidationError(
+                    f"RuleSet with ID {ruleset_id} does not exist."
+                )
+        
+        return data
 
 
 class GameListSerializer(serializers.ModelSerializer):
@@ -88,6 +111,25 @@ class MakeMoveSerializer(serializers.Serializer):
     """
     row = serializers.IntegerField(min_value=0, max_value=24)
     col = serializers.IntegerField(min_value=0, max_value=24)
+    
+    def validate(self, data):
+        """Additional validation for move coordinates."""
+        row = data.get('row')
+        col = data.get('col')
+        
+        # Ensure coordinates are within valid range
+        if not (0 <= row <= 24 and 0 <= col <= 24):
+            raise serializers.ValidationError(
+                "Move coordinates must be between 0 and 24."
+            )
+        
+        # Additional validation - ensure integer types
+        if not isinstance(row, int) or not isinstance(col, int):
+            raise serializers.ValidationError(
+                "Move coordinates must be integers."
+            )
+        
+        return data
 
 
 class PlayerSessionSerializer(serializers.ModelSerializer):
