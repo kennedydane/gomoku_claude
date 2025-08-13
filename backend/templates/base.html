@@ -149,8 +149,8 @@
     <!-- Custom JavaScript -->
     <script src="{% static 'js/app.js' %}"></script>
     
-    <!-- SSE Connection for real-time updates -->
-    {% if user.is_authenticated %}
+    <!-- SSE Connection for real-time updates (temporarily disabled) -->
+    {% if user.is_authenticated and false %}
         <script>
             // Server-Sent Events for real-time updates
             const eventSource = new EventSource('/api/v1/events/');

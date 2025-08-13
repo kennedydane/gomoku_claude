@@ -44,9 +44,22 @@ class WebLoginView(LoginView):
         return reverse_lazy('web:dashboard')
 
 
-class WebLogoutView(LogoutView):
+class WebLogoutView(View):
     """Logout view for web interface."""
-    next_page = 'web:home'
+    
+    def get(self, request):
+        """Handle GET logout with immediate logout."""
+        if request.user.is_authenticated:
+            from django.contrib.auth import logout
+            logout(request)
+        return redirect('web:home')
+    
+    def post(self, request):
+        """Handle POST logout."""
+        if request.user.is_authenticated:
+            from django.contrib.auth import logout
+            logout(request)
+        return redirect('web:home')
 
 
 class RegisterView(View):

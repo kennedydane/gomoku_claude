@@ -195,7 +195,7 @@ else:
     pass
 
 # Fix URL slash issues for development
-APPEND_SLASH = False
+APPEND_SLASH = True
 
 # SSE configuration
 EVENTSTREAM_ALLOW_ORIGIN = '*'

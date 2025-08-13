@@ -26,6 +26,7 @@ urlpatterns = [
     
     # Friends - Web Pages
     path('friends/', views.FriendsPageView.as_view(), name='friends'),
+    path('friends', RedirectView.as_view(pattern_name='web:friends', permanent=True)),
     
     # Friends - API Endpoints
     path('api/send-friend-request/', views.SendFriendRequestView.as_view(), name='send_friend_request'),
