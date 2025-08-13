@@ -36,6 +36,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/v1/', include(router.urls)),
     path('api/v1/auth/token/', obtain_auth_token, name='api_token_auth'),
+    path('api/v1/events/', include('django_eventstream.urls'), {'channels': ['user-{user_id}']}),
     path('api-auth/', include('rest_framework.urls')),
     path('', include('web.urls')),  # Root goes to web interface
 ]

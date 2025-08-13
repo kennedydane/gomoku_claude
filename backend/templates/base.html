@@ -13,6 +13,7 @@
     
     <!-- htmx -->
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10/dist/ext/sse.js"></script>
     
     <!-- Alpine.js -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.5/dist/cdn.min.js"></script>
@@ -149,39 +150,17 @@
     <!-- Custom JavaScript -->
     <script src="{% static 'js/app.js' %}"></script>
     
-    <!-- SSE Connection for real-time updates (temporarily disabled) -->
-    {% if user.is_authenticated and false %}
+    <!-- Real-time Connection Status (no JavaScript SSE needed - HTMX handles it) -->
+    {% if user.is_authenticated %}
         <script>
-            // Server-Sent Events for real-time updates
-            const eventSource = new EventSource('/api/v1/events/');
-            const connectionStatus = document.getElementById('connection-status');
-            
-            eventSource.onopen = function() {
-                connectionStatus.innerHTML = '<i class="bi bi-wifi"></i> Connected';
-                connectionStatus.className = 'badge bg-success';
-            };
-            
-            eventSource.onerror = function() {
-                connectionStatus.innerHTML = '<i class="bi bi-wifi-off"></i> Disconnected';
-                connectionStatus.className = 'badge bg-danger';
-            };
-            
-            eventSource.onmessage = function(event) {
-                const data = JSON.parse(event.data);
-                // Handle different event types
-                if (data.type === 'game_move') {
-                    // Refresh game board if we're on a game page
-                    if (window.location.pathname.includes('/game/')) {
-                        htmx.trigger('#game-board', 'refresh');
-                    }
-                } else if (data.type === 'challenge_received') {
-                    // Show notification for new challenge
-                    showToast('New challenge received!', 'info');
-                } else if (data.type === 'friend_request') {
-                    // Show notification for friend request
-                    showToast('New friend request!', 'info');
+            // Simple connection status indicator
+            document.addEventListener('DOMContentLoaded', function() {
+                const connectionStatus = document.getElementById('connection-status');
+                if (connectionStatus) {
+                    connectionStatus.innerHTML = '<i class="bi bi-wifi"></i> Connected';
+                    connectionStatus.className = 'badge bg-success';
                 }
-            };
+            });
         </script>
     {% endif %}
     

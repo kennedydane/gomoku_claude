@@ -16,6 +16,13 @@ from users.models import User
 from .forms import CustomUserCreationForm
 from .models import Friendship, FriendshipStatus
 
+try:
+    from django_eventstream import send_event
+    HAS_EVENTSTREAM = True
+except ImportError:
+    HAS_EVENTSTREAM = False
+    send_event = None
+
 
 class UserGamesMixin:
     """Mixin to provide user games query functionality."""
@@ -205,11 +212,30 @@ class GameMoveView(LoginRequiredMixin, View):
                 # Refresh game from database to get updated state
                 game.refresh_from_db()
                 
+                # SSE event sending temporarily disabled due to async configuration issues
+                # TODO: Fix django-eventstream configuration for real-time updates
+                # if HAS_EVENTSTREAM:
+                #     # Determine which player should receive the notification
+                #     if request.user == game.black_player:
+                #         notify_user_id = game.white_player.id
+                #     else:
+                #         notify_user_id = game.black_player.id
+                #     
+                #     try:
+                #         # Send HTML fragment for HTMX SSE
+                #         board_html = render(request, 'web/partials/game_board.html', {
+                #             'game': game
+                #         }).content.decode('utf-8')
+                #         
+                #         send_event(f'user-{notify_user_id}', 'game_move', board_html)
+                #     except Exception as e:
+                #         # Don't fail the request if SSE fails
+                #         print(f"Failed to send SSE event: {e}")
+                
                 # Return HTML fragment for HTMX requests
                 if self.is_htmx_request(request):
                     return render(request, 'web/partials/game_board.html', {
-                        'game': game,
-                        'success_message': f'Move made successfully! {game.current_player}\'s turn.'
+                        'game': game
                     })
                 
                 # Return JSON response for AJAX requests
@@ -565,6 +591,16 @@ class RespondChallengeView(FriendAPIViewMixin, LoginRequiredMixin, View):
                 game.initialize_board()
                 game.save()
                 
+                # For HTMX requests, return HTML that redirects to the game
+                if request.headers.get('HX-Request'):
+                    response = render(request, 'web/partials/challenge_response.html', {
+                        'success': True,
+                        'message': 'Challenge accepted! Game created.',
+                        'redirect_url': f'/games/{game.id}/'
+                    })
+                    response['HX-Redirect'] = f'/games/{game.id}/'
+                    return response
+                
                 return self.json_response({
                     'success': True,
                     'message': 'Challenge accepted! Game created.',
@@ -573,11 +609,23 @@ class RespondChallengeView(FriendAPIViewMixin, LoginRequiredMixin, View):
                 })
                 
             except Exception as e:
+                if request.headers.get('HX-Request'):
+                    return render(request, 'web/partials/challenge_response.html', {
+                        'error': f'Failed to create game: {str(e)}'
+                    }, status=500)
                 return self.json_error(f'Failed to create game: {str(e)}', 500)
         
         else:  # reject
             challenge.status = ChallengeStatus.REJECTED
             challenge.save()
+            
+            # For HTMX requests, return empty div (challenge disappears)
+            if request.headers.get('HX-Request'):
+                return render(request, 'web/partials/challenge_response.html', {
+                    'success': True,
+                    'message': 'Challenge rejected',
+                    'hide_challenge': True
+                })
             
             return self.json_response({
                 'success': True,

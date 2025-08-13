@@ -40,7 +40,7 @@
                 <div class="card-body">
                     <h5 class="card-title">Pending Challenges</h5>
                     {% for challenge in pending_challenges %}
-                        <div class="mb-3 p-2 border rounded">
+                        <div id="challenge-{{ challenge.id }}" class="mb-3 p-2 border rounded">
                             <div class="d-flex justify-content-between align-items-start">
                                 <div>
                                     <strong>{{ challenge.challenger.username }}</strong>
@@ -54,10 +54,20 @@
                                     </small>
                                 </div>
                                 <div class="btn-group-vertical">
-                                    <button class="btn btn-sm btn-success" onclick="respondToChallenge('{{ challenge.id }}', 'accept')">
+                                    <button class="btn btn-sm btn-success" 
+                                            hx-post="{% url 'web:respond_challenge' challenge_id=challenge.id %}"
+                                            hx-vals='{"action": "accept"}'
+                                            hx-confirm="Are you sure you want to accept this challenge?"
+                                            hx-target="#challenge-{{ challenge.id }}"
+                                            hx-swap="outerHTML">
                                         Accept
                                     </button>
-                                    <button class="btn btn-sm btn-danger" onclick="respondToChallenge('{{ challenge.id }}', 'reject')">
+                                    <button class="btn btn-sm btn-danger"
+                                            hx-post="{% url 'web:respond_challenge' challenge_id=challenge.id }}"
+                                            hx-vals='{"action": "reject"}'
+                                            hx-confirm="Are you sure you want to reject this challenge?"
+                                            hx-target="#challenge-{{ challenge.id }}"
+                                            hx-swap="outerHTML">
                                         Reject
                                     </button>
                                 </div>
