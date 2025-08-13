@@ -48,8 +48,9 @@ class Command(BaseCommand):
                 self.stdout.write(f'  User already exists: {user.username}')
             users.append(user)
 
-        # Create rulesets
-        self.stdout.write('Creating rulesets...')
+        # Create rulesets (use load_rulesets command for comprehensive set)
+        self.stdout.write('Creating basic rulesets...')
+        self.stdout.write(self.style.WARNING('  Note: Use "python manage.py load_rulesets" for the complete ruleset collection'))
         rulesets = [
             {
                 'name': 'Standard Gomoku',
@@ -58,16 +59,16 @@ class Command(BaseCommand):
                 'description': 'Standard Gomoku rules - exactly 5 in a row wins'
             },
             {
+                'name': 'Mini Gomoku',
+                'board_size': 8,
+                'allow_overlines': True,
+                'description': 'Quick-play freestyle Gomoku on a compact 8×8 board'
+            },
+            {
                 'name': 'Freestyle Gomoku',
                 'board_size': 15,
                 'allow_overlines': True,
                 'description': 'Freestyle rules - overlines count as wins'
-            },
-            {
-                'name': 'Large Board',
-                'board_size': 19,
-                'allow_overlines': False,
-                'description': '19x19 board with standard rules'
             },
         ]
 

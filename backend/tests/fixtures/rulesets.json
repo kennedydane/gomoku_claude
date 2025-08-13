@@ -1,0 +1,146 @@
+[
+    {
+        "model": "games.ruleset",
+        "pk": 1,
+        "fields": {
+            "name": "Standard Gomoku",
+            "board_size": 15,
+            "allow_overlines": false,
+            "forbidden_moves": {},
+            "description": "Classic Gomoku rules on a 15×15 board. First player to get exactly 5 stones in a row wins. Overlines (6+ stones) do not count as wins.",
+            "created_at": "2024-01-01T00:00:00Z",
+            "updated_at": "2024-01-01T00:00:00Z"
+        }
+    },
+    {
+        "model": "games.ruleset",
+        "pk": 2,
+        "fields": {
+            "name": "Freestyle Gomoku",
+            "board_size": 15,
+            "allow_overlines": true,
+            "forbidden_moves": {},
+            "description": "Freestyle Gomoku on a 15×15 board. First player to get 5 or more stones in a row wins. Overlines count as wins.",
+            "created_at": "2024-01-01T00:00:00Z",
+            "updated_at": "2024-01-01T00:00:00Z"
+        }
+    },
+    {
+        "model": "games.ruleset",
+        "pk": 3,
+        "fields": {
+            "name": "Renju",
+            "board_size": 15,
+            "allow_overlines": false,
+            "forbidden_moves": {
+                "black_forbidden_3x3": true,
+                "black_forbidden_4x4": true,
+                "black_forbidden_overlines": true,
+                "description": "Black player cannot create double-three, double-four, or overlines"
+            },
+            "description": "Traditional Renju rules on a 15×15 board. Black has forbidden moves: cannot create simultaneous double-three, double-four, or overlines. White has no restrictions.",
+            "created_at": "2024-01-01T00:00:00Z",
+            "updated_at": "2024-01-01T00:00:00Z"
+        }
+    },
+    {
+        "model": "games.ruleset",
+        "pk": 4,
+        "fields": {
+            "name": "Pro Gomoku",
+            "board_size": 19,
+            "allow_overlines": false,
+            "forbidden_moves": {},
+            "description": "Professional tournament rules on a 19×19 Go board. Exactly 5 stones in a row wins. Used in international competitions.",
+            "created_at": "2024-01-01T00:00:00Z",
+            "updated_at": "2024-01-01T00:00:00Z"
+        }
+    },
+    {
+        "model": "games.ruleset",
+        "pk": 5,
+        "fields": {
+            "name": "Caro",
+            "board_size": 15,
+            "allow_overlines": true,
+            "forbidden_moves": {
+                "requires_unblocked": true,
+                "description": "Five-in-a-row must be unblocked on at least one end"
+            },
+            "description": "Vietnamese Caro rules on a 15×15 board. Must have an unblocked five-in-a-row to win. Popular in Southeast Asia.",
+            "created_at": "2024-01-01T00:00:00Z",
+            "updated_at": "2024-01-01T00:00:00Z"
+        }
+    },
+    {
+        "model": "games.ruleset",
+        "pk": 6,
+        "fields": {
+            "name": "Mini Gomoku",
+            "board_size": 8,
+            "allow_overlines": true,
+            "forbidden_moves": {},
+            "description": "Quick-play freestyle Gomoku on a compact 8×8 board. Perfect for fast games and learning. First to get 5 or more stones in a row wins.",
+            "created_at": "2024-01-01T00:00:00Z",
+            "updated_at": "2024-01-01T00:00:00Z"
+        }
+    },
+    {
+        "model": "games.ruleset",
+        "pk": 7,
+        "fields": {
+            "name": "Swap2 Tournament",
+            "board_size": 15,
+            "allow_overlines": false,
+            "forbidden_moves": {
+                "swap2_opening": true,
+                "description": "Uses Swap2 opening protocol for tournament balance"
+            },
+            "description": "Modern tournament standard with Swap2 opening rule. Balances first-player advantage used in international competitions since 2009.",
+            "created_at": "2024-01-01T00:00:00Z",
+            "updated_at": "2024-01-01T00:00:00Z"
+        }
+    },
+    {
+        "model": "games.ruleset",
+        "pk": 8,
+        "fields": {
+            "name": "Beginner Friendly",
+            "board_size": 11,
+            "allow_overlines": true,
+            "forbidden_moves": {},
+            "description": "Simplified rules on an 11×11 board perfect for new players. Shorter games with freestyle rules make learning easier and more enjoyable.",
+            "created_at": "2024-01-01T00:00:00Z",
+            "updated_at": "2024-01-01T00:00:00Z"
+        }
+    },
+    {
+        "model": "games.ruleset",
+        "pk": 9,
+        "fields": {
+            "name": "Giant Gomoku",
+            "board_size": 25,
+            "allow_overlines": false,
+            "forbidden_moves": {},
+            "description": "Epic Gomoku on the maximum 25×25 board. Longer, more strategic games with complex positional play. Exactly 5 stones in a row wins.",
+            "created_at": "2024-01-01T00:00:00Z",
+            "updated_at": "2024-01-01T00:00:00Z"
+        }
+    },
+    {
+        "model": "games.ruleset",
+        "pk": 10,
+        "fields": {
+            "name": "Speed Gomoku",
+            "board_size": 9,
+            "allow_overlines": true,
+            "forbidden_moves": {
+                "time_limit": "30_seconds_per_move",
+                "description": "Fast-paced games with time pressure"
+            },
+            "description": "Lightning-fast Gomoku on a minimal 9×9 board. Designed for quick games with time pressure. Perfect for tournaments and rapid-fire matches.",
+            "created_at": "2024-01-01T00:00:00Z",
+            "updated_at": "2024-01-01T00:00:00Z"
+        }
+    }
+]
