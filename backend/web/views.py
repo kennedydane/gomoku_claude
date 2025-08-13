@@ -212,25 +212,24 @@ class GameMoveView(LoginRequiredMixin, View):
                 # Refresh game from database to get updated state
                 game.refresh_from_db()
                 
-                # SSE event sending temporarily disabled due to async configuration issues
-                # TODO: Fix django-eventstream configuration for real-time updates
-                # if HAS_EVENTSTREAM:
-                #     # Determine which player should receive the notification
-                #     if request.user == game.black_player:
-                #         notify_user_id = game.white_player.id
-                #     else:
-                #         notify_user_id = game.black_player.id
-                #     
-                #     try:
-                #         # Send HTML fragment for HTMX SSE
-                #         board_html = render(request, 'web/partials/game_board.html', {
-                #             'game': game
-                #         }).content.decode('utf-8')
-                #         
-                #         send_event(f'user-{notify_user_id}', 'game_move', board_html)
-                #     except Exception as e:
-                #         # Don't fail the request if SSE fails
-                #         print(f"Failed to send SSE event: {e}")
+                # Send SSE event to notify other player of the move
+                if HAS_EVENTSTREAM:
+                    # Determine which player should receive the notification
+                    if request.user == game.black_player:
+                        notify_user_id = game.white_player.id
+                    else:
+                        notify_user_id = game.black_player.id
+                    
+                    try:
+                        # Send HTML fragment for HTMX SSE
+                        board_html = render(request, 'web/partials/game_board.html', {
+                            'game': game
+                        }).content.decode('utf-8')
+                        
+                        send_event(f'user-{notify_user_id}', 'game_move', board_html)
+                    except Exception as e:
+                        # Don't fail the request if SSE fails
+                        print(f"Failed to send SSE event: {e}")
                 
                 # Return HTML fragment for HTMX requests
                 if self.is_htmx_request(request):
