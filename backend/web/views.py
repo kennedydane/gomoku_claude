@@ -246,16 +246,21 @@ class GameMoveView(LoginRequiredMixin, View):
                         csrf_token = get_token(request)
                         logger.debug(f"🔐 CSRF: Token generated for SSE: {csrf_token[:10]}..." if csrf_token else "🔐 CSRF: No token generated")
                         
-                        response = render(request, 'web/partials/game_board.html', {
+                        # Use Django template and prevent all escaping
+                        from django.template.loader import render_to_string
+                        import json
+                        board_html = render_to_string('web/partials/game_board.html', {
                             'game': game,
                             'csrf_token': csrf_token
-                        })
-                        board_html = response.content.decode('utf-8').strip()
+                        }, request=request).strip()
                         
-                        # Remove newlines for SSE compatibility 
+                        # The issue is that send_event() is JSON-encoding the data
+                        # which escapes quotes. Let's avoid that by not using JSON encoding.
+                        
+                        # Fix SSE protocol newline issues while preserving HTML structure
                         # SSE protocol treats consecutive newlines as end-of-event markers
-                        # so we need to strip them to prevent truncation
-                        board_html_sse = ' '.join(board_html.split())
+                        # Replace only problematic consecutive newlines, preserve HTML integrity
+                        board_html_sse = board_html.replace('\n\n', ' ').replace('\r\n\r\n', ' ').strip()
                         
                         # Log HTML snippet for debugging
                         logger.debug(f"📄 HTML: Generated board HTML ({len(board_html)} chars): {board_html[:100]}...")
@@ -267,7 +272,8 @@ class GameMoveView(LoginRequiredMixin, View):
                         logger.info(f"📤 SSE: Sending event '{event_name}' to channel '{channel}'")
                         
                         # Send the newline-stripped HTML content for HTMX to process
-                        send_event(channel, event_name, board_html_sse)
+                        # Use json_encode=False to prevent quote escaping
+                        send_event(channel, event_name, board_html_sse, json_encode=False)
                         logger.success(f"✅ SSE: Event sent successfully to {notify_username}")
                         
                     except Exception as e:

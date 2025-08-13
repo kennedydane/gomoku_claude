@@ -91,10 +91,7 @@
                         <!-- Error Messages -->
                         <div id="board-errors"></div>
                         
-                        <div id="game-board-wrapper"
-                             hx-ext="sse" 
-                             sse-connect="/api/v1/events/?channel=user-{{ user.id }}" 
-                             sse-swap="game_move">
+                        <div id="game-board-wrapper">
                             {% include 'web/partials/game_board.html' %}
                         </div>
                     </div>
@@ -311,19 +308,48 @@
             }
         });
         
-        // Listen for specific game move events
-        document.body.addEventListener('htmx:sseMessage:game_move', function(event) {
-            console.log('🎯 SSE: Received game_move event:', event.detail);
-            console.log('📄 SSE: Event data length:', event.detail.data ? event.detail.data.length : 'no data');
+        // Manual SSE connection to bypass problematic HTMX SSE extension
+        console.log('🔌 SSE: Attempting to connect to /api/v1/events/?channel=user-{{ user.id }}');
+        const eventSource = new EventSource('/api/v1/events/?channel=user-{{ user.id }}');
+        
+        // Listen for ANY SSE events to debug
+        eventSource.onmessage = function(event) {
+            console.log('📨 SSE: Received general message:', event);
+        };
+        
+        eventSource.addEventListener('game_move', function(event) {
+            console.log('🎯 Raw SSE: Received game_move event');
+            console.log('📄 Raw SSE: Event data length:', event.data.length);
+            console.log('🔍 Raw SSE: Data preview:', event.data.substring(0, 200) + '...');
+            console.log('🏷️ Raw SSE: Contains HTML tags:', /<[^>]+>/.test(event.data));
+            console.log('🎮 Raw SSE: Contains stone elements:', event.data.includes('stone-black') || event.data.includes('stone-white'));
             
-            // Add visual indication that an update was received
-            const container = document.getElementById('game-board-container');
-            if (container) {
-                container.style.border = '2px solid #28a745';
+            // Directly update the innerHTML - bypass HTMX SSE extension
+            const wrapper = document.getElementById('game-board-wrapper');
+            if (wrapper && event.data) {
+                console.log('🔄 Raw SSE: Updating innerHTML directly');
+                wrapper.innerHTML = event.data;
+                console.log('✅ Raw SSE: Board updated successfully');
+                
+                // Verify update worked
+                const stones = wrapper.querySelectorAll('.stone-black, .stone-white');
+                const intersections = wrapper.querySelectorAll('.board-intersection');
+                console.log(`🎮 Raw SSE: After update - ${stones.length} stones, ${intersections.length} intersections`);
+                
+                // Visual indication
+                wrapper.style.border = '2px solid #28a745';
                 setTimeout(() => {
-                    container.style.border = '';
+                    wrapper.style.border = '';
                 }, 1000);
             }
+        });
+        
+        eventSource.addEventListener('open', function(event) {
+            console.log('🔌 Raw SSE: Connection opened');
+        });
+        
+        eventSource.addEventListener('error', function(event) {
+            console.error('❌ Raw SSE: Connection error:', event);
         });
         // Handle HTMX errors
         document.body.addEventListener('htmx:responseError', function(event) {
@@ -338,8 +364,34 @@
             container.insertBefore(errorDiv, container.firstChild);
         });
         
-        // Auto-dismiss alerts after 5 seconds
-        document.body.addEventListener('htmx:afterSwap', function() {
+        // Enhanced logging for HTMX swap events
+        document.body.addEventListener('htmx:afterSwap', function(event) {
+            console.log('🔄 HTMX: Swap occurred on element:', event.target.id || event.target.tagName);
+            
+            // Check if this is our game board wrapper being swapped
+            if (event.target && event.target.id === 'game-board-wrapper') {
+                console.log('🎯 HTMX: Game board wrapper swapped');
+                console.log('📄 HTMX: Target innerHTML length:', event.target.innerHTML.length);
+                console.log('📝 HTMX: Target innerHTML preview:', event.target.innerHTML.substring(0, 200));
+                
+                // Verify the board has proper HTML elements
+                const stones = event.target.querySelectorAll('.stone-black, .stone-white');
+                const intersections = event.target.querySelectorAll('.board-intersection');
+                const gameBoards = event.target.querySelectorAll('.game-board-grid');
+                
+                console.log(`🎮 HTMX: Found ${gameBoards.length} game boards, ${intersections.length} intersections, ${stones.length} stones`);
+                
+                // Check if we're getting plain text instead of HTML elements
+                const textContent = event.target.textContent.trim();
+                if (textContent.length > 50 && intersections.length === 0) {
+                    console.error('❌ HTMX: Board rendered as plain text!');
+                    console.log('📝 HTMX: Text content:', textContent.substring(0, 200));
+                } else if (intersections.length > 0) {
+                    console.log('✅ HTMX: Board rendered as HTML elements correctly');
+                }
+            }
+            
+            // Auto-dismiss alerts after 5 seconds  
             setTimeout(() => {
                 document.querySelectorAll('.alert').forEach(alert => {
                     if (alert.parentNode) {
