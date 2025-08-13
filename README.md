@@ -156,6 +156,13 @@ The Django REST API provides the following endpoints:
 - `GET /api/v1/challenges/pending/` - Get pending challenges
 - `POST /api/v1/challenges/{id}/respond/` - Accept/reject challenge
 
+### Friends
+- `POST /api/send-friend-request/` - Send a friend request
+- `POST /api/respond-friend-request/{id}/` - Accept/reject friend request
+- `GET /api/friends-list/` - Get user's friends
+- `GET /api/pending-requests/` - Get pending friend requests
+- `GET /api/search-users/` - Search users to befriend
+
 ## Development Features
 
 ### Django Admin Interface
@@ -180,6 +187,7 @@ The game logic is implemented in a service layer that handles:
 - **PlayerSession**: Online player tracking
 - **GameEvent**: Real-time event system
 - **Challenge**: Player-to-player game invitations
+- **Friendship**: Friend relationships and requests between users
 
 ## Testing
 
@@ -198,8 +206,7 @@ uv run python manage.py test --verbosity=2
 
 **Test Coverage:**
 - **API Tests**: 220+ tests covering authentication, game logic, and challenges
-- **Web Interface Tests**: 43 comprehensive TDD tests for web functionality and friend system
-- **Friend System Tests**: 25 complete TDD tests for friend requests and management
+- **Web Interface Tests**: 43 comprehensive TDD tests for web functionality (includes 25 friend system tests)
 - **Integration Tests**: End-to-end workflows and edge cases
 
 ## Configuration
