@@ -207,7 +207,7 @@ class TestGameViews(TestCase):
         response = self.client.get(reverse('web:game_detail', kwargs={'game_id': self.game.id}))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'game-board')
-        self.assertContains(response, 'board-cell')
+        self.assertContains(response, 'board-intersection')
     
     def test_game_move_requires_player(self):
         """RED: Test that only players in game can make moves."""

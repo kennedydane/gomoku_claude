@@ -10,6 +10,8 @@ from django.db.models import Q
 from django.http import JsonResponse
 
 from games.models import Game, Challenge, GameStatus, ChallengeStatus
+from games.services import GameService
+from core.exceptions import InvalidMoveError, GameStateError, PlayerError
 from users.models import User
 from .forms import CustomUserCreationForm
 from .models import Friendship, FriendshipStatus
@@ -153,28 +155,71 @@ class GameMoveView(LoginRequiredMixin, View):
     
     def post(self, request, game_id):
         try:
+            # Get row and col from request
+            row = int(request.POST.get('row', -1))
+            col = int(request.POST.get('col', -1))
+            
             # Optimize query
             game = Game.objects.select_related(
-                'black_player', 'white_player'
+                'black_player', 'white_player', 'ruleset'
             ).get(id=game_id)
             
             # Only allow players to make moves
             if request.user not in [game.black_player, game.white_player]:
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({'error': 'Access denied'}, status=403)
                 return render(request, 'web/error.html', {
                     'error': 'Access denied'
                 }, status=403)
+            
+            # Make the move using GameService
+            try:
+                move = GameService.make_move(game, request.user.id, row, col)
                 
-            # Game move logic would go here
-            # For now, return success
-            return redirect('web:game_detail', game_id=game_id)
+                # Refresh game from database to get updated state
+                game.refresh_from_db()
+                
+                # Return JSON response for AJAX requests
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({
+                        'success': True,
+                        'board_state': game.board_state,
+                        'current_player': game.current_player,
+                        'status': game.status,
+                        'move': {
+                            'row': row,
+                            'col': col,
+                            'player': move.player.username if hasattr(move, 'player') else request.user.username
+                        }
+                    })
+                
+                # For non-AJAX requests, redirect to game detail
+                return redirect('web:game_detail', game_id=game_id)
+                
+            except PlayerError as e:
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({'error': str(e)}, status=403)
+                return render(request, 'web/error.html', {
+                    'error': str(e)
+                }, status=403)
+            except (InvalidMoveError, GameStateError) as e:
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({'error': str(e)}, status=400)
+                return render(request, 'web/error.html', {
+                    'error': str(e)
+                }, status=400)
             
         except Game.DoesNotExist:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({'error': 'Game not found'}, status=404)
             return render(request, 'web/error.html', {
                 'error': 'Game not found'
             }, status=404)
-        except ValueError:
+        except (ValueError, TypeError):
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({'error': 'Invalid move coordinates'}, status=400)
             return render(request, 'web/error.html', {
-                'error': 'Invalid game ID'
+                'error': 'Invalid move coordinates'
             }, status=400)
 
 

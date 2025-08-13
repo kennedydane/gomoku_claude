@@ -7,26 +7,353 @@
     {% if error %}
         <div class="alert alert-danger">{{ error }}</div>
     {% else %}
-        <h1>Game #{{ game.id }}</h1>
-        <p>{{ game.black_player.username }} (Black) vs {{ game.white_player.username }} (White)</p>
-        
-        <div class="game-board">
-            <!-- Simple placeholder for game board -->
-            <div class="row">
-                {% for i in "123456789012345" %}
-                    <div class="col-1">
-                        <div class="board-cell" style="border: 1px solid #ccc; height: 30px; width: 30px;"></div>
+        <!-- Game Information Panel -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card game-info">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col-md-4">
+                                <h5 class="card-title">Game #{{ game.id|slice:":8" }}</h5>
+                                <div class="game-status">
+                                    <span class="badge bg-{% if game.status == 'ACTIVE' %}success{% elif game.status == 'FINISHED' %}primary{% else %}secondary{% endif %}">
+                                        {{ game.get_status_display }}
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="col-md-4 text-center">
+                                <div class="players-info">
+                                    <div class="d-flex justify-content-around align-items-center">
+                                        <div class="player-info">
+                                            <div class="stone-black d-inline-block"></div>
+                                            <div><strong>{{ game.black_player.username }}</strong></div>
+                                            <small class="text-muted">Black</small>
+                                        </div>
+                                        <div class="vs mx-3">
+                                            <h4>vs</h4>
+                                        </div>
+                                        <div class="player-info">
+                                            <div class="stone-white d-inline-block"></div>
+                                            <div><strong>{{ game.white_player.username }}</strong></div>
+                                            <small class="text-muted">White</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                {% if game.status == 'ACTIVE' %}
+                                    <div class="current-turn">
+                                        <h6>Current Turn:</h6>
+                                        <div class="turn-indicator">
+                                            {% if game.current_player == 'BLACK' %}
+                                                <div class="stone-black d-inline-block me-2"></div>
+                                                <strong>{{ game.black_player.username }}</strong>
+                                            {% else %}
+                                                <div class="stone-white d-inline-block me-2"></div>
+                                                <strong>{{ game.white_player.username }}</strong>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                {% elif game.status == 'FINISHED' and game.winner %}
+                                    <div class="game-winner">
+                                        <h6>Winner:</h6>
+                                        <div class="winner-indicator">
+                                            {% if game.winner == game.black_player %}
+                                                <div class="stone-black d-inline-block me-2"></div>
+                                            {% else %}
+                                                <div class="stone-white d-inline-block me-2"></div>
+                                            {% endif %}
+                                            <strong>{{ game.winner.username }} wins!</strong>
+                                        </div>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
                     </div>
-                {% endfor %}
+                </div>
             </div>
         </div>
-        
-        <form method="post" action="{% url 'web:game_move' game_id=game.id %}" class="mt-3">
-            {% csrf_token %}
-            <input type="hidden" name="row" value="7">
-            <input type="hidden" name="col" value="7">
-            <button type="submit" class="btn btn-primary">Make Move (Test)</button>
-        </form>
+
+        <!-- Game Board -->
+        <div class="row justify-content-center">
+            <div class="col-12 col-xl-10">
+                <div class="card">
+                    <div class="card-body p-3">
+                        <div class="game-board-container board-responsive">
+                            <div class="game-board-grid" 
+                                 data-board-size="{{ game.ruleset.board_size }}"
+                                 id="game-board">
+                                {% for row in game.board_state.board %}
+                                    {% for cell in row %}
+                                        <div class="board-intersection"
+                                             data-row="{{ forloop.parentloop.counter0 }}"
+                                             data-col="{{ forloop.counter0 }}"
+                                             role="button"
+                                             tabindex="0"
+                                             aria-label="Intersection {{ forloop.parentloop.counter0 }}, {{ forloop.counter0 }}{% if cell %} - {{ cell }} stone{% else %} - empty{% endif %}"
+                                             onclick="makeMove({{ forloop.parentloop.counter0 }}, {{ forloop.counter0 }})"
+                                             onkeydown="handleKeydown(event, {{ forloop.parentloop.counter0 }}, {{ forloop.counter0 }})">
+                                            {% if cell == 'BLACK' or cell == 'black' %}
+                                                <div class="stone-black"></div>
+                                            {% elif cell == 'WHITE' or cell == 'white' %}
+                                                <div class="stone-white"></div>
+                                            {% endif %}
+                                        </div>
+                                    {% endfor %}
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Game Controls and Info -->
+        <div class="row mt-4">
+            <div class="col-md-8">
+                <!-- Move History -->
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0">Move History</h6>
+                    </div>
+                    <div class="card-body move-history">
+                        {% if game.board_state.board %}
+                            <div class="move-list">
+                                {% for row in game.board_state.board %}
+                                    {% for cell in row %}
+                                        {% if cell %}
+                                            <span class="move-item">
+                                                <span class="stone-{{ cell }} stone-small d-inline-block me-1"></span>
+                                                ({{ forloop.parentloop.counter0 }},{{ forloop.counter0 }})
+                                            </span>
+                                        {% endif %}
+                                    {% endfor %}
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <p class="text-muted">No moves yet.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <!-- Game Actions -->
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0">Actions</h6>
+                    </div>
+                    <div class="card-body">
+                        {% if game.status == 'ACTIVE' %}
+                            <button class="btn btn-outline-danger btn-sm" onclick="resignGame()">
+                                Resign Game
+                            </button>
+                        {% endif %}
+                        <a href="{% url 'web:games' %}" class="btn btn-secondary btn-sm">
+                            Back to Games
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Messages Area (for accessibility) -->
+        <div id="game-messages" class="sr-only" aria-live="polite" aria-atomic="true"></div>
     {% endif %}
 </div>
+
+<!-- Game Board Styles -->
+<style>
+    .game-board-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 20px;
+    }
+    
+    .game-board-grid {
+        display: grid;
+        gap: 1px;
+        background-color: #8B4513;
+        border: 2px solid #654321;
+        border-radius: 8px;
+        padding: 10px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+    
+    .game-board-grid[data-board-size="15"] {
+        grid-template-columns: repeat(15, 1fr);
+        grid-template-rows: repeat(15, 1fr);
+    }
+    
+    .game-board-grid[data-board-size="19"] {
+        grid-template-columns: repeat(19, 1fr);
+        grid-template-rows: repeat(19, 1fr);
+    }
+    
+    .board-intersection {
+        width: 30px;
+        height: 30px;
+        background-color: #DEB887;
+        border: 1px solid #8B4513;
+        cursor: pointer;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        transition: background-color 0.2s;
+        position: relative;
+    }
+    
+    .board-intersection:hover {
+        background-color: #F5DEB3;
+    }
+    
+    .board-intersection:focus {
+        outline: 2px solid #007bff;
+        outline-offset: -2px;
+    }
+    
+    .stone-black, .stone-white {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        border: 1px solid #333;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    }
+    
+    .stone-black {
+        background: radial-gradient(circle at 30% 30%, #444, #000);
+    }
+    
+    .stone-white {
+        background: radial-gradient(circle at 30% 30%, #fff, #ddd);
+    }
+    
+    .stone-small {
+        width: 16px;
+        height: 16px;
+    }
+    
+    .board-responsive {
+        overflow-x: auto;
+    }
+    
+    .move-history {
+        max-height: 300px;
+        overflow-y: auto;
+    }
+    
+    .move-item {
+        margin-right: 15px;
+        margin-bottom: 5px;
+        display: inline-block;
+    }
+    
+    @media (max-width: 768px) {
+        .board-intersection {
+            width: 25px;
+            height: 25px;
+        }
+        
+        .stone-black, .stone-white {
+            width: 20px;
+            height: 20px;
+        }
+    }
+</style>
+
+<!-- JavaScript for Game Board Interaction -->
+<script>
+    const gameId = "{{ game.id }}";
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    const currentUser = "{{ request.user.username }}";
+    const currentPlayer = "{{ game.current_player|lower }}";
+    
+    function makeMove(row, col) {
+        // Check if game is active
+        if ("{{ game.status }}" !== "ACTIVE") {
+            showMessage("Game is not active", "warning");
+            return;
+        }
+        
+        // Check if it's user's turn
+        const isUserTurn = (
+            (currentPlayer === "black" && "{{ game.black_player.username }}" === currentUser) ||
+            (currentPlayer === "white" && "{{ game.white_player.username }}" === currentUser)
+        );
+        
+        if (!isUserTurn) {
+            showMessage("It's not your turn", "warning");
+            return;
+        }
+        
+        // Send move via AJAX
+        fetch(`/games/${gameId}/move/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRFToken': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: `row=${row}&col=${col}`
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                updateBoard(data.board_state);
+                showMessage("Move made successfully", "success");
+            } else {
+                showMessage(data.error || "Move failed", "error");
+            }
+        })
+        .catch(error => {
+            console.error('Error making move:', error);
+            showMessage("Error making move", "error");
+        });
+    }
+    
+    function updateBoard(boardState) {
+        // Reload the page for now (we can make this more sophisticated later)
+        window.location.reload();
+    }
+    
+    function showMessage(message, type) {
+        const messagesArea = document.getElementById('game-messages');
+        messagesArea.textContent = message;
+        
+        // Also show visual feedback
+        const alertClass = type === 'error' ? 'danger' : type === 'warning' ? 'warning' : 'success';
+        const alert = document.createElement('div');
+        alert.className = `alert alert-${alertClass} alert-dismissible fade show`;
+        alert.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        const container = document.querySelector('.container');
+        container.insertBefore(alert, container.firstChild);
+        
+        // Auto-dismiss after 3 seconds
+        setTimeout(() => {
+            if (alert.parentNode) {
+                alert.remove();
+            }
+        }, 3000);
+    }
+    
+    function handleKeydown(event, row, col) {
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            makeMove(row, col);
+        }
+    }
+    
+    function resignGame() {
+        if (confirm('Are you sure you want to resign this game?')) {
+            // Implement resign functionality
+            showMessage("Resign functionality coming soon", "info");
+        }
+    }
+</script>
+
+{% csrf_token %}
 {% endblock %}
