@@ -171,6 +171,10 @@ class GameMoveView(LoginRequiredMixin, View):
     """Handle game moves via POST."""
     login_url = 'web:login'
     
+    def is_htmx_request(self, request):
+        """Check if request is from HTMX."""
+        return request.headers.get('HX-Request') == 'true'
+    
     def post(self, request, game_id):
         try:
             # Get row and col from request
@@ -184,7 +188,11 @@ class GameMoveView(LoginRequiredMixin, View):
             
             # Only allow players to make moves
             if request.user not in [game.black_player, game.white_player]:
-                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                if self.is_htmx_request(request):
+                    return render(request, 'web/partials/error_message.html', {
+                        'error': 'Access denied - you are not a player in this game'
+                    }, status=403)
+                elif request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                     return JsonResponse({'error': 'Access denied'}, status=403)
                 return render(request, 'web/error.html', {
                     'error': 'Access denied'
@@ -197,8 +205,15 @@ class GameMoveView(LoginRequiredMixin, View):
                 # Refresh game from database to get updated state
                 game.refresh_from_db()
                 
+                # Return HTML fragment for HTMX requests
+                if self.is_htmx_request(request):
+                    return render(request, 'web/partials/game_board.html', {
+                        'game': game,
+                        'success_message': f'Move made successfully! {game.current_player}\'s turn.'
+                    })
+                
                 # Return JSON response for AJAX requests
-                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                elif request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                     return JsonResponse({
                         'success': True,
                         'board_state': game.board_state,
@@ -215,26 +230,42 @@ class GameMoveView(LoginRequiredMixin, View):
                 return redirect('web:game_detail', game_id=game_id)
                 
             except PlayerError as e:
-                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                if self.is_htmx_request(request):
+                    return render(request, 'web/partials/error_message.html', {
+                        'error': str(e)
+                    }, status=403)
+                elif request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                     return JsonResponse({'error': str(e)}, status=403)
                 return render(request, 'web/error.html', {
                     'error': str(e)
                 }, status=403)
             except (InvalidMoveError, GameStateError) as e:
-                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                if self.is_htmx_request(request):
+                    return render(request, 'web/partials/error_message.html', {
+                        'error': str(e)
+                    }, status=400)
+                elif request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                     return JsonResponse({'error': str(e)}, status=400)
                 return render(request, 'web/error.html', {
                     'error': str(e)
                 }, status=400)
             
         except Game.DoesNotExist:
-            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            if self.is_htmx_request(request):
+                return render(request, 'web/partials/error_message.html', {
+                    'error': 'Game not found'
+                }, status=404)
+            elif request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                 return JsonResponse({'error': 'Game not found'}, status=404)
             return render(request, 'web/error.html', {
                 'error': 'Game not found'
             }, status=404)
         except (ValueError, TypeError):
-            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            if self.is_htmx_request(request):
+                return render(request, 'web/partials/error_message.html', {
+                    'error': 'Invalid move coordinates'
+                }, status=400)
+            elif request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                 return JsonResponse({'error': 'Invalid move coordinates'}, status=400)
             return render(request, 'web/error.html', {
                 'error': 'Invalid move coordinates'

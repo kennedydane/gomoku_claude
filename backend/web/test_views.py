@@ -172,7 +172,7 @@ class TestDashboardView(TestCase):
         response = self.client.get(reverse('web:dashboard'))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, challenge.challenger.username)
-        self.assertContains(response, 'challenge')
+        self.assertContains(response, 'Challenges')
 
 
 class TestGameViews(TestCase):

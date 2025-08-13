@@ -1,0 +1,38 @@
+<div class="game-board-container board-responsive" id="game-board-container">
+    {% if success_message %}
+        <div class="alert alert-success alert-dismissible fade show mb-3">
+            <i class="bi bi-check-circle me-2"></i>{{ success_message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    {% endif %}
+    
+    <div class="game-board-grid" 
+         data-board-size="{{ game.ruleset.board_size }}"
+         id="game-board">
+        {% for row in game.board_state.board %}
+            {% for cell in row %}
+                <div class="board-intersection{% if cell %} occupied{% endif %}"
+                     data-row="{{ forloop.parentloop.counter0 }}"
+                     data-col="{{ forloop.counter0 }}"
+                     role="button"
+                     tabindex="0"
+                     aria-label="Intersection {{ forloop.parentloop.counter0 }}, {{ forloop.counter0 }}{% if cell %} - {{ cell }} stone{% else %} - empty{% endif %}"
+                     {% if not cell and game.status == 'ACTIVE' %}
+                     hx-post="{% url 'web:game_move' game_id=game.id %}"
+                     hx-vals='{"row": {{ forloop.parentloop.counter0 }}, "col": {{ forloop.counter0 }}}'
+                     hx-target="#game-board-container"
+                     hx-swap="outerHTML"
+                     hx-disabled-elt="this"
+                     hx-indicator="#board-loading"
+                     hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                     {% endif %}>
+                    {% if cell == 'BLACK' or cell == 'black' %}
+                        <div class="stone-black"></div>
+                    {% elif cell == 'WHITE' or cell == 'white' %}
+                        <div class="stone-white"></div>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        {% endfor %}
+    </div>
+</div>

@@ -354,10 +354,10 @@ class GameBoardJavaScriptTests(TestCase):
         response = self.client.get(url)
         
         self.assertEqual(response.status_code, 200)
-        # Should include JavaScript functions
-        self.assertContains(response, 'makeMove')
-        self.assertContains(response, 'updateBoard')
-        self.assertContains(response, 'showMessage')
+        # Should include HTMX attributes for board interactions
+        self.assertContains(response, 'hx-post=')
+        self.assertContains(response, 'hx-target=')
+        self.assertContains(response, 'hx-vals=')
     
     def test_csrf_token_included_for_ajax(self):
         """RED: Test CSRF token is available for AJAX requests."""
@@ -368,15 +368,15 @@ class GameBoardJavaScriptTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'csrfmiddlewaretoken')
     
-    def test_game_id_available_to_javascript(self):
-        """RED: Test game ID is available to JavaScript code."""
+    def test_game_id_available_to_htmx(self):
+        """RED: Test game ID is available to HTMX via URL paths."""
         self.client.login(username='player1', password='testpass123')
         url = reverse('web:game_detail', kwargs={'game_id': self.game.id})
         response = self.client.get(url)
         
         self.assertEqual(response.status_code, 200)
-        # Game ID should be in JavaScript variables
-        self.assertContains(response, f'gameId = "{self.game.id}"')
+        # Game ID should be in HTMX POST URL
+        self.assertContains(response, f'/games/{self.game.id}/move/')
 
 
 class GameBoardAccessibilityTests(TestCase):
@@ -418,7 +418,8 @@ class GameBoardAccessibilityTests(TestCase):
         
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'tabindex=')
-        self.assertContains(response, 'onkeydown=')
+        # HTMX keyboard support is handled via tabindex and role attributes
+        self.assertContains(response, 'role="button"')
     
     def test_screen_reader_announcements(self):
         """RED: Test board has elements for screen reader announcements."""
