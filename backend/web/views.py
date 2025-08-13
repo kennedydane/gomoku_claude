@@ -104,10 +104,10 @@ class DashboardView(LoginRequiredMixin, UserGamesMixin, TemplateView):
         games_played = Game.objects.filter(user_games_query).count()
         games_won = Game.objects.filter(user_games_query, winner=user).count()
         
-        # Active games with optimized queries
+        # Active games with optimized queries, ordered by most recent
         active_games = Game.objects.select_related(
             'black_player', 'white_player', 'ruleset'
-        ).filter(user_games_query, status=GameStatus.ACTIVE)
+        ).filter(user_games_query, status=GameStatus.ACTIVE).order_by('-created_at')
         
         # Pending challenges with optimized queries (received challenges)
         from django.utils import timezone
@@ -139,9 +139,21 @@ class GamesView(LoginRequiredMixin, UserGamesMixin, TemplateView):
         
         # Use mixin and optimize queries
         user_games_query = self.get_user_games_query(user)
+        from django.db.models import Case, When, Value, IntegerField
+        
         user_games = Game.objects.select_related(
             'black_player', 'white_player', 'winner', 'ruleset'
-        ).filter(user_games_query).order_by('-created_at')
+        ).filter(user_games_query).order_by(
+            # Active games first, then by most recent
+            Case(
+                When(status=GameStatus.ACTIVE, then=Value(0)),
+                When(status=GameStatus.WAITING, then=Value(1)),
+                When(status=GameStatus.FINISHED, then=Value(2)),
+                When(status=GameStatus.ABANDONED, then=Value(3)),
+                output_field=IntegerField(),
+            ),
+            '-created_at'
+        )
         
         context['games'] = user_games
         return context

@@ -11,11 +11,19 @@
             <div class="col-md-6 mb-3">
                 <div class="card">
                     <div class="card-body">
-                        <h5 class="card-title">Game #{{ game.id }}</h5>
+                        <h5 class="card-title">{{ game.ruleset.name }}</h5>
                         <p class="card-text">
-                            {{ game.black_player.username }} (Black) vs {{ game.white_player.username }} (White)
+                            <strong>{{ game.black_player.username }}</strong> (Black) vs <strong>{{ game.white_player.username }}</strong> (White)
                         </p>
-                        <p class="card-text">Status: {{ game.status }}</p>
+                        <p class="card-text">
+                            <span class="badge bg-{% if game.status == 'ACTIVE' %}success{% elif game.status == 'FINISHED' %}primary{% else %}secondary{% endif %}">
+                                {{ game.get_status_display }}
+                            </span>
+                            <small class="text-muted ms-2">{{ game.ruleset.board_size }}×{{ game.ruleset.board_size }}</small>
+                            {% if game.status == 'FINISHED' and game.winner %}
+                                <br><small class="text-muted">Winner: <strong>{{ game.winner.username }}</strong></small>
+                            {% endif %}
+                        </p>
                         <a href="{% url 'web:game_detail' game_id=game.id %}" class="btn btn-primary">View Game</a>
                     </div>
                 </div>

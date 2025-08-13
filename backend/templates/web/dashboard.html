@@ -24,9 +24,10 @@
                     {% for game in active_games %}
                         <div class="mb-2">
                             <a href="{% url 'web:game_detail' game_id=game.id %}" class="btn btn-sm btn-outline-primary">
-                                Game #{{ game.id }}
+                                {{ game.ruleset.name }}
                             </a>
                             <span class="badge bg-success">active</span>
+                            <br><small class="text-muted">{{ game.black_player.username }} vs {{ game.white_player.username }}</small>
                         </div>
                     {% empty %}
                         <p class="text-muted">No active games</p>

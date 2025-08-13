@@ -14,11 +14,12 @@
                     <div class="card-body">
                         <div class="row align-items-center">
                             <div class="col-md-4">
-                                <h5 class="card-title">Game #{{ game.id|slice:":8" }}</h5>
+                                <h5 class="card-title">{{ game.ruleset.name }}</h5>
                                 <div class="game-status">
                                     <span class="badge bg-{% if game.status == 'ACTIVE' %}success{% elif game.status == 'FINISHED' %}primary{% else %}secondary{% endif %}">
                                         {{ game.get_status_display }}
                                     </span>
+                                    <small class="text-muted d-block mt-1">{{ game.ruleset.board_size }}×{{ game.ruleset.board_size }}</small>
                                 </div>
                             </div>
                             <div class="col-md-4 text-center">
@@ -173,19 +174,20 @@
         box-shadow: 0 4px 8px rgba(0,0,0,0.2);
     }
     
-    .game-board-grid[data-board-size="15"] {
-        grid-template-columns: repeat(15, 1fr);
-        grid-template-rows: repeat(15, 1fr);
-    }
-    
-    .game-board-grid[data-board-size="19"] {
-        grid-template-columns: repeat(19, 1fr);
-        grid-template-rows: repeat(19, 1fr);
+    /* Dynamic grid layout - set via CSS custom properties in template */
+    .game-board-grid {
+        grid-template-columns: repeat(var(--board-size), 1fr);
+        grid-template-rows: repeat(var(--board-size), 1fr);
     }
     
     .board-intersection {
-        width: 30px;
-        height: 30px;
+        /* Dynamic sizing based on board size and viewport */
+        width: var(--intersection-size, 30px);
+        height: var(--intersection-size, 30px);
+        min-width: 16px;
+        min-height: 16px;
+        max-width: 40px;
+        max-height: 40px;
         background-color: #DEB887;
         border: 1px solid #8B4513;
         cursor: pointer;
@@ -206,8 +208,13 @@
     }
     
     .stone-black, .stone-white {
-        width: 24px;
-        height: 24px;
+        /* Dynamic stone sizing - roughly 80% of intersection size */
+        width: var(--stone-size, 24px);
+        height: var(--stone-size, 24px);
+        min-width: 12px;
+        min-height: 12px;
+        max-width: 32px;
+        max-height: 32px;
         border-radius: 50%;
         border: 1px solid #333;
         box-shadow: 0 2px 4px rgba(0,0,0,0.3);
@@ -242,14 +249,18 @@
     }
     
     @media (max-width: 768px) {
+        /* Mobile devices get smaller default sizes */
         .board-intersection {
-            width: 25px;
-            height: 25px;
+            --intersection-size: calc(var(--base-intersection-size, 30px) * 0.8);
+            --stone-size: calc(var(--base-stone-size, 24px) * 0.8);
         }
-        
-        .stone-black, .stone-white {
-            width: 20px;
-            height: 20px;
+    }
+    
+    @media (max-width: 480px) {
+        /* Very small screens get even smaller sizes */
+        .board-intersection {
+            --intersection-size: calc(var(--base-intersection-size, 30px) * 0.7);
+            --stone-size: calc(var(--base-stone-size, 24px) * 0.7);
         }
     }
 </style>

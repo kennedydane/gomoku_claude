@@ -2,7 +2,8 @@
 <div class="game-board-container board-responsive">
     <div class="game-board-grid" 
          data-board-size="{{ game.ruleset.board_size }}"
-         id="game-board">
+         id="game-board"
+         style="--board-size: {{ game.ruleset.board_size }}; --intersection-size: var(--base-intersection-size, 30px); --stone-size: var(--base-stone-size, 24px);">
     {% for row in game.board_state.board %}
         {% for cell in row %}
             <div class="board-intersection{% if cell %} occupied{% endif %}"
