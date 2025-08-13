@@ -23,6 +23,8 @@ except ImportError:
     HAS_EVENTSTREAM = False
     send_event = None
 
+from loguru import logger
+
 
 class UserGamesMixin:
     """Mixin to provide user games query functionality."""
@@ -213,25 +215,56 @@ class GameMoveView(LoginRequiredMixin, View):
                 game.refresh_from_db()
                 
                 # Send SSE event to notify other player of the move
+                logger.info(f"🎮 MOVE: Processing move by {request.user.username} in game {game.id}")
+                
                 if HAS_EVENTSTREAM:
                     # Determine which player should receive the notification
                     if request.user == game.black_player:
                         notify_user_id = game.white_player.id
+                        notify_username = game.white_player.username
                     else:
-                        notify_user_id = game.black_player.id
+                        notify_user_id = game.black_player.id  
+                        notify_username = game.black_player.username
+                    
+                    logger.info(f"📡 SSE: Will notify user {notify_username} (ID: {notify_user_id}) about move")
                     
                     try:
                         # Send HTML fragment for HTMX SSE
                         from django.middleware.csrf import get_token
-                        board_html = render(request, 'web/partials/game_board.html', {
-                            'game': game,
-                            'csrf_token': get_token(request)
-                        }).content.decode('utf-8')
+                        csrf_token = get_token(request)
+                        logger.debug(f"🔐 CSRF: Token generated for SSE: {csrf_token[:10]}..." if csrf_token else "🔐 CSRF: No token generated")
                         
-                        send_event(f'user-{notify_user_id}', 'game_move', board_html)
+                        response = render(request, 'web/partials/game_board.html', {
+                            'game': game,
+                            'csrf_token': csrf_token
+                        })
+                        board_html = response.content.decode('utf-8').strip()
+                        
+                        # Remove newlines for SSE compatibility 
+                        # SSE protocol treats consecutive newlines as end-of-event markers
+                        # so we need to strip them to prevent truncation
+                        board_html_sse = ' '.join(board_html.split())
+                        
+                        # Log HTML snippet for debugging
+                        logger.debug(f"📄 HTML: Generated board HTML ({len(board_html)} chars): {board_html[:100]}...")
+                        logger.debug(f"📄 SSE HTML: Stripped for SSE ({len(board_html_sse)} chars): {board_html_sse[:100]}...")
+                        logger.debug(f"🔍 HTML Check: Contains CSRF token: {'X-CSRFToken' in board_html_sse}")
+                        
+                        channel = f'user-{notify_user_id}'
+                        event_name = 'game_move'
+                        logger.info(f"📤 SSE: Sending event '{event_name}' to channel '{channel}'")
+                        
+                        # Send the newline-stripped HTML content for HTMX to process
+                        send_event(channel, event_name, board_html_sse)
+                        logger.success(f"✅ SSE: Event sent successfully to {notify_username}")
+                        
                     except Exception as e:
                         # Don't fail the request if SSE fails
-                        print(f"Failed to send SSE event: {e}")
+                        logger.error(f"❌ SSE: Failed to send event to {notify_username}: {type(e).__name__}: {str(e)}")
+                        import traceback
+                        logger.debug(f"📋 SSE: Full traceback: {traceback.format_exc()}")
+                else:
+                    logger.warning(f"⚠️  SSE: django-eventstream not available, skipping real-time update")
                 
                 # Return HTML fragment for HTMX requests
                 if self.is_htmx_request(request):

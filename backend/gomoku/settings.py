@@ -28,6 +28,26 @@ DEBUG = config('DEBUG', default=True, cast=bool)
 
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=Csv())
 
+# Configure Loguru for debugging
+import sys
+from loguru import logger
+
+# Remove default handler and add custom one for Django integration
+logger.remove()
+logger.add(
+    sys.stderr, 
+    format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+    level="DEBUG" if DEBUG else "INFO"
+)
+
+# Also add file logging
+logger.add(
+    "logs/debug.log", 
+    format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {name}:{function}:{line} - {message}",
+    level="DEBUG",
+    rotation="10 MB",
+    retention="7 days"
+)
 
 # Application definition
 

@@ -34,9 +34,10 @@ Gomoku has been played competitively since 1989, with modern tournaments using t
 This implementation consists of four main components:
 
 - **Backend**: Django REST Framework server providing REST API for game logic and state management
-- **Web Interface**: Responsive Bootstrap 5 + htmx web application for browser-based gameplay
+- **Web Interface**: Responsive Bootstrap 5 + htmx web application with real-time multiplayer via Server-Sent Events
 - **Desktop Frontend**: Dear PyGUI desktop application for native interactive gameplay
 - **Database**: PostgreSQL for persistent game storage with Django admin interface
+- **Real-Time Features**: Server-Sent Events (SSE) for instant move propagation between players
 - **Containerization**: Docker Compose for easy development and deployment
 
 ## Installation
@@ -47,6 +48,7 @@ This implementation consists of four main components:
 - [UV package manager](https://github.com/astral-sh/uv) 
 - Docker and Docker Compose
 - Git
+- Chrome and/or Firefox browsers (for Selenium testing)
 
 ### Setup
 
@@ -191,7 +193,8 @@ The game logic is implemented in a service layer that handles:
 
 ## Testing
 
-Run the test suite:
+### Unit and Integration Tests
+Run the Django test suite:
 ```bash
 cd backend
 # Run all tests (265+ total)
@@ -204,10 +207,34 @@ uv run python manage.py test web
 uv run python manage.py test --verbosity=2
 ```
 
+### Selenium End-to-End Tests
+Run comprehensive browser automation tests for real-time multiplayer functionality:
+```bash
+cd backend
+# Run all Selenium tests
+uv run python -m pytest tests/test_selenium_multiplayer.py -v
+
+# Run real-time SSE tests  
+uv run python -m pytest tests/test_sse_real_time.py -v
+
+# Run cross-browser tests (requires both Chrome and Firefox)
+uv run python -m pytest tests/test_cross_browser_sse.py -v
+
+# Run specific test categories
+uv run python -m pytest -m selenium -v
+uv run python -m pytest -m sse -v
+uv run python -m pytest -m cross_browser -v
+```
+
 **Test Coverage:**
 - **API Tests**: 220+ tests covering authentication, game logic, and challenges
 - **Web Interface Tests**: 43 comprehensive TDD tests for web functionality (includes 25 friend system tests)
 - **Integration Tests**: End-to-end workflows and edge cases
+- **Selenium Tests**: Real-time multiplayer SSE functionality with cross-browser support
+  - **Multiplayer Game Flow**: Two-player sessions with real-time move propagation
+  - **SSE Real-Time Updates**: Server-Sent Events testing with sub-2-second latency validation
+  - **Cross-Browser Compatibility**: Chrome ↔ Firefox interoperability testing
+  - **Connection Resilience**: SSE reconnection, multiple tabs, and browser limits testing
 
 ## Configuration
 
@@ -266,8 +293,14 @@ Key development practices:
 
 ## Recent Major Changes
 
-- ✅ **Friend System (NEW)**: Complete friend request/accept/reject system with TDD (25 tests)
+- ✅ **Selenium Testing Framework (NEW)**: Comprehensive browser automation testing for real-time multiplayer
+  - Real-time SSE move propagation testing with sub-2-second latency validation
+  - Cross-browser compatibility testing (Chrome ↔ Firefox)
+  - Connection resilience testing (reconnection, multiple tabs, browser limits)
+  - End-to-end multiplayer game flow automation
+- ✅ **Friend System**: Complete friend request/accept/reject system with TDD (25 tests)
 - ✅ **Web Interface**: Complete responsive web app using Bootstrap 5 + htmx
+- ✅ **Real-Time Multiplayer**: Server-Sent Events implementation for instant move updates
 - ✅ **TDD Methodology**: 43 comprehensive tests for web interface following TDD methodology
 - ✅ **Django Migration Complete**: Migrated from FastAPI to Django + DRF
 - ✅ **Admin Interface**: Built-in Django admin replaces pgAdmin

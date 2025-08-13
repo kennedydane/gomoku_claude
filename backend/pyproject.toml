@@ -18,10 +18,14 @@ dependencies = [
     "djangorestframework>=3.16.1",
     "crispy-bootstrap5>=2024.2",
     "factory-boy>=3.3.3",
+    "loguru>=0.7.2",
     "psycopg2-binary>=2.9.10",
     "python-decouple>=3.8",
     "redis>=6.4.0",
     "daphne>=4.2.1",
+    "selenium>=4.20.0",
+    "pytest-django>=4.9.0",
+    "webdriver-manager>=4.0.0",
 ]
 
 [project.scripts]
