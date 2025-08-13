@@ -293,18 +293,26 @@ Key development practices:
 
 ## Recent Major Changes
 
-- ✅ **Selenium Testing Framework (NEW)**: Comprehensive browser automation testing for real-time multiplayer
+- ✅ **SSE Real-Time Multiplayer FIXED**: Critical bug fixes for Server-Sent Events functionality
+  - Fixed HTML escaping in SSE data transmission (`json_encode=False`)
+  - Resolved CSRF token handling in dynamically updated content
+  - Simplified HTMX SSE extension approach, removing complex JavaScript workarounds
+  - Real-time board updates now work seamlessly with proper stone rendering
+- ✅ **Selenium Testing Framework**: Comprehensive browser automation testing for real-time multiplayer
   - Real-time SSE move propagation testing with sub-2-second latency validation
   - Cross-browser compatibility testing (Chrome ↔ Firefox)
   - Connection resilience testing (reconnection, multiple tabs, browser limits)
   - End-to-end multiplayer game flow automation
+- ✅ **Production-Ready Web Interface**: Complete responsive web app using Bootstrap 5 + HTMX
+  - Dynamic board sizing with CSS custom properties (8×8 to 25×25 boards)
+  - Ruleset name display instead of UUIDs for better UX
+  - Optimized game ordering and display
 - ✅ **Friend System**: Complete friend request/accept/reject system with TDD (25 tests)
-- ✅ **Web Interface**: Complete responsive web app using Bootstrap 5 + htmx
 - ✅ **Real-Time Multiplayer**: Server-Sent Events implementation for instant move updates
-- ✅ **TDD Methodology**: 43 comprehensive tests for web interface following TDD methodology
+- ✅ **TDD Methodology**: 74+ comprehensive tests for web interface following TDD methodology
 - ✅ **Django Migration Complete**: Migrated from FastAPI to Django + DRF
 - ✅ **Admin Interface**: Built-in Django admin replaces pgAdmin
-- ✅ **Comprehensive Testing**: 265+ tests with Django test framework integration
+- ✅ **Comprehensive Testing**: 300+ tests with Django test framework integration
 - ✅ **Service Layer**: Clean separation of business logic
 - ✅ **Database Optimization**: Strategic indexing and query optimization
 
