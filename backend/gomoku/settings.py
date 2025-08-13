@@ -46,11 +46,14 @@ INSTALLED_APPS = [
     'django_extensions',
     'django_eventstream',
     'channels',
+    'crispy_forms',
+    'crispy_bootstrap5',
     
     # Local apps
     'core',
     'users',
     'games',
+    'web',
 ]
 
 MIDDLEWARE = [
@@ -70,10 +73,11 @@ ROOT_URLCONF = 'gomoku.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
+                'django.template.context_processors.debug',
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
@@ -135,6 +139,10 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = 'static/'
+STATICFILES_DIRS = [
+    BASE_DIR / 'static',
+]
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -200,3 +208,12 @@ CHANNEL_LAYERS = {
         'BACKEND': 'channels.layers.InMemoryChannelLayer'
     }
 }
+
+# Crispy Forms configuration
+CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
+CRISPY_TEMPLATE_PACK = "bootstrap5"
+
+# Login/Logout URLs for web interface
+LOGIN_URL = '/web/login/'
+LOGIN_REDIRECT_URL = '/web/dashboard/'
+LOGOUT_REDIRECT_URL = '/web/'

@@ -1,0 +1,285 @@
+/* Custom Gomoku Game Styles */
+
+/* Dark theme support */
+body.dark {
+    --bs-body-bg: #212529;
+    --bs-body-color: #dee2e6;
+}
+
+body.dark .navbar-dark {
+    background-color: #343a40 !important;
+}
+
+body.dark .bg-light {
+    background-color: #343a40 !important;
+    color: #dee2e6;
+}
+
+body.dark .card {
+    background-color: #2d3439;
+    border-color: #495057;
+    color: #dee2e6;
+}
+
+body.dark .table-dark {
+    --bs-table-bg: #2d3439;
+}
+
+/* Game Board Styles */
+.game-board {
+    display: grid;
+    gap: 1px;
+    background-color: #8B4513;
+    padding: 10px;
+    border-radius: 8px;
+    margin: 0 auto;
+    max-width: min(90vw, 600px);
+    aspect-ratio: 1;
+}
+
+.board-cell {
+    background-color: #DEB887;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-height: 25px;
+    position: relative;
+}
+
+.board-cell:hover:not(.occupied) {
+    background-color: #F5DEB3;
+    transform: scale(1.05);
+}
+
+.board-cell.occupied {
+    cursor: not-allowed;
+}
+
+.board-cell.black-stone {
+    background-color: #333;
+    color: white;
+    border-radius: 50%;
+}
+
+.board-cell.white-stone {
+    background-color: #fff;
+    color: #333;
+    border-radius: 50%;
+    border: 2px solid #333;
+}
+
+.board-cell.winning-stone {
+    box-shadow: 0 0 10px #ffd700;
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+/* Board size variants */
+.board-9x9 { grid-template-columns: repeat(9, 1fr); }
+.board-13x13 { grid-template-columns: repeat(13, 1fr); }
+.board-15x15 { grid-template-columns: repeat(15, 1fr); }
+.board-19x19 { grid-template-columns: repeat(19, 1fr); }
+
+/* Game Status and Info */
+.game-info {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+}
+
+.current-player {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: bold;
+}
+
+.player-indicator {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+}
+
+.player-indicator.black { background-color: #333; }
+.player-indicator.white { background-color: #fff; }
+
+/* Friend and Challenge Lists */
+.friend-item, .challenge-item {
+    border-left: 4px solid transparent;
+    transition: all 0.3s ease;
+}
+
+.friend-item.online { border-left-color: #28a745; }
+.friend-item.offline { border-left-color: #6c757d; }
+
+.challenge-item.pending { border-left-color: #ffc107; }
+.challenge-item.accepted { border-left-color: #28a745; }
+.challenge-item.rejected { border-left-color: #dc3545; }
+
+/* Statistics Cards */
+.stat-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+}
+
+.stat-value {
+    font-size: 2rem;
+    font-weight: bold;
+    line-height: 1;
+}
+
+.stat-label {
+    font-size: 0.9rem;
+    opacity: 0.9;
+}
+
+/* Loading and Animation States */
+.htmx-indicator {
+    display: none;
+}
+
+.htmx-request .htmx-indicator {
+    display: inline-block;
+}
+
+.htmx-request.htmx-indicator {
+    display: inline-block;
+}
+
+.loading-spinner {
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #3498db;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    animation: spin 1s linear infinite;
+    display: inline-block;
+    margin-right: 0.5rem;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Toast notifications */
+.toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 9999;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .game-board {
+        gap: 0;
+        padding: 5px;
+    }
+    
+    .board-cell {
+        font-size: 0.7rem;
+        min-height: 20px;
+    }
+    
+    .stat-value {
+        font-size: 1.5rem;
+    }
+}
+
+@media (max-width: 576px) {
+    .board-cell {
+        font-size: 0.6rem;
+        min-height: 18px;
+    }
+    
+    .game-info {
+        padding: 0.75rem;
+        font-size: 0.9rem;
+    }
+}
+
+/* Utility Classes */
+.cursor-pointer { cursor: pointer; }
+.text-decoration-none { text-decoration: none; }
+
+/* Custom button hover effects */
+.btn-outline-primary:hover {
+    transform: translateY(-2px);
+    transition: all 0.2s ease;
+}
+
+.btn-outline-success:hover {
+    transform: translateY(-2px);
+    transition: all 0.2s ease;
+}
+
+/* Game history timeline */
+.timeline {
+    border-left: 2px solid #dee2e6;
+    padding-left: 1rem;
+    margin-left: 1rem;
+}
+
+.timeline-item {
+    margin-bottom: 1rem;
+    position: relative;
+}
+
+.timeline-item::before {
+    content: '';
+    position: absolute;
+    left: -1.25rem;
+    top: 0.5rem;
+    width: 8px;
+    height: 8px;
+    background-color: #6c757d;
+    border-radius: 50%;
+}
+
+.timeline-item.winning-move::before {
+    background-color: #ffd700;
+    box-shadow: 0 0 5px #ffd700;
+}
+
+/* Spectator mode styles */
+.spectator-badge {
+    position: fixed;
+    top: 80px;
+    right: 20px;
+    z-index: 1000;
+}
+
+/* Online status indicator */
+.online-indicator {
+    position: relative;
+}
+
+.online-indicator::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 12px;
+    height: 12px;
+    background-color: #28a745;
+    border: 2px solid white;
+    border-radius: 50%;
+}
+
+.offline-indicator::after {
+    background-color: #6c757d;
+}

@@ -249,6 +249,20 @@ wheels = [
 ]
 
 [[package]]
+name = "crispy-bootstrap5"
+version = "2025.6"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "django", version = "4.2.23", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
+    { name = "django", version = "5.2.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
+    { name = "django-crispy-forms" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/97/30/36cc4144b6dff91bb54490a3b474897b7469bcda9517bf9f54681ea91011/crispy_bootstrap5-2025.6.tar.gz", hash = "sha256:f1bde7cac074c650fc82f31777d4a4cfd0df2512c68bc4128f259c75d3daada4", size = 23950, upload-time = "2025-06-08T07:43:35.461Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d8/d4/8cf1ba773a91fc17bab1fd46b75bbdef780c4cccbbb8230e617980a0362c/crispy_bootstrap5-2025.6-py3-none-any.whl", hash = "sha256:a343aa128b4383f35f00295b94de2b10862f2a4f24eda21fa6ead45234c07050", size = 24794, upload-time = "2025-06-08T07:43:34.206Z" },
+]
+
+[[package]]
 name = "dearpygui"
 version = "1.11.1"
 source = { registry = "https://pypi.org/simple" }
@@ -325,6 +339,19 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/93/6c/16f6cb6064c63074fd5b2bd494eb319afd846236d9c1a6c765946df2c289/django_cors_headers-4.7.0.tar.gz", hash = "sha256:6fdf31bf9c6d6448ba09ef57157db2268d515d94fc5c89a0a1028e1fc03ee52b", size = 21037, upload-time = "2025-02-06T22:15:28.924Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/7e/a2/7bcfff86314bd9dd698180e31ba00604001606efb518a06cca6833a54285/django_cors_headers-4.7.0-py3-none-any.whl", hash = "sha256:f1c125dcd58479fe7a67fe2499c16ee38b81b397463cf025f0e2c42937421070", size = 12794, upload-time = "2025-02-06T22:15:24.341Z" },
+]
+
+[[package]]
+name = "django-crispy-forms"
+version = "2.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "django", version = "4.2.23", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
+    { name = "django", version = "5.2.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/88/a1/ffd7b0e160296121d88e3e173165370000ee4de7328f5c4f4b266638dcd9/django_crispy_forms-2.4.tar.gz", hash = "sha256:915e1ffdeb2987d78b33fabfeff8e5203c8776aa910a3a659a2c514ca125f3bd", size = 278932, upload-time = "2025-04-13T07:25:00.176Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/1d/ec/a25f81e56a674e63cf6c3dd8e36b1b3fecc238fecd6098504adc0cc61402/django_crispy_forms-2.4-py3-none-any.whl", hash = "sha256:5a4b99876cfb1bdd3e47727731b6d4197c51c0da502befbfbec6a93010b02030", size = 31446, upload-time = "2025-04-13T07:24:58.516Z" },
 ]
 
 [[package]]
@@ -490,9 +517,11 @@ source = { editable = "backend" }
 dependencies = [
     { name = "channels" },
     { name = "coverage" },
+    { name = "crispy-bootstrap5" },
     { name = "django", version = "4.2.23", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
     { name = "django", version = "5.2.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
     { name = "django-cors-headers" },
+    { name = "django-crispy-forms" },
     { name = "django-eventstream", version = "4.5.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
     { name = "django-eventstream", version = "5.3.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
     { name = "django-extensions" },
@@ -507,8 +536,10 @@ dependencies = [
 requires-dist = [
     { name = "channels", specifier = ">=4.3.1" },
     { name = "coverage", specifier = ">=7.10.3" },
+    { name = "crispy-bootstrap5", specifier = ">=2024.2" },
     { name = "django", specifier = ">=4.2.23" },
     { name = "django-cors-headers", specifier = ">=4.7.0" },
+    { name = "django-crispy-forms", specifier = ">=2.3" },
     { name = "django-eventstream", specifier = ">=4.5.1" },
     { name = "django-extensions", specifier = ">=4.1" },
     { name = "djangorestframework", specifier = ">=3.16.1" },

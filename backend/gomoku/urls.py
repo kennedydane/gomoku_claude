@@ -37,4 +37,6 @@ urlpatterns = [
     path('api/v1/', include(router.urls)),
     path('api/v1/auth/token/', obtain_auth_token, name='api_token_auth'),
     path('api-auth/', include('rest_framework.urls')),
+    path('web/', include('web.urls')),
+    path('', include('web.urls')),  # Root redirects to web interface
 ]
