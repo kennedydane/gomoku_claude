@@ -1,6 +1,6 @@
 # Gomoku Game System
 
-A modern, full-stack implementation of Gomoku (Five-in-a-Row) featuring a FastAPI backend with PostgreSQL database and a Dear PyGUI desktop client.
+A modern, full-stack implementation of Gomoku (Five-in-a-Row) featuring a Django REST Framework backend with PostgreSQL database and a Dear PyGUI desktop client.
 
 ## What is Gomoku?
 
@@ -31,11 +31,11 @@ Gomoku has been played competitively since 1989, with modern tournaments using t
 
 ## Architecture
 
-This implementation consists of two main components:
+This implementation consists of three main components:
 
-- **Backend**: FastAPI server providing REST API for game logic and state management
+- **Backend**: Django REST Framework server providing REST API for game logic and state management
 - **Frontend**: Dear PyGUI desktop application for interactive gameplay
-- **Database**: PostgreSQL for persistent game storage
+- **Database**: PostgreSQL for persistent game storage with Django admin interface
 - **Containerization**: Docker Compose for easy development and deployment
 
 ## Installation
@@ -64,245 +64,188 @@ uv sync
 3. **Start the database services:**
 ```bash
 # Development mode (database port exposed on 5434)
-docker compose up -d postgres pgadmin
+docker compose up -d postgres
 ```
 
 4. **Run database migrations:**
 ```bash
 # Apply all migrations to set up database schema
 cd backend
-uv run alembic upgrade head
+uv run python manage.py migrate
+```
+
+5. **Create a superuser (optional):**
+```bash
+uv run python manage.py createsuperuser
+# Or use the provided script: uv run python create_superuser.py
+```
+
+6. **Seed the database with test data (optional):**
+```bash
+uv run python manage.py seed_data
 ```
 
 ## Usage
 
 ### Development Mode
 
-**Start the backend server:**
+**Start the Django backend server:**
 ```bash
-# Backend development (ready for API implementation)
 cd backend
-uv run uvicorn src.backend.main:app --reload
+uv run python manage.py runserver 8001
 ```
-The API will be available at http://localhost:8000  
-Interactive API docs at http://localhost:8000/docs
+The API will be available at http://localhost:8001/api/v1/  
+Interactive API docs at http://localhost:8001/api/v1/ (Django REST Framework browsable API)  
+Admin interface at http://localhost:8001/admin/ (admin / admin123)
 
 **Start the frontend application:**
 ```bash
-# Frontend GUI (when implemented)  
-# uv run python -m frontend.main --debug
+cd frontend
+# Basic GUI client
+uv run python simple_gomoku.py
+
+# Enhanced GUI with logging
+uv run python gomoku_gui.py --debug
 ```
 
 **Database Access:**
 - PostgreSQL: `localhost:5434` (exposed for development tools)
-- pgAdmin: http://localhost:5050 (admin@gomoku.com / [see .env])
+- Django Admin: http://localhost:8001/admin/ (replaces pgAdmin)
 
 ### Production Mode
 
-**Start production services:**
+**Using Docker Compose:**
 ```bash
-# Production mode (database port NOT exposed - secure)
-COMPOSE_FILE=docker-compose.yml docker compose up -d
+# Start all services in production mode
+docker compose --profile production up -d
 ```
 
-**Or use production environment:**
-```bash
-cp .env.prod.example .env.prod
-# Edit .env.prod with secure production values
-docker compose --env-file .env.prod up -d
-```
+## API Endpoints
 
-**Production Security:**
-- PostgreSQL: Internal network only (no external port access)
-- Database accessible only via FastAPI backend
-- pgAdmin disabled in production
+The Django REST API provides the following endpoints:
 
-### Database Management
+### Users
+- `GET /api/v1/users/` - List all users
+- `POST /api/v1/users/` - Create a new user
+- `GET /api/v1/users/{id}/` - Get user details
+- `GET /api/v1/users/{id}/stats/` - Get user statistics
+- `POST /api/v1/users/{id}/reset_stats/` - Reset user statistics
 
-**Access pgAdmin:**
-- URL: http://localhost:5050
-- Email: admin@gomoku.com
-- Password: admin
+### Rule Sets
+- `GET /api/v1/rulesets/` - List all rule sets
+- `POST /api/v1/rulesets/` - Create a new rule set
+- `GET /api/v1/rulesets/{id}/` - Get rule set details
 
-**Direct PostgreSQL access:**
-```bash
-docker compose exec postgres psql -U gomoku_user -d gomoku_db
-```
+### Games
+- `GET /api/v1/games/` - List all games
+- `POST /api/v1/games/` - Create a new game
+- `GET /api/v1/games/{id}/` - Get game details
+- `POST /api/v1/games/{id}/start/` - Start a game
+- `POST /api/v1/games/{id}/move/` - Make a move
+- `GET /api/v1/games/{id}/moves/` - Get move history
+- `POST /api/v1/games/{id}/resign/` - Resign from game
 
-## Development
+### Sessions & Challenges
+- `GET /api/v1/sessions/` - List player sessions
+- `GET /api/v1/sessions/active/` - Get active sessions only
+- `POST /api/v1/challenges/` - Create a challenge
+- `GET /api/v1/challenges/pending/` - Get pending challenges
+- `POST /api/v1/challenges/{id}/respond/` - Accept/reject challenge
 
-### Project Structure
+## Development Features
 
-```
-├── backend/                 # FastAPI backend
-│   ├── app/
-│   │   ├── api/routes/     # REST API endpoints
-│   │   ├── core/           # Configuration
-│   │   ├── db/models/      # SQLAlchemy models
-│   │   ├── services/       # Game logic
-│   │   ├── schemas/        # Pydantic schemas
-│   │   └── main.py         # FastAPI app
-│   ├── tests/              # Backend tests
-│   ├── Dockerfile
-│   └── pyproject.toml
-├── frontend/               # Dear PyGUI client
-│   ├── gomoku_gui/
-│   │   ├── ui/            # GUI components  
-│   │   ├── client/        # API client
-│   │   ├── game/          # Game state
-│   │   └── main.py        # Application entry
-│   ├── tests/             # Frontend tests
-│   └── pyproject.toml
-├── docker-compose.yml      # Container orchestration
-├── TODO.md                # Task tracking
-└── README.md              # This file
-```
+### Django Admin Interface
+The Django admin interface provides a comprehensive view of all game data:
+- **User Management**: View and manage players, including statistics
+- **Game Management**: View games with visual board previews
+- **Rule Sets**: Configure different game variations
+- **Real-time Monitoring**: Track player sessions and game events
 
-### Testing
+### Game Service Layer
+The game logic is implemented in a service layer that handles:
+- Move validation (bounds checking, turn validation)
+- Win detection (5-in-a-row in all directions)
+- Game state management
+- Board initialization and updates
 
-**Run backend tests:**
+### Database Models
+- **User**: Player accounts with game statistics
+- **RuleSet**: Configurable game rule variations
+- **Game**: Individual game sessions with board state
+- **GameMove**: Move history and validation
+- **PlayerSession**: Online player tracking
+- **GameEvent**: Real-time event system
+- **Challenge**: Player-to-player game invitations
+
+## Testing
+
+Run the test suite:
 ```bash
 cd backend
-uv run pytest
+uv run python manage.py test
 ```
 
-**Run frontend tests:**
-```bash
-cd frontend  
-uv run pytest
+## Configuration
+
+### Environment Variables
+Create a `.env` file in the backend directory:
+```env
+DEBUG=True
+SECRET_KEY=your-secret-key-here
+DB_NAME=gomoku_db
+DB_USER=gomoku_user
+DB_PASSWORD=your-password-here
+DB_HOST=localhost
+DB_PORT=5434
 ```
 
-**Run all tests:**
-```bash
-uv run pytest backend/tests/ frontend/tests/
+### Database Configuration
+The application uses PostgreSQL with the following default connection:
+- Host: localhost
+- Port: 5434 (exposed from Docker)
+- Database: gomoku_db
+- User: gomoku_user
+
+## Project Structure
+
 ```
-
-### Code Quality
-
-The project follows Test-Driven Development (TDD) principles:
-
-1. Write tests first
-2. Implement minimal code to pass
-3. Refactor and improve
-4. Repeat
-
-**Linting and formatting:**
-```bash
-# Backend
-cd backend
-uv run ruff check .
-uv run ruff format .
-
-# Frontend
-cd frontend
-uv run ruff check .
-uv run ruff format .
+gomoku_claude/
+├── backend/              # Django REST Framework backend
+│   ├── gomoku/          # Django project settings
+│   ├── users/           # User management app
+│   ├── games/           # Game logic and models
+│   ├── core/            # Shared utilities and commands
+│   └── manage.py        # Django management script
+├── frontend/            # Dear PyGUI desktop client
+│   ├── simple_gomoku.py # Basic game client
+│   └── gomoku_gui.py    # Enhanced GUI with logging
+├── docker-compose.yml   # Docker services configuration
+├── data/               # Persistent data volumes
+└── README.md           # This file
 ```
-
-## API Documentation
-
-Once the backend is running, interactive API documentation is available at:
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
-
-### Key Endpoints
-
-- `POST /api/v1/games/` - Create a new two-player game
-- `GET /api/v1/games/{game_id}/` - Get game state  
-- `PUT /api/v1/games/{game_id}/start` - Start a waiting game
-- `POST /api/v1/games/{game_id}/moves/` - Make a move
-- `GET /api/v1/games/{game_id}/moves/` - Get move history
-- `PUT /api/v1/games/{game_id}/` - Update game status
-- `GET /api/v1/users/` - List users
-- `POST /api/v1/users/` - Create user
-- `GET /api/v1/rulesets/` - List available rulesets
-
-## Current Status
-
-### ✅ Completed (Phase 0, 1.1, 1.2, 1.4 & 1.5)
-- Project structure with UV workspace and src layout  
-- Docker Compose setup with PostgreSQL and pgAdmin
-- Development/Production network separation for security
-- Python 3.12 environment with all dependencies
-- Database connection tested and working  
-- Alembic migration system configured and working
-- **Complete SQLAlchemy Models** with comprehensive tests:
-  - RuleSet model with JSON configuration (41 tests)
-  - User model with game statistics (44 tests) 
-  - Game model with UUID keys and board state (32 tests)
-  - GameMove model with position validation (31 tests)
-- **Database Schema**: Full migrations with constraints, indexes, relationships
-- **REST API Implementation** with 79 comprehensive tests (100% passing):
-  - User management endpoints (27 tests)
-  - RuleSet management endpoints (23 tests)
-  - Game lifecycle endpoints (29 tests)  
-  - All using httpx with async testing infrastructure
-- **Game Services Layer** with 26 comprehensive tests (100% passing):
-  - Move validation (bounds checking, turn validation, position occupation)
-  - Win detection algorithm (horizontal, vertical, diagonal, 5-in-a-row)
-  - Game state management (move count, turn switching, game completion)
-  - Database integration for move persistence
-- **Game Architecture**: Two-player games only (removed single-player concept for AI integration)
-- **Integration Verified**: All models, API endpoints, and services working together (105 tests total)
-
-### 🔄 Next Steps (Phase 1.5 Completion & 2.1 - Hybrid Approach)
-- **Phase 1.5**: Refactor API routes to use GameService layer
-- **Phase 2.1**: Build minimal viable Dear PyGUI frontend for visual testing
-- **Future**: Add AI agents as regular Users connecting through API
-
-### 🎯 Architecture Overview
-```
-├── backend/src/backend/    # FastAPI + PostgreSQL + SQLAlchemy 2.0
-│   ├── db/models/         # ✅ Complete: RuleSet, User, Game, GameMove
-│   ├── db/database.py     # ✅ Async SQLAlchemy connection
-│   ├── core/config.py     # ✅ Settings management
-│   ├── api/routes/        # ✅ Complete REST API endpoints
-│   ├── schemas/           # ✅ Pydantic request/response schemas
-│   └── services/          # ✅ Complete: GameService with move validation & win detection
-├── frontend/src/frontend/  # Next: Dear PyGUI desktop application
-├── backend/migrations/     # ✅ Alembic database migrations
-└── backend/tests/         # ✅ 105 total tests (79 API + 26 GameService, 100% passing)
-```
-
-### 📊 Database Schema
-- **rulesets** - Game rule configurations (Standard, Renju, Freestyle, etc.)
-- **users** - Player accounts with game statistics
-- **games** - Two-player game instances with board state (white_player_id required)
-- **game_moves** - Individual move history with validation
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Write tests for new functionality
-4. Implement the feature
-5. Ensure all tests pass
-6. Submit a pull request
+This project follows Test-Driven Development (TDD) principles:
+1. Write tests for new features first
+2. Implement the minimal code to pass tests
+3. Refactor while keeping tests green
 
-## Future Features
+Key development practices:
+- Use Django's built-in testing framework
+- Follow Django coding conventions
+- Use the Django admin for data management
+- Implement comprehensive error handling
 
-- Computer AI opponents with adjustable difficulty
-- Multiple concurrent games
-- Tournament bracket system
-- Game replay and analysis
-- Spectator mode
-- Online multiplayer support
+## Recent Major Changes
+
+- ✅ **Django Migration Complete**: Migrated from FastAPI to Django + DRF
+- ✅ **Admin Interface**: Built-in Django admin replaces pgAdmin
+- ✅ **Simplified ORM**: Django ORM replaces SQLAlchemy complexity
+- ✅ **Service Layer**: Clean separation of business logic
+- ✅ **Comprehensive Testing**: Django test framework integration
+- ✅ **Model Relationships**: Proper foreign key relationships and constraints
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Acknowledgements
-
-This project was designed and implemented with the assistance of **Claude**, Anthropic's AI assistant. Claude provided architectural guidance, code implementation, documentation, and followed Test-Driven Development principles throughout the development process.
-
-Special thanks to:
-- **Claude (Anthropic)** - AI assistant for system design, implementation, and documentation
-- **FastAPI** - Modern, fast web framework for building APIs
-- **Dear PyGUI** - GPU-accelerated Python GUI framework
-- **UV** - Fast Python package and project manager
-- **SQLAlchemy** - Python SQL toolkit and ORM
-- **PostgreSQL** - Advanced open source relational database
-- **Docker** - Containerization platform for consistent development environments
-
-The gomoku rules implementation follows international tournament standards and supports multiple rule variations used in competitive play.
+[Add your license information here]
