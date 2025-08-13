@@ -19,7 +19,7 @@
                  hx-swap="innerHTML"
                  hx-disabled-elt="this"
                  hx-indicator="#board-loading"
-                 hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                 hx-include="[name='csrfmiddlewaretoken']"
                  {% endif %}>
                 {% if cell == 'BLACK' or cell == 'black' %}
                     <div class="stone-black"></div>

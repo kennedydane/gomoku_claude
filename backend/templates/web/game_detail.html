@@ -91,7 +91,10 @@
                         <!-- Error Messages -->
                         <div id="board-errors"></div>
                         
-                        <div id="game-board-wrapper">
+                        <div id="game-board-wrapper" 
+                             hx-ext="sse" 
+                             sse-connect="/api/v1/events/?channel=user-{{ user.id }}" 
+                             sse-swap="game_move">
                             {% include 'web/partials/game_board.html' %}
                         </div>
                     </div>
@@ -308,49 +311,8 @@
             }
         });
         
-        // Manual SSE connection to bypass problematic HTMX SSE extension
-        console.log('🔌 SSE: Attempting to connect to /api/v1/events/?channel=user-{{ user.id }}');
-        const eventSource = new EventSource('/api/v1/events/?channel=user-{{ user.id }}');
-        
-        // Listen for ANY SSE events to debug
-        eventSource.onmessage = function(event) {
-            console.log('📨 SSE: Received general message:', event);
-        };
-        
-        eventSource.addEventListener('game_move', function(event) {
-            console.log('🎯 Raw SSE: Received game_move event');
-            console.log('📄 Raw SSE: Event data length:', event.data.length);
-            console.log('🔍 Raw SSE: Data preview:', event.data.substring(0, 200) + '...');
-            console.log('🏷️ Raw SSE: Contains HTML tags:', /<[^>]+>/.test(event.data));
-            console.log('🎮 Raw SSE: Contains stone elements:', event.data.includes('stone-black') || event.data.includes('stone-white'));
-            
-            // Directly update the innerHTML - bypass HTMX SSE extension
-            const wrapper = document.getElementById('game-board-wrapper');
-            if (wrapper && event.data) {
-                console.log('🔄 Raw SSE: Updating innerHTML directly');
-                wrapper.innerHTML = event.data;
-                console.log('✅ Raw SSE: Board updated successfully');
-                
-                // Verify update worked
-                const stones = wrapper.querySelectorAll('.stone-black, .stone-white');
-                const intersections = wrapper.querySelectorAll('.board-intersection');
-                console.log(`🎮 Raw SSE: After update - ${stones.length} stones, ${intersections.length} intersections`);
-                
-                // Visual indication
-                wrapper.style.border = '2px solid #28a745';
-                setTimeout(() => {
-                    wrapper.style.border = '';
-                }, 1000);
-            }
-        });
-        
-        eventSource.addEventListener('open', function(event) {
-            console.log('🔌 Raw SSE: Connection opened');
-        });
-        
-        eventSource.addEventListener('error', function(event) {
-            console.error('❌ Raw SSE: Connection error:', event);
-        });
+        // HTMX SSE debug logging (simplified)
+        console.log('🔌 SSE: HTMX SSE extension will handle connection to user-{{ user.id }}');
         // Handle HTMX errors
         document.body.addEventListener('htmx:responseError', function(event) {
             console.error('HTMX Error:', event.detail);
