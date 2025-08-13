@@ -232,9 +232,11 @@ class GameMoveView(LoginRequiredMixin, View):
                 if HAS_EVENTSTREAM:
                     # Determine which player should receive the notification
                     if request.user == game.black_player:
+                        notify_user = game.white_player
                         notify_user_id = game.white_player.id
                         notify_username = game.white_player.username
                     else:
+                        notify_user = game.black_player
                         notify_user_id = game.black_player.id  
                         notify_username = game.black_player.username
                     
@@ -251,6 +253,7 @@ class GameMoveView(LoginRequiredMixin, View):
                         import json
                         board_html = render_to_string('web/partials/game_board.html', {
                             'game': game,
+                            'user': notify_user,
                             'csrf_token': csrf_token
                         }, request=request).strip()
                         

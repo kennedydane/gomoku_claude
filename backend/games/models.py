@@ -213,6 +213,13 @@ class Game(models.Model):
             winner.update_game_stats(won=True)
             loser = self.white_player if winner == self.black_player else self.black_player
             loser.update_game_stats(won=False)
+    
+    def get_current_player_user(self):
+        """Get the User object for the current player."""
+        if self.current_player == Player.BLACK:
+            return self.black_player
+        else:
+            return self.white_player
 
 
 class GameMove(models.Model):

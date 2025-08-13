@@ -190,7 +190,7 @@
         max-height: 40px;
         background-color: #DEB887;
         border: 1px solid #8B4513;
-        cursor: pointer;
+        cursor: default;
         display: flex;
         justify-content: center;
         align-items: center;
@@ -198,7 +198,12 @@
         position: relative;
     }
     
-    .board-intersection:hover {
+    /* Clickable intersections (when it's player's turn) */
+    .board-intersection[hx-post] {
+        cursor: pointer;
+    }
+    
+    .board-intersection[hx-post]:hover {
         background-color: #F5DEB3;
     }
     
