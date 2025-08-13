@@ -1,7 +1,6 @@
 from django.shortcuts import render, redirect
 from django.views.generic import TemplateView
 from django.contrib.auth.views import LoginView, LogoutView
-from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth import login
 from django.urls import reverse_lazy
@@ -10,6 +9,7 @@ from django.db.models import Q
 
 from games.models import Game, Challenge, GameStatus, ChallengeStatus
 from users.models import User
+from .forms import CustomUserCreationForm
 
 
 class UserGamesMixin:
@@ -47,7 +47,7 @@ class WebLogoutView(LogoutView):
 class RegisterView(View):
     """User registration view."""
     template_name = 'web/register.html'
-    form_class = UserCreationForm
+    form_class = CustomUserCreationForm
     
     def get(self, request):
         form = self.form_class()
