@@ -9,11 +9,13 @@ authors = [
 requires-python = ">=3.9, <3.14"
 dependencies = [
     "channels>=4.3.1",
+    "coverage>=7.10.3",
     "django>=4.2.23",
     "django-cors-headers>=4.7.0",
     "django-eventstream>=4.5.1",
     "django-extensions>=4.1",
     "djangorestframework>=3.16.1",
+    "factory-boy>=3.3.3",
     "psycopg2-binary>=2.9.10",
     "python-decouple>=3.8",
     "redis>=6.4.0",

@@ -87,6 +87,9 @@ class User(AbstractUser):
             self.username = self.username.lower().strip()
         if self.email:
             self.email = self.email.lower().strip()
+            # Convert empty string to None for unique constraint
+            if self.email == '':
+                self.email = None
         super().save(*args, **kwargs)
     
     @property
