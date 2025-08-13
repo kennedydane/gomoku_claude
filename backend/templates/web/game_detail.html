@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+
+{% block title %}Game Detail - Gomoku{% endblock %}
+
+{% block content %}
+<div class="container">
+    {% if error %}
+        <div class="alert alert-danger">{{ error }}</div>
+    {% else %}
+        <h1>Game #{{ game.id }}</h1>
+        <p>{{ game.black_player.username }} (Black) vs {{ game.white_player.username }} (White)</p>
+        
+        <div class="game-board">
+            <!-- Simple placeholder for game board -->
+            <div class="row">
+                {% for i in "123456789012345" %}
+                    <div class="col-1">
+                        <div class="board-cell" style="border: 1px solid #ccc; height: 30px; width: 30px;"></div>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+        
+        <form method="post" action="{% url 'web:game_move' game_id=game.id %}" class="mt-3">
+            {% csrf_token %}
+            <input type="hidden" name="row" value="7">
+            <input type="hidden" name="col" value="7">
+            <button type="submit" class="btn btn-primary">Make Move (Test)</button>
+        </form>
+    {% endif %}
+</div>
+{% endblock %}

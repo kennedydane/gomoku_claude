@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+
+{% block title %}Error - Gomoku{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="alert alert-danger">
+        <h4>Error</h4>
+        <p>{{ error }}</p>
+    </div>
+    <a href="{% url 'web:home' %}" class="btn btn-primary">Go Home</a>
+</div>
+{% endblock %}

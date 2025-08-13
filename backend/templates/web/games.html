@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+
+{% block title %}Games - Gomoku{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1>Your Games</h1>
+    
+    <div class="row">
+        {% for game in games %}
+            <div class="col-md-6 mb-3">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Game #{{ game.id }}</h5>
+                        <p class="card-text">
+                            {{ game.black_player.username }} (Black) vs {{ game.white_player.username }} (White)
+                        </p>
+                        <p class="card-text">Status: {{ game.status }}</p>
+                        <a href="{% url 'web:game_detail' game_id=game.id %}" class="btn btn-primary">View Game</a>
+                    </div>
+                </div>
+            </div>
+        {% empty %}
+            <p>No games found.</p>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

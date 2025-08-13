@@ -23,4 +23,14 @@ urlpatterns = [
     path('games/', views.GamesView.as_view(), name='games'),
     path('games/<uuid:game_id>/', views.GameDetailView.as_view(), name='game_detail'),
     path('games/<uuid:game_id>/move/', views.GameMoveView.as_view(), name='game_move'),
+    
+    # Friends - Web Pages
+    path('friends/', views.FriendsPageView.as_view(), name='friends'),
+    
+    # Friends - API Endpoints
+    path('api/send-friend-request/', views.SendFriendRequestView.as_view(), name='send_friend_request'),
+    path('api/respond-friend-request/<int:friendship_id>/', views.RespondFriendRequestView.as_view(), name='respond_friend_request'),
+    path('api/friends-list/', views.FriendsListView.as_view(), name='friends_list'),
+    path('api/pending-requests/', views.PendingRequestsView.as_view(), name='pending_requests'),
+    path('api/search-users/', views.SearchUsersView.as_view(), name='search_users'),
 ]

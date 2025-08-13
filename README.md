@@ -1,6 +1,6 @@
 # Gomoku Game System
 
-A modern, full-stack implementation of Gomoku (Five-in-a-Row) featuring a Django REST Framework backend with PostgreSQL database and a Dear PyGUI desktop client.
+A modern, full-stack implementation of Gomoku (Five-in-a-Row) featuring a Django REST Framework backend with PostgreSQL database, responsive web interface, and Dear PyGUI desktop client.
 
 ## What is Gomoku?
 
@@ -31,10 +31,11 @@ Gomoku has been played competitively since 1989, with modern tournaments using t
 
 ## Architecture
 
-This implementation consists of three main components:
+This implementation consists of four main components:
 
 - **Backend**: Django REST Framework server providing REST API for game logic and state management
-- **Frontend**: Dear PyGUI desktop application for interactive gameplay
+- **Web Interface**: Responsive Bootstrap 5 + htmx web application for browser-based gameplay
+- **Desktop Frontend**: Dear PyGUI desktop application for native interactive gameplay
 - **Database**: PostgreSQL for persistent game storage with Django admin interface
 - **Containerization**: Docker Compose for easy development and deployment
 
@@ -94,11 +95,12 @@ uv run python manage.py seed_data
 cd backend
 uv run python manage.py runserver 8001
 ```
-The API will be available at http://localhost:8001/api/v1/  
-Interactive API docs at http://localhost:8001/api/v1/ (Django REST Framework browsable API)  
-Admin interface at http://localhost:8001/admin/ (admin / admin123)
+Services available:
+- **Web Interface**: http://localhost:8001/ (Bootstrap 5 + htmx responsive web app)
+- **REST API**: http://localhost:8001/api/v1/ (Django REST Framework browsable API)  
+- **Admin Interface**: http://localhost:8001/admin/ (admin / admin123)
 
-**Start the frontend application:**
+**Start the desktop frontend (optional):**
 ```bash
 cd frontend
 # Basic GUI client
@@ -107,6 +109,8 @@ uv run python simple_gomoku.py
 # Enhanced GUI with logging
 uv run python gomoku_gui.py --debug
 ```
+
+**Note**: The web interface provides full gameplay functionality through your browser. The desktop frontend is optional for users preferring a native application.
 
 **Database Access:**
 - PostgreSQL: `localhost:5434` (exposed for development tools)
@@ -182,8 +186,21 @@ The game logic is implemented in a service layer that handles:
 Run the test suite:
 ```bash
 cd backend
+# Run all tests (265+ total)
 uv run python manage.py test
+
+# Run web interface tests (43 tests)
+uv run python manage.py test web
+
+# Run with verbose output
+uv run python manage.py test --verbosity=2
 ```
+
+**Test Coverage:**
+- **API Tests**: 220+ tests covering authentication, game logic, and challenges
+- **Web Interface Tests**: 43 comprehensive TDD tests for web functionality and friend system
+- **Friend System Tests**: 25 complete TDD tests for friend requests and management
+- **Integration Tests**: End-to-end workflows and edge cases
 
 ## Configuration
 
@@ -214,7 +231,10 @@ gomoku_claude/
 │   ├── gomoku/          # Django project settings
 │   ├── users/           # User management app
 │   ├── games/           # Game logic and models
+│   ├── web/             # Web interface app (Bootstrap + htmx)
 │   ├── core/            # Shared utilities and commands
+│   ├── templates/       # Django templates (base + web)
+│   ├── static/          # CSS, JavaScript, images
 │   └── manage.py        # Django management script
 ├── frontend/            # Dear PyGUI desktop client
 │   ├── simple_gomoku.py # Basic game client
@@ -239,12 +259,14 @@ Key development practices:
 
 ## Recent Major Changes
 
+- ✅ **Friend System (NEW)**: Complete friend request/accept/reject system with TDD (25 tests)
+- ✅ **Web Interface**: Complete responsive web app using Bootstrap 5 + htmx
+- ✅ **TDD Methodology**: 43 comprehensive tests for web interface following TDD methodology
 - ✅ **Django Migration Complete**: Migrated from FastAPI to Django + DRF
 - ✅ **Admin Interface**: Built-in Django admin replaces pgAdmin
-- ✅ **Simplified ORM**: Django ORM replaces SQLAlchemy complexity
+- ✅ **Comprehensive Testing**: 265+ tests with Django test framework integration
 - ✅ **Service Layer**: Clean separation of business logic
-- ✅ **Comprehensive Testing**: Django test framework integration
-- ✅ **Model Relationships**: Proper foreign key relationships and constraints
+- ✅ **Database Optimization**: Strategic indexing and query optimization
 
 ## License
 

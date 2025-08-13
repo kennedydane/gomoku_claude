@@ -1,3 +1,4 @@
+from typing import Optional, Union, Dict, Any
 from django.shortcuts import render, redirect
 from django.views.generic import TemplateView
 from django.contrib.auth.views import LoginView, LogoutView
@@ -6,10 +7,12 @@ from django.contrib.auth import login
 from django.urls import reverse_lazy
 from django.views import View
 from django.db.models import Q
+from django.http import JsonResponse
 
 from games.models import Game, Challenge, GameStatus, ChallengeStatus
 from users.models import User
 from .forms import CustomUserCreationForm
+from .models import Friendship, FriendshipStatus
 
 
 class UserGamesMixin:
@@ -173,3 +176,169 @@ class GameMoveView(LoginRequiredMixin, View):
             return render(request, 'web/error.html', {
                 'error': 'Invalid game ID'
             }, status=400)
+
+
+# Friend System Views
+
+from django.http import JsonResponse
+from django.core.exceptions import ValidationError
+
+
+class FriendAPIViewMixin:
+    """Mixin providing common functionality for Friend API views."""
+    
+    def json_response(self, data: Union[Dict[str, Any], list], status: int = 200) -> JsonResponse:
+        """Create a JSON response."""
+        # Set safe=False for non-dict data (lists, etc.)
+        safe = isinstance(data, dict)
+        return JsonResponse(data, status=status, safe=safe)
+    
+    def json_error(self, message: str, status: int = 400) -> JsonResponse:
+        """Create a JSON error response."""
+        return JsonResponse({'error': message}, status=status)
+    
+    def get_user_or_404(self, username: str) -> Optional[User]:
+        """Get user by username or return None if not found."""
+        try:
+            return User.objects.get(username=username)
+        except User.DoesNotExist:
+            return None
+
+
+class SendFriendRequestView(FriendAPIViewMixin, LoginRequiredMixin, View):
+    """Send a friend request to another user."""
+    login_url = 'web:login'
+    
+    def post(self, request):
+        username = request.POST.get('username')
+        if not username:
+            return self.json_error('Username is required', 400)
+        
+        # Check if trying to befriend self
+        if username == request.user.username:
+            return self.json_error('Cannot send friend request to yourself', 400)
+        
+        # Check if user exists
+        addressee = self.get_user_or_404(username)
+        if not addressee:
+            return self.json_error('User not found', 404)
+        
+        # Check if friendship already exists
+        existing = Friendship.objects.filter(
+            Q(requester=request.user, addressee=addressee) |
+            Q(requester=addressee, addressee=request.user)
+        ).first()
+        
+        if existing:
+            return self.json_error('Friend request already exists', 400)
+        
+        # Create friendship
+        try:
+            friendship = Friendship.objects.create(
+                requester=request.user,
+                addressee=addressee
+            )
+            return self.json_response({
+                'message': 'Friend request sent',
+                'friendship_id': friendship.id
+            }, 201)
+        except ValidationError as e:
+            return self.json_error(str(e), 400)
+
+
+class RespondFriendRequestView(FriendAPIViewMixin, LoginRequiredMixin, View):
+    """Respond to a friend request (accept/reject)."""
+    login_url = 'web:login'
+    
+    def post(self, request, friendship_id):
+        action = request.POST.get('action')
+        if action not in ['accept', 'reject']:
+            return self.json_error('Invalid action', 400)
+        
+        try:
+            friendship = Friendship.objects.get(id=friendship_id)
+        except Friendship.DoesNotExist:
+            return self.json_error('Friend request not found', 404)
+        
+        # Check if user is the addressee
+        if friendship.addressee != request.user:
+            return self.json_error('Access denied', 403)
+        
+        # Check if status is pending
+        if friendship.status != FriendshipStatus.PENDING:
+            return self.json_error('Friend request is no longer pending', 400)
+        
+        # Update status
+        if action == 'accept':
+            friendship.status = FriendshipStatus.ACCEPTED
+        else:
+            friendship.status = FriendshipStatus.REJECTED
+        
+        friendship.save()
+        
+        return self.json_response({
+            'message': f'Friend request {action}ed',
+            'status': friendship.status
+        })
+
+
+class FriendsListView(FriendAPIViewMixin, LoginRequiredMixin, View):
+    """Get user's friends list."""
+    login_url = 'web:login'
+    
+    def get(self, request):
+        friends = Friendship.objects.get_friends(request.user)
+        friends_data = [{'username': friend.username} for friend in friends]
+        return self.json_response(friends_data)
+
+
+class PendingRequestsView(FriendAPIViewMixin, LoginRequiredMixin, View):
+    """Get user's pending friend requests."""
+    login_url = 'web:login'
+    
+    def get(self, request):
+        pending = Friendship.objects.get_pending_requests(request.user)
+        requests_data = [{
+            'id': req.id,
+            'requester': {'username': req.requester.username},
+            'created_at': req.created_at.isoformat()
+        } for req in pending]
+        return self.json_response(requests_data)
+
+
+class SearchUsersView(FriendAPIViewMixin, LoginRequiredMixin, View):
+    """Search for users to befriend."""
+    login_url = 'web:login'
+    
+    def get(self, request):
+        query = request.GET.get('q', '').strip()
+        if not query:
+            return self.json_response([])
+        
+        # Search users by username (excluding self)
+        users = User.objects.filter(
+            username__icontains=query
+        ).exclude(id=request.user.id)[:10]
+        
+        users_data = [{'username': user.username} for user in users]
+        return self.json_response(users_data)
+
+
+class FriendsPageView(LoginRequiredMixin, TemplateView):
+    """Web page for friends management."""
+    template_name = 'web/friends.html'
+    login_url = 'web:login'
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+        
+        # Get friends and pending requests
+        friends = Friendship.objects.get_friends(user)
+        pending_requests = Friendship.objects.get_pending_requests(user)
+        
+        context.update({
+            'friends': friends,
+            'pending_requests': pending_requests,
+        })
+        return context

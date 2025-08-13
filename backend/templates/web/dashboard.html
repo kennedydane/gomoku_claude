@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard - Gomoku{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1>Welcome, {{ user.username }}!</h1>
+    
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Your Stats</h5>
+                    <p class="card-text">Games Played: {{ games_played }}</p>
+                    <p class="card-text">Games Won: {{ games_won }}</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Active Games</h5>
+                    {% for game in active_games %}
+                        <div class="mb-2">
+                            <a href="{% url 'web:game_detail' game_id=game.id %}" class="btn btn-sm btn-outline-primary">
+                                Game #{{ game.id }}
+                            </a>
+                            <span class="badge bg-success">active</span>
+                        </div>
+                    {% empty %}
+                        <p class="text-muted">No active games</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Pending Challenges</h5>
+                    {% for challenge in pending_challenges %}
+                        <div class="mb-2">
+                            <p>Challenge from {{ challenge.challenger.username }}</p>
+                            <span class="badge bg-warning">challenge</span>
+                        </div>
+                    {% empty %}
+                        <p class="text-muted">No pending challenges</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,198 @@
+{% extends 'base.html' %}
+
+{% block title %}Friends - Gomoku{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1>Friends</h1>
+    
+    <div class="row">
+        <!-- Send Friend Request -->
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title">Send Request</h5>
+                    <form id="send-friend-request-form">
+                        {% csrf_token %}
+                        <div class="input-group">
+                            <input type="text" name="username" class="form-control" placeholder="Username" required>
+                            <button type="submit" class="btn btn-primary">Send Request</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Search Users -->
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title">Search Users</h5>
+                    <input type="text" id="search-users" class="form-control" placeholder="Search by username...">
+                    <div id="search-results" class="mt-2"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <!-- Friends List -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Your Friends ({{ friends.count }})</h5>
+                    {% if friends %}
+                        <div class="list-group list-group-flush">
+                            {% for friend in friends %}
+                                <div class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span>{{ friend.username }}</span>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="challengeUser('{{ friend.username }}')">
+                                        Challenge
+                                    </button>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-muted">No friends yet. Send some friend requests!</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Pending Requests -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Pending Requests ({{ pending_requests.count }})</h5>
+                    {% if pending_requests %}
+                        <div class="list-group list-group-flush">
+                            {% for request in pending_requests %}
+                                <div class="list-group-item">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span>{{ request.requester.username }}</span>
+                                        <div>
+                                            <button class="btn btn-sm btn-success me-2" onclick="respondToRequest({{ request.id }}, 'accept')">
+                                                Accept
+                                            </button>
+                                            <button class="btn btn-sm btn-danger" onclick="respondToRequest({{ request.id }}, 'reject')">
+                                                Reject
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <small class="text-muted">Sent {{ request.created_at|timesince }} ago</small>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-muted">No pending requests.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Send friend request
+document.getElementById('send-friend-request-form').onsubmit = function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    
+    fetch('{% url "web:send_friend_request" %}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            alert('Error: ' + data.error);
+        } else {
+            alert('Friend request sent!');
+            this.reset();
+        }
+    })
+    .catch(error => console.error('Error:', error));
+};
+
+// Search users
+let searchTimeout;
+document.getElementById('search-users').oninput = function() {
+    clearTimeout(searchTimeout);
+    const query = this.value;
+    
+    if (!query) {
+        document.getElementById('search-results').innerHTML = '';
+        return;
+    }
+    
+    searchTimeout = setTimeout(() => {
+        fetch(`{% url "web:search_users" %}?q=${encodeURIComponent(query)}`)
+        .then(response => response.json())
+        .then(users => {
+            const results = document.getElementById('search-results');
+            results.innerHTML = '';
+            
+            users.forEach(user => {
+                const div = document.createElement('div');
+                div.className = 'list-group-item d-flex justify-content-between align-items-center';
+                div.innerHTML = `
+                    <span>${user.username}</span>
+                    <button class="btn btn-sm btn-primary" onclick="sendFriendRequest('${user.username}')">
+                        Add Friend
+                    </button>
+                `;
+                results.appendChild(div);
+            });
+        });
+    }, 300);
+};
+
+// Send friend request to specific user
+function sendFriendRequest(username) {
+    const formData = new FormData();
+    formData.append('username', username);
+    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+    
+    fetch('{% url "web:send_friend_request" %}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            alert('Error: ' + data.error);
+        } else {
+            alert('Friend request sent to ' + username + '!');
+            document.getElementById('search-users').value = '';
+            document.getElementById('search-results').innerHTML = '';
+        }
+    });
+}
+
+// Respond to friend request
+function respondToRequest(requestId, action) {
+    const formData = new FormData();
+    formData.append('action', action);
+    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+    
+    fetch(`/api/respond-friend-request/${requestId}/`, {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            alert('Error: ' + data.error);
+        } else {
+            alert('Request ' + action + 'ed!');
+            location.reload();
+        }
+    });
+}
+
+// Challenge user (placeholder)
+function challengeUser(username) {
+    alert('Challenge feature coming soon! Will challenge ' + username);
+}
+</script>
+{% endblock %}

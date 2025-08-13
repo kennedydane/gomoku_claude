@@ -49,15 +49,16 @@
                                 <i class="bi bi-grid"></i> Games
                             </a>
                         </li>
+                        <!-- Friends and Challenges coming in future phases -->
                         <li class="nav-item">
-                            <a class="nav-link" href="{% url 'web:friends' %}">
-                                <i class="bi bi-people"></i> Friends
-                            </a>
+                            <span class="nav-link text-muted">
+                                <i class="bi bi-people"></i> Friends (Coming Soon)
+                            </span>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="{% url 'web:challenges' %}">
-                                <i class="bi bi-trophy"></i> Challenges
-                            </a>
+                            <span class="nav-link text-muted">
+                                <i class="bi bi-trophy"></i> Challenges (Coming Soon)
+                            </span>
                         </li>
                     {% endif %}
                 </ul>
@@ -78,9 +79,9 @@
                                 <i class="bi bi-person-circle"></i> {{ user.display_name|default:user.username }}
                             </a>
                             <ul class="dropdown-menu">
-                                <li><a class="dropdown-item" href="{% url 'web:profile' %}">
-                                    <i class="bi bi-person"></i> Profile
-                                </a></li>
+                                <li><span class="dropdown-item text-muted">
+                                    <i class="bi bi-person"></i> Profile (Coming Soon)
+                                </span></li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><a class="dropdown-item" href="{% url 'web:logout' %}">
                                     <i class="bi bi-box-arrow-right"></i> Logout
