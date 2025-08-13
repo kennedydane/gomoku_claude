@@ -59,7 +59,8 @@
                                             hx-vals='{"action": "accept"}'
                                             hx-confirm="Are you sure you want to accept this challenge?"
                                             hx-target="#challenge-{{ challenge.id }}"
-                                            hx-swap="outerHTML">
+                                            hx-swap="outerHTML"
+                                            hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
                                         Accept
                                     </button>
                                     <button class="btn btn-sm btn-danger"
@@ -67,7 +68,8 @@
                                             hx-vals='{"action": "reject"}'
                                             hx-confirm="Are you sure you want to reject this challenge?"
                                             hx-target="#challenge-{{ challenge.id }}"
-                                            hx-swap="outerHTML">
+                                            hx-swap="outerHTML"
+                                            hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
                                         Reject
                                     </button>
                                 </div>

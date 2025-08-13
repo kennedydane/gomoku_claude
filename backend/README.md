@@ -59,7 +59,12 @@ A complete Gomoku (Five in a Row) game with Django backend API and responsive we
    uv run python manage.py createsuperuser
    ```
 
-5. **Start ASGI server (required for SSE):**
+5. **Collect static files:**
+   ```bash
+   uv run python manage.py collectstatic --noinput
+   ```
+
+6. **Start ASGI server (required for SSE):**
    ```bash
    uv run daphne -p 8001 gomoku.asgi:application
    ```
@@ -139,6 +144,31 @@ uv run coverage report
 - **Game Logic Tests**: Move validation, win detection, rule enforcement
 - **Authentication Tests**: Both API token and web session auth
 - **Real-time Tests**: SSE and HTMX interactions
+
+### **Test-Driven Development (TDD)**
+This project was built using rigorous TDD methodology with Django's built-in test framework:
+
+#### **Testing Framework**
+- **Django Test Framework**: Uses `django.test.TestCase` for database isolation
+- **Factory Pattern**: Test data generation using factory classes
+- **Client Testing**: HTTP request/response testing with Django test client
+- **Coverage**: High test coverage across all components
+
+#### **TDD Process**
+1. **RED**: Write failing test defining desired functionality
+2. **GREEN**: Write minimal code to make test pass  
+3. **REFACTOR**: Improve code quality while maintaining test coverage
+
+#### **Test Structure**
+```
+tests/
+├── factories.py          # Test data factories
+web/
+├── test_views.py         # View functionality tests
+├── test_challenge_system.py  # Challenge system TDD (13+ tests)
+├── test_friend_system.py     # Friend system TDD (25+ tests)
+└── test_game_board.py        # Game board TDD (20+ tests)
+```
 
 ## Development
 

@@ -222,8 +222,10 @@ class GameMoveView(LoginRequiredMixin, View):
                     
                     try:
                         # Send HTML fragment for HTMX SSE
+                        from django.middleware.csrf import get_token
                         board_html = render(request, 'web/partials/game_board.html', {
-                            'game': game
+                            'game': game,
+                            'csrf_token': get_token(request)
                         }).content.decode('utf-8')
                         
                         send_event(f'user-{notify_user_id}', 'game_move', board_html)
@@ -233,8 +235,10 @@ class GameMoveView(LoginRequiredMixin, View):
                 
                 # Return HTML fragment for HTMX requests
                 if self.is_htmx_request(request):
+                    from django.middleware.csrf import get_token
                     return render(request, 'web/partials/game_board.html', {
-                        'game': game
+                        'game': game,
+                        'csrf_token': get_token(request)
                     })
                 
                 # Return JSON response for AJAX requests
