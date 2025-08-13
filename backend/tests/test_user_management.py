@@ -39,7 +39,8 @@ class UserModelTests(TestCase):
     def test_user_string_representation(self):
         """Test user string representation."""
         str_repr = str(self.user)
-        self.assertEqual(str_repr, 'testuser')
+        # Should return display_name if available, otherwise username
+        self.assertEqual(str_repr, 'Test User')
     
     def test_update_game_stats_win(self):
         """Test updating game statistics for a win."""
@@ -81,8 +82,8 @@ class UserModelTests(TestCase):
         # Call save to trigger the conversion
         user.save()
         
-        # Check current behavior - empty string is NOT converted to None in this case
-        self.assertEqual(user.email, '')
+        # Empty string should be converted to None for proper unique constraint handling
+        self.assertIsNone(user.email)
     
     def test_unique_email_constraint(self):
         """Test that multiple users can have None email."""

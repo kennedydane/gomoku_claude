@@ -5,9 +5,29 @@ This module defines the User model which extends Django's AbstractUser
 to include game statistics and custom fields.
 """
 
-from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.models import AbstractUser, UserManager as BaseUserManager
 from django.core.validators import MinLengthValidator, RegexValidator
 from django.db import models
+
+
+class UserManager(BaseUserManager):
+    """Custom user manager to handle email normalization."""
+    
+    def _normalize_email_for_unique_constraint(self, email):
+        """Convert empty string to None for proper unique constraint handling."""
+        if email == '':
+            return None
+        return email
+    
+    def create_user(self, username, email=None, password=None, **extra_fields):
+        """Create and save a regular User with the given username and password."""
+        email = self._normalize_email_for_unique_constraint(email)
+        return super().create_user(username, email, password, **extra_fields)
+    
+    def create_superuser(self, username, email=None, password=None, **extra_fields):
+        """Create and save a superuser with the given username and password."""
+        email = self._normalize_email_for_unique_constraint(email)
+        return super().create_superuser(username, email, password, **extra_fields)
 
 
 class User(AbstractUser):
@@ -65,6 +85,8 @@ class User(AbstractUser):
     # created_at is handled by date_joined from AbstractUser
     # updated_at can be added if needed
     
+    objects = UserManager()
+    
     class Meta:
         db_table = 'users'
         verbose_name = 'User'
@@ -85,7 +107,7 @@ class User(AbstractUser):
         """Override save to ensure username is lowercase."""
         if self.username:
             self.username = self.username.lower().strip()
-        if self.email:
+        if self.email is not None:
             self.email = self.email.lower().strip()
             # Convert empty string to None for unique constraint
             if self.email == '':

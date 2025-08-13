@@ -35,7 +35,8 @@ class UserCreateSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = User
-        fields = ['username', 'email', 'display_name', 'password']
+        fields = ['id', 'username', 'email', 'display_name', 'password']
+        read_only_fields = ['id']
         extra_kwargs = {
             'email': {'required': False, 'allow_blank': True},
             'display_name': {'required': False, 'allow_blank': True}

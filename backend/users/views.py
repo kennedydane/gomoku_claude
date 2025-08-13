@@ -4,6 +4,7 @@ DRF viewsets for user management.
 
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from .models import User
 from .serializers import UserSerializer, UserCreateSerializer, UserStatsSerializer
@@ -16,6 +17,12 @@ class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.filter(is_active=True).prefetch_related(
         'games_as_black', 'games_as_white', 'moves'
     )
+    
+    def get_permissions(self):
+        """Allow unauthenticated user creation (registration)."""
+        if self.action == 'create':
+            return [AllowAny()]
+        return [IsAuthenticated()]
     
     def get_serializer_class(self):
         """Use different serializers for different actions."""
