@@ -9,7 +9,7 @@ from django.views import View
 from django.db.models import Q
 from django.http import JsonResponse
 
-from games.models import Game, Challenge, GameStatus, ChallengeStatus
+from games.models import Game, Challenge, GameStatus, ChallengeStatus, RuleSet
 from games.services import GameService
 from core.exceptions import InvalidMoveError, GameStateError, PlayerError
 from users.models import User
@@ -100,10 +100,15 @@ class DashboardView(LoginRequiredMixin, UserGamesMixin, TemplateView):
             'black_player', 'white_player', 'ruleset'
         ).filter(user_games_query, status=GameStatus.ACTIVE)
         
-        # Pending challenges with optimized queries
+        # Pending challenges with optimized queries (received challenges)
+        from django.utils import timezone
         pending_challenges = Challenge.objects.select_related(
-            'challenger', 'challenged'
-        ).filter(challenged=user, status=ChallengeStatus.PENDING)
+            'challenger', 'challenged', 'ruleset'
+        ).filter(
+            challenged=user, 
+            status=ChallengeStatus.PENDING,
+            expires_at__gt=timezone.now()  # Only non-expired challenges
+        )
         
         context.update({
             'games_played': games_played,
@@ -400,3 +405,169 @@ class FriendsPageView(LoginRequiredMixin, TemplateView):
             'pending_requests': pending_requests,
         })
         return context
+
+
+# Challenge System Views
+
+class ChallengeFriendView(FriendAPIViewMixin, LoginRequiredMixin, View):
+    """Send a game challenge to a friend."""
+    login_url = 'web:login'
+    
+    def post(self, request):
+        username = request.POST.get('username')
+        ruleset_id = request.POST.get('ruleset_id')
+        
+        if not username or not ruleset_id:
+            return self.json_error('Username and ruleset are required', 400)
+        
+        # Check if trying to challenge self
+        if username == request.user.username:
+            return self.json_error('Cannot challenge yourself', 400)
+        
+        # Check if user exists
+        challenged_user = self.get_user_or_404(username)
+        if not challenged_user:
+            return self.json_error('User not found', 404)
+        
+        # Check if they are friends
+        is_friend = Friendship.objects.filter(
+            Q(requester=request.user, addressee=challenged_user, status=FriendshipStatus.ACCEPTED) |
+            Q(requester=challenged_user, addressee=request.user, status=FriendshipStatus.ACCEPTED)
+        ).exists()
+        
+        if not is_friend:
+            return self.json_error('You can only challenge friends', 400)
+        
+        # Check if ruleset exists
+        try:
+            ruleset = RuleSet.objects.get(id=ruleset_id)
+        except RuleSet.DoesNotExist:
+            return self.json_error('Invalid ruleset', 400)
+        
+        # Check for existing pending challenge
+        existing = Challenge.objects.filter(
+            challenger=request.user,
+            challenged=challenged_user,
+            status=ChallengeStatus.PENDING
+        ).first()
+        
+        if existing:
+            return self.json_error('You already have a pending challenge with this user', 400)
+        
+        # Create challenge
+        try:
+            from django.utils import timezone
+            from datetime import timedelta
+            
+            challenge = Challenge.objects.create(
+                challenger=request.user,
+                challenged=challenged_user,
+                ruleset=ruleset,
+                expires_at=timezone.now() + timedelta(minutes=5)  # 5 minute expiry
+            )
+            
+            return self.json_response({
+                'success': True,
+                'message': f'Challenge sent to {username}',
+                'challenge_id': str(challenge.id)
+            }, 200)
+            
+        except Exception as e:
+            return self.json_error(f'Failed to create challenge: {str(e)}', 500)
+
+
+class RespondChallengeView(FriendAPIViewMixin, LoginRequiredMixin, View):
+    """Respond to a game challenge (accept/reject)."""
+    login_url = 'web:login'
+    
+    def post(self, request, challenge_id):
+        action = request.POST.get('action')
+        if action not in ['accept', 'reject']:
+            return self.json_error('Invalid action', 400)
+        
+        try:
+            challenge = Challenge.objects.get(id=challenge_id)
+        except Challenge.DoesNotExist:
+            return self.json_error('Challenge not found', 404)
+        
+        # Check if user is the challenged party
+        if challenge.challenged != request.user:
+            return self.json_error('Access denied', 403)
+        
+        # Check if challenge is still pending
+        if challenge.status != ChallengeStatus.PENDING:
+            return self.json_error('Challenge is no longer pending', 400)
+        
+        # Check if challenge is expired
+        from django.utils import timezone
+        if timezone.now() > challenge.expires_at:
+            challenge.status = ChallengeStatus.EXPIRED
+            challenge.save()
+            return self.json_error('Challenge has expired', 400)
+        
+        # Handle response
+        from django.utils import timezone
+        challenge.responded_at = timezone.now()
+        
+        if action == 'accept':
+            challenge.status = ChallengeStatus.ACCEPTED
+            challenge.save()
+            
+            # Create game
+            try:
+                import random
+                
+                # Randomly assign colors
+                if random.choice([True, False]):
+                    black_player = challenge.challenger
+                    white_player = challenge.challenged
+                else:
+                    black_player = challenge.challenged
+                    white_player = challenge.challenger
+                
+                game = Game.objects.create(
+                    black_player=black_player,
+                    white_player=white_player,
+                    ruleset=challenge.ruleset,
+                    status=GameStatus.ACTIVE
+                )
+                game.initialize_board()
+                game.save()
+                
+                return self.json_response({
+                    'success': True,
+                    'message': 'Challenge accepted! Game created.',
+                    'game_id': str(game.id),
+                    'game_url': f'/games/{game.id}/'
+                })
+                
+            except Exception as e:
+                return self.json_error(f'Failed to create game: {str(e)}', 500)
+        
+        else:  # reject
+            challenge.status = ChallengeStatus.REJECTED
+            challenge.save()
+            
+            return self.json_response({
+                'success': True,
+                'message': 'Challenge rejected'
+            })
+
+
+class RulesetsListView(FriendAPIViewMixin, LoginRequiredMixin, View):
+    """Get available rulesets for challenge creation."""
+    login_url = 'web:login'
+    
+    def get(self, request):
+        """Return list of available rulesets."""
+        rulesets = RuleSet.objects.all().order_by('board_size', 'name')
+        
+        rulesets_data = [{
+            'id': ruleset.id,
+            'name': ruleset.name,
+            'description': ruleset.description,
+            'board_size': ruleset.board_size,
+            'allow_overlines': ruleset.allow_overlines
+        } for ruleset in rulesets]
+        
+        return self.json_response(rulesets_data)

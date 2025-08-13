@@ -40,9 +40,28 @@
                 <div class="card-body">
                     <h5 class="card-title">Pending Challenges</h5>
                     {% for challenge in pending_challenges %}
-                        <div class="mb-2">
-                            <p>Challenge from {{ challenge.challenger.username }}</p>
-                            <span class="badge bg-warning">challenge</span>
+                        <div class="mb-3 p-2 border rounded">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <strong>{{ challenge.challenger.username }}</strong>
+                                    <br>
+                                    <small class="text-muted">
+                                        {{ challenge.ruleset.name }} ({{ challenge.ruleset.board_size }}x{{ challenge.ruleset.board_size }})
+                                    </small>
+                                    <br>
+                                    <small class="text-muted">
+                                        Expires: {{ challenge.expires_at|timeuntil }}
+                                    </small>
+                                </div>
+                                <div class="btn-group-vertical">
+                                    <button class="btn btn-sm btn-success" onclick="respondToChallenge('{{ challenge.id }}', 'accept')">
+                                        Accept
+                                    </button>
+                                    <button class="btn btn-sm btn-danger" onclick="respondToChallenge('{{ challenge.id }}', 'reject')">
+                                        Reject
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     {% empty %}
                         <p class="text-muted">No pending challenges</p>
@@ -52,4 +71,7 @@
         </div>
     </div>
 </div>
+
+
+{% csrf_token %}
 {% endblock %}

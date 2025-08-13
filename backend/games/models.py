@@ -452,6 +452,16 @@ class Challenge(models.Model):
         help_text="Current challenge status"
     )
     
+    ruleset = models.ForeignKey(
+        RuleSet,
+        on_delete=models.CASCADE,
+        related_name='challenges',
+        db_index=True,
+        null=True,  # Allow null for now, will be required for new challenges
+        blank=True,
+        help_text="Rule set for the proposed game"
+    )
+    
     created_at = models.DateTimeField(auto_now_add=True)
     
     expires_at = models.DateTimeField(

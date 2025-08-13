@@ -123,11 +123,39 @@ function createChallenge(userId) {
     });
 }
 
-function respondToChallenge(challengeId, accept) {
-    htmx.ajax('POST', `/web/challenges/respond/${challengeId}/`, {
-        values: { accept: accept },
-        target: '#challenges-container',
-        swap: 'outerHTML'
+function respondToChallenge(challengeId, action) {
+    if (!confirm(`Are you sure you want to ${action} this challenge?`)) {
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('action', action);
+    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+    
+    fetch(`/api/respond-challenge/${challengeId}/`, {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            alert('Error: ' + data.error);
+        } else {
+            if (action === 'accept' && data.game_url) {
+                alert('Challenge accepted! Redirecting to game...');
+                window.location.href = data.game_url;
+            } else {
+                alert('Challenge ' + action + 'ed!');
+                location.reload();
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Error responding to challenge:', error);
+        alert('Error responding to challenge');
     });
 }
 

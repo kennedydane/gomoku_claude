@@ -92,6 +92,39 @@
     </div>
 </div>
 
+<!-- Challenge Modal -->
+<div class="modal fade" id="challenge-modal" tabindex="-1" aria-labelledby="challenge-modal-label" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="challenge-modal-label">
+                    Challenge <span id="challenge-username"></span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="challenge-form">
+                    <input type="hidden" id="challenge-username-input">
+                    
+                    <div class="mb-3">
+                        <label for="ruleset-select" class="form-label">Game Type</label>
+                        <select class="form-select" id="ruleset-select" required>
+                            <option value="">Loading game types...</option>
+                        </select>
+                        <div class="form-text">Choose the board size and rules for your game.</div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="sendChallenge()">
+                    <i class="bi bi-trophy"></i> Send Challenge
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 // Send friend request
 document.getElementById('send-friend-request-form').onsubmit = function(e) {
@@ -190,9 +223,82 @@ function respondToRequest(requestId, action) {
     });
 }
 
-// Challenge user (placeholder)
+// Challenge user - show modal with ruleset options
 function challengeUser(username) {
-    alert('Challenge feature coming soon! Will challenge ' + username);
+    document.getElementById('challenge-username').textContent = username;
+    document.getElementById('challenge-username-input').value = username;
+    
+    // Load available rulesets
+    loadRulesets();
+    
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById('challenge-modal'));
+    modal.show();
+}
+
+// Load available rulesets
+function loadRulesets() {
+    fetch('{% url "web:rulesets_list" %}', {
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+        .then(response => response.json())
+        .then(data => {
+            const select = document.getElementById('ruleset-select');
+            select.innerHTML = '<option value="">Select a game type...</option>';
+            
+            data.forEach(ruleset => {
+                const option = document.createElement('option');
+                option.value = ruleset.id;
+                option.textContent = `${ruleset.name} (${ruleset.board_size}x${ruleset.board_size})`;
+                select.appendChild(option);
+            });
+        })
+        .catch(error => {
+            console.error('Error loading rulesets:', error);
+            const select = document.getElementById('ruleset-select');
+            select.innerHTML = '<option value="">Error loading game types</option>';
+        });
+}
+
+// Send challenge
+function sendChallenge() {
+    const username = document.getElementById('challenge-username-input').value;
+    const rulesetId = document.getElementById('ruleset-select').value;
+    
+    if (!rulesetId) {
+        alert('Please select a game type');
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('username', username);
+    formData.append('ruleset_id', rulesetId);
+    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+    
+    fetch('{% url "web:challenge_friend" %}', {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            alert('Error: ' + data.error);
+        } else {
+            alert('Challenge sent to ' + username + '!');
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('challenge-modal'));
+            modal.hide();
+        }
+    })
+    .catch(error => {
+        console.error('Error sending challenge:', error);
+        alert('Error sending challenge');
+    });
 }
 </script>
 {% endblock %}

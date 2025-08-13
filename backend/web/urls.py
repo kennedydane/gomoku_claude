@@ -34,4 +34,9 @@ urlpatterns = [
     path('api/friends-list/', views.FriendsListView.as_view(), name='friends_list'),
     path('api/pending-requests/', views.PendingRequestsView.as_view(), name='pending_requests'),
     path('api/search-users/', views.SearchUsersView.as_view(), name='search_users'),
+    
+    # Challenge - API Endpoints
+    path('api/challenge-friend/', views.ChallengeFriendView.as_view(), name='challenge_friend'),
+    path('api/respond-challenge/<uuid:challenge_id>/', views.RespondChallengeView.as_view(), name='respond_challenge'),
+    path('api/rulesets/', views.RulesetsListView.as_view(), name='rulesets_list'),
 ]
