@@ -4,13 +4,17 @@ HTTP API client for communicating with the Gomoku backend.
 This module provides an async HTTP client for all backend API operations.
 """
 
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, TYPE_CHECKING
 import asyncio
 from datetime import datetime
 
 import httpx
 from loguru import logger
 from pydantic import BaseModel, Field
+
+if TYPE_CHECKING:
+    from frontend.auth.auth_manager import AuthManager
+    from frontend.auth.models import UserProfile
 
 
 # Response models (matching backend schemas)
@@ -74,18 +78,27 @@ class MoveInfo(BaseModel):
 class APIClient:
     """Async HTTP client for the Gomoku backend API."""
     
-    def __init__(self, base_url: str = "http://localhost:8000", timeout: float = 30.0):
+    def __init__(
+        self, 
+        base_url: str = "http://localhost:8000", 
+        timeout: float = 30.0, 
+        auth_manager: Optional["AuthManager"] = None
+    ):
         """Initialize the API client.
         
         Args:
             base_url: Base URL of the API server
             timeout: Request timeout in seconds
+            auth_manager: Optional authentication manager for authenticated requests
         """
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
+        self.auth_manager = auth_manager
         self._client: Optional[httpx.AsyncClient] = None
         
         logger.info(f"Initialized API client for {self.base_url}")
+        if auth_manager:
+            logger.debug("API client configured with authentication manager")
     
     @property
     def client(self) -> httpx.AsyncClient:
@@ -97,12 +110,27 @@ class APIClient:
             )
         return self._client
     
+    @client.setter
+    def client(self, value: httpx.AsyncClient) -> None:
+        """Set the HTTP client (primarily for testing)."""
+        self._client = value
+    
+    @client.deleter
+    def client(self) -> None:
+        """Delete the HTTP client (primarily for testing)."""
+        self._client = None
+    
     async def close(self) -> None:
         """Close the HTTP client."""
         if self._client:
             await self._client.aclose()
             self._client = None
-            logger.debug("API client closed")
+        
+        # Close auth manager if it exists
+        if self.auth_manager:
+            await self.auth_manager.close()
+            
+        logger.debug("API client closed")
     
     async def health_check(self) -> bool:
         """Check if the API server is running.
@@ -116,6 +144,135 @@ class APIClient:
         except Exception as e:
             logger.warning(f"Health check failed: {e}")
             return False
+    
+    # Authentication properties and methods
+    @property
+    def is_authenticated(self) -> bool:
+        """Check if user is authenticated."""
+        if not self.auth_manager:
+            return False
+        return self.auth_manager.is_authenticated()
+    
+    @property
+    def current_user(self) -> Optional["UserProfile"]:
+        """Get current authenticated user."""
+        if not self.auth_manager:
+            return None
+        return self.auth_manager.get_current_user()
+    
+    async def login(
+        self,
+        username: str,
+        password: str,
+        device_name: str = "Desktop App",
+        device_info: Optional[Dict[str, Any]] = None
+    ) -> bool:
+        """Login with username and password.
+        
+        Args:
+            username: User's username
+            password: User's password  
+            device_name: Device identifier
+            device_info: Device information
+            
+        Returns:
+            True if login successful
+        """
+        if not self.auth_manager:
+            logger.warning("No auth manager configured for login")
+            return False
+            
+        return await self.auth_manager.login(
+            username=username,
+            password=password,
+            device_name=device_name,
+            device_info=device_info or {}
+        )
+    
+    async def register_user(
+        self,
+        username: str,
+        password: str,
+        email: str,
+        display_name: Optional[str] = None,
+        device_name: str = "Desktop App",
+        device_info: Optional[Dict[str, Any]] = None
+    ) -> bool:
+        """Register a new user.
+        
+        Args:
+            username: Desired username
+            password: User's password
+            email: User's email
+            display_name: Optional display name
+            device_name: Device identifier
+            device_info: Device information
+            
+        Returns:
+            True if registration successful
+        """
+        if not self.auth_manager:
+            logger.warning("No auth manager configured for registration")
+            return False
+            
+        return await self.auth_manager.register(
+            username=username,
+            password=password,
+            email=email,
+            display_name=display_name,
+            device_name=device_name,
+            device_info=device_info or {}
+        )
+    
+    def logout(self) -> None:
+        """Logout current user."""
+        if self.auth_manager:
+            self.auth_manager.logout()
+    
+    async def _make_authenticated_request(
+        self,
+        method: str,
+        endpoint: str,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """Make an authenticated request with automatic token refresh.
+        
+        Args:
+            method: HTTP method
+            endpoint: API endpoint
+            **kwargs: Additional arguments for the request
+            
+        Returns:
+            Response data as dictionary
+        """
+        if not self.auth_manager or not self.auth_manager.is_authenticated():
+            raise ValueError("Authentication required but not available")
+        
+        try:
+            # Try the request with current authentication
+            return await self.auth_manager.make_authenticated_request(method, endpoint, **kwargs)
+            
+        except Exception as e:
+            # Import here to avoid circular import
+            from frontend.auth.exceptions import TokenExpiredError
+            
+            # If token expired, try to refresh and retry once
+            if isinstance(e, TokenExpiredError):
+                logger.debug("Token expired, attempting refresh")
+                try:
+                    success = await self.auth_manager.refresh_token()
+                    if success:
+                        logger.debug("Token refresh successful, retrying request")
+                        return await self.auth_manager.make_authenticated_request(method, endpoint, **kwargs)
+                    else:
+                        logger.warning("Token refresh failed")
+                        raise e
+                except Exception as refresh_error:
+                    logger.error(f"Token refresh failed: {refresh_error}")
+                    raise e
+            else:
+                # Re-raise non-token errors
+                raise e
     
     # User management
     async def create_user(self, username: str, email: str, display_name: str) -> UserInfo:
@@ -135,10 +292,14 @@ class APIClient:
             "display_name": display_name
         }
         
-        response = await self.client.post("/api/v1/users/", json=payload)
-        response.raise_for_status()
+        # Use authenticated request if auth manager is available and authenticated
+        if self.auth_manager and self.auth_manager.is_authenticated():
+            user_data = await self._make_authenticated_request("POST", "/api/v1/users/", json=payload)
+        else:
+            response = await self.client.post("/api/v1/users/", json=payload)
+            response.raise_for_status()
+            user_data = response.json()
         
-        user_data = response.json()
         logger.debug(f"Created user: {user_data['username']}")
         return UserInfo(**user_data)
     
@@ -148,10 +309,14 @@ class APIClient:
         Returns:
             List of user information
         """
-        response = await self.client.get("/api/v1/users/")
-        response.raise_for_status()
+        # Use authenticated request if auth manager is available and authenticated
+        if self.auth_manager and self.auth_manager.is_authenticated():
+            users_data = await self._make_authenticated_request("GET", "/api/v1/users/")
+        else:
+            response = await self.client.get("/api/v1/users/")
+            response.raise_for_status()
+            users_data = response.json()
         
-        users_data = response.json()
         return [UserInfo(**user) for user in users_data]
     
     async def get_user(self, user_id: int) -> UserInfo:
@@ -215,10 +380,14 @@ class APIClient:
             "ruleset_id": ruleset_id
         }
         
-        response = await self.client.post("/api/v1/games/", json=payload)
-        response.raise_for_status()
+        # Use authenticated request if auth manager is available and authenticated
+        if self.auth_manager and self.auth_manager.is_authenticated():
+            game_data = await self._make_authenticated_request("POST", "/api/v1/games/", json=payload)
+        else:
+            response = await self.client.post("/api/v1/games/", json=payload)
+            response.raise_for_status()
+            game_data = response.json()
         
-        game_data = response.json()
         logger.info(f"Created game: {game_data['id']}")
         return GameInfo(**game_data)
     
@@ -271,10 +440,14 @@ class APIClient:
             "col": col
         }
         
-        response = await self.client.post(f"/api/v1/games/{game_id}/moves/", json=payload)
-        response.raise_for_status()
+        # Use authenticated request if auth manager is available and authenticated
+        if self.auth_manager and self.auth_manager.is_authenticated():
+            move_data = await self._make_authenticated_request("POST", f"/api/v1/games/{game_id}/moves/", json=payload)
+        else:
+            response = await self.client.post(f"/api/v1/games/{game_id}/moves/", json=payload)
+            response.raise_for_status()
+            move_data = response.json()
         
-        move_data = response.json()
         logger.debug(f"Made move in game {game_id}: ({row}, {col})")
         return MoveInfo(**move_data)
     
