@@ -362,26 +362,18 @@ class ChallengeResponseTests(TestCase):
         games = Game.objects.all()
         self.assertEqual(games.count(), 1)
 
-    def test_sse_move_includes_csrf_token(self):
-        """Test that SSE move updates include CSRF tokens in rendered HTML."""
+    def test_sse_move_updates_board_correctly(self):
+        """Test that SSE move updates render the board correctly with proper turn handling."""
         # Create a game from accepted challenge
         self.challenge.status = ChallengeStatus.ACCEPTED
         self.challenge.save()
         
         from games.models import Game, GameStatus
-        import random
         
-        # Create game 
-        if random.choice([True, False]):
-            black_player = self.challenger
-            white_player = self.challenged
-        else:
-            black_player = self.challenged
-            white_player = self.challenger
-        
+        # Create game with challenger as black player
         game = Game.objects.create(
-            black_player=black_player,
-            white_player=white_player,
+            black_player=self.challenger,
+            white_player=self.challenged,
             ruleset=self.ruleset,
             status=GameStatus.ACTIVE
         )
@@ -389,7 +381,7 @@ class ChallengeResponseTests(TestCase):
         game.save()
         
         # Login as black player and make a move
-        self.client.login(username=black_player.username, password='testpass123')
+        self.client.login(username=self.challenger.username, password='testpass123')
         
         move_url = reverse('web:game_move', kwargs={'game_id': game.id})
         response = self.client.post(
@@ -401,10 +393,20 @@ class ChallengeResponseTests(TestCase):
         # Should succeed
         self.assertEqual(response.status_code, 200)
         
-        # The response should contain CSRF tokens for subsequent moves
+        # The response should show the move was made (stone placed)
         response_content = response.content.decode()
-        self.assertIn('hx-headers', response_content)
-        self.assertIn('X-CSRFToken', response_content)
+        self.assertIn('stone-black', response_content)
+        self.assertIn('Intersection 0, 0 - BLACK stone', response_content)
+        
+        # After black's move, it should be white's turn
+        # Login as white player to verify they can see HTMX attributes for their turn
+        self.client.login(username=self.challenged.username, password='testpass123')
+        game_url = reverse('web:game_detail', kwargs={'game_id': game.id})
+        response = self.client.get(game_url)
+        
+        response_content = response.content.decode()
+        # White player should see HTMX attributes since it's their turn
+        self.assertIn('hx-include="[name=\'csrfmiddlewaretoken\']"', response_content)
 
 
 class ChallengeJavaScriptIntegrationTests(TestCase):
