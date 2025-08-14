@@ -19,6 +19,7 @@ from frontend.game.game_management import (
     process_games_for_display,
     get_filter_display_name
 )
+from frontend.realtime.sse_integration import SSEManager
 
 # Game board state
 board_state = [[None for _ in range(15)] for _ in range(15)]
@@ -30,21 +31,144 @@ api_base_url = "http://localhost:8001"
 auth_manager: Optional[AuthenticationManager] = None
 api_client: Optional[APIClient] = None
 
+# Real-time updates
+sse_manager: Optional[SSEManager] = None
+
 # Game management state
 user_games = []
 games_window_open = False
 games_filter = "all"  # "all", "active", "completed", "your_turn"
 
 
+def handle_sse_board_update(game_state):
+    """Handle board update from SSE event (runs in SSE thread)."""
+    from frontend.realtime.html_parser import ParsedGameState
+    
+    logger.info(f"SSE board update: game {game_state.game_id}, size {game_state.board_size}")
+    
+    # Use DearPyGUI's thread-safe callback system
+    def update_gui():
+        try:
+            # Update global board state
+            global board_state, current_player, game_id
+            
+            # Only update if this is the current game
+            if game_id and game_id == game_state.game_id:
+                logger.info(f"Updating GUI board for game {game_id}")
+                
+                # Update board size if needed
+                if len(board_state) != game_state.board_size:
+                    logger.debug(f"Resizing board from {len(board_state)} to {game_state.board_size}")
+                    board_state = [[None for _ in range(game_state.board_size)] for _ in range(game_state.board_size)]
+                
+                # Update board state from parsed data
+                board_state = [row[:] for row in game_state.board_state]  # Deep copy
+                current_player = game_state.current_player
+                
+                # Redraw board with new state
+                draw_board()
+                
+                # Update status
+                status_msg = f"Board updated - {game_state.current_player.title()}'s turn"
+                dpg.set_value("status_text", status_msg)
+                
+                logger.debug(f"GUI board updated successfully")
+            else:
+                logger.debug(f"Ignoring SSE update for game {game_state.game_id} (current: {game_id})")
+                
+        except Exception as e:
+            logger.error(f"Error updating GUI from SSE: {e}")
+            dpg.set_value("status_text", f"Error updating board: {e}")
+    
+    # Schedule GUI update on main thread
+    # Note: DearPyGUI is not thread-safe, so we use a simple approach
+    # In a production system, you'd use a proper thread-safe queue
+    try:
+        update_gui()
+    except Exception as e:
+        logger.error(f"Error in GUI update from SSE thread: {e}")
+
+
 def on_login_success():
     """Handle successful login."""
     logger.info("User logged in successfully")
     update_ui_auth_state()
+    
+    # Start SSE connection for real-time updates
+    start_sse_connection()
 
 def on_logout():
     """Handle logout."""
     logger.info("User logged out")
+    
+    # Stop SSE connection
+    stop_sse_connection()
+    
     update_ui_auth_state()
+
+def start_sse_connection():
+    """Start SSE connection for real-time updates."""
+    global sse_manager
+    
+    if not auth_manager or not auth_manager.is_authenticated():
+        logger.warning("Cannot start SSE: not authenticated")
+        return
+        
+    if sse_manager:
+        logger.debug("SSE connection already exists")
+        return
+    
+    try:
+        logger.info("Starting SSE connection for real-time updates")
+        sse_manager = SSEManager(
+            auth_manager=auth_manager,  # Pass the GUI AuthenticationManager wrapper
+            on_board_update=handle_sse_board_update
+        )
+        sse_manager.start_connection()
+        
+        # Update connection status in GUI
+        dpg.set_value("sse_status_text", "SSE: Connecting...")
+        
+        logger.info("SSE connection initiated")
+    except Exception as e:
+        logger.error(f"Failed to start SSE connection: {e}")
+        dpg.set_value("sse_status_text", f"SSE: Error - {e}")
+
+def stop_sse_connection():
+    """Stop SSE connection."""
+    global sse_manager
+    
+    if sse_manager:
+        logger.info("Stopping SSE connection")
+        try:
+            sse_manager.stop_connection()
+            sse_manager = None
+            dpg.set_value("sse_status_text", "SSE: Disconnected")
+            logger.info("SSE connection stopped")
+        except Exception as e:
+            logger.error(f"Error stopping SSE connection: {e}")
+    else:
+        logger.debug("No SSE connection to stop")
+
+def update_sse_status():
+    """Update SSE connection status in GUI."""
+    if sse_manager:
+        status = sse_manager.get_connection_status()
+        if status == "connected":
+            dpg.set_value("sse_status_text", "SSE: Connected")
+            dpg.configure_item("sse_status_text", color=(100, 255, 100))
+        elif status == "connecting":
+            dpg.set_value("sse_status_text", "SSE: Connecting...")
+            dpg.configure_item("sse_status_text", color=(255, 255, 100))
+        elif status == "error":
+            dpg.set_value("sse_status_text", "SSE: Error")
+            dpg.configure_item("sse_status_text", color=(255, 100, 100))
+        else:
+            dpg.set_value("sse_status_text", "SSE: Disconnected")
+            dpg.configure_item("sse_status_text", color=(150, 150, 150))
+    else:
+        dpg.set_value("sse_status_text", "SSE: Disconnected")
+        dpg.configure_item("sse_status_text", color=(150, 150, 150))
 
 def update_ui_auth_state():
     """Update UI based on authentication state."""
@@ -72,6 +196,9 @@ def update_ui_auth_state():
     # Refresh games list if authenticated and games window is open
     if is_authenticated and games_window_open:
         refresh_games_list()
+    
+    # Update SSE status
+    update_sse_status()
 
 def show_login():
     """Show login dialog."""
@@ -495,8 +622,10 @@ def cell_clicked(sender, app_data, user_data):
             
             move = await api_client.make_move(game_id, player_id, row, col)
             
-            board_state[row][col] = current_player
-            logger.info(f"Move successful: {current_player} at ({row}, {col})")
+            # Use the actual stone color from API response
+            stone_color = move.player_color.lower()  # "BLACK" -> "black"
+            board_state[row][col] = stone_color
+            logger.info(f"Move successful: {stone_color} stone at ({row}, {col})")
             
             # Switch players
             old_player = current_player
@@ -689,11 +818,10 @@ def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(description="Gomoku GUI Game")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
-    parser.add_argument("--api-url", default="http://localhost:8001", help="Backend API URL")
+    parser.add_argument("--api-url", help="Backend API URL (overrides config file)")
     args = parser.parse_args()
     
     global api_base_url, auth_manager, api_client
-    api_base_url = args.api_url
     
     # Setup logging
     setup_logging(args.debug)
@@ -712,6 +840,11 @@ def main():
             config_file=str(Path(__file__).parent / "gomoku_config.json"),
             env_file=str(Path(__file__).parent / ".env")
         )
+        
+        # Use config file URL unless overridden by command line
+        config_url = auth_manager.auth_manager.config.base_url
+        api_base_url = args.api_url if args.api_url else config_url
+        
         logger.debug("AuthenticationManager created, initializing APIClient...")
         api_client = APIClient(
             base_url=api_base_url,
@@ -735,6 +868,12 @@ def main():
             dpg.add_button(label="Login", tag="login_button", callback=show_login, width=80)
             dpg.add_button(label="Register", tag="register_button", callback=show_register, width=80)
             dpg.add_button(label="Logout", tag="logout_button", callback=logout, width=80, enabled=False)
+        
+        dpg.add_separator()
+        
+        # Real-time connection status
+        dpg.add_text("Real-time Updates:")
+        dpg.add_text("SSE: Disconnected", tag="sse_status_text", color=(150, 150, 150))
         
         dpg.add_separator()
         
@@ -782,6 +921,14 @@ def main():
         while dpg.is_dearpygui_running():
             dpg.render_dearpygui_frame()
     finally:
+        # Cleanup SSE connection
+        if sse_manager:
+            try:
+                sse_manager.stop_connection()
+                logger.debug("SSE connection cleaned up")
+            except Exception as e:
+                logger.error(f"Error cleaning up SSE connection: {e}")
+        
         # Cleanup authentication system
         if auth_manager:
             try:

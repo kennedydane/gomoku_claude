@@ -1,7 +1,10 @@
 {% if game.board_state and game.board_state.board %}
 <div class="game-board-container board-responsive">
     <div class="game-board-grid" 
+         data-game-id="{{ game.id }}"
          data-board-size="{{ game.ruleset.board_size }}"
+         data-current-player="{{ game.current_player }}"
+         data-game-status="{{ game.status }}"
          id="game-board"
          style="--board-size: {{ game.ruleset.board_size }}; --intersection-size: var(--base-intersection-size, 30px); --stone-size: var(--base-stone-size, 24px);">
     {% for row in game.board_state.board %}

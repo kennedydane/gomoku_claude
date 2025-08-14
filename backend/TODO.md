@@ -67,6 +67,8 @@
 - ✅ **HTMX Integration**: Dynamic web interface without complex JavaScript
 - ✅ **Real-time Game Updates**: Instant move synchronization between players
 - ✅ **Connection Management**: Proper SSE connection lifecycle
+- ✅ **Cross-Platform SSE**: Both REST API and HTMX moves trigger same SSE system
+- ✅ **Enhanced SSE Logging**: Comprehensive debugging for SSE event processing
 
 ### Game Features
 - ✅ **Multiple Board Sizes**: Support for different game variations

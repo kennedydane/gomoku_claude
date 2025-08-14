@@ -32,10 +32,12 @@ This development guide documents the key lessons learned, best practices, and ar
 - django-eventstream for real-time features
 
 **Frontend:**
-- HTMX for dynamic interactions
-- Bootstrap 5 for responsive design
+- HTMX for dynamic interactions (web client)
+- Bootstrap 5 for responsive design (web client)
 - Minimal JavaScript (progressive enhancement)
 - CSS Grid for game board layout
+- DearPyGui for desktop GUI client
+- Server-Sent Events (SSE) for real-time updates
 
 **Key Architectural Decisions:**
 - **Service Layer Pattern**: Game logic separated into `GameService` class
@@ -499,6 +501,161 @@ async def _make_request(self, method, endpoint, **kwargs):
      hx-vals='{"row": 0, "col": 0}'
      hx-target="#game-board">
 ```
+
+---
+
+## Desktop GUI Client Development
+
+### Architecture Overview
+
+The desktop GUI client uses **DearPyGui** for the interface and implements real-time gameplay through **Server-Sent Events (SSE)**. The client reuses the existing backend SSE infrastructure by parsing HTML events instead of requiring separate JSON APIs.
+
+### Key Components
+
+**GUI Framework:**
+- **DearPyGui**: Modern OpenGL-based GUI framework with immediate mode rendering
+- **Threading Model**: Background threads for SSE connections to avoid blocking the UI
+- **Event Loop Integration**: Careful coordination between DearPyGui and async/await patterns
+
+**Real-time Updates:**
+- **SSE Client**: Async client connecting to django-eventstream endpoints
+- **HTML Parser**: BeautifulSoup-based parsing of SSE HTML events
+- **Authentication Integration**: Token-based authentication for SSE connections
+
+### SSE Implementation Strategy
+
+**HTML Parsing Approach:**
+```python
+# Instead of creating separate JSON SSE events, reuse existing HTML events
+html_content = sse_event_data
+soup = BeautifulSoup(html_content, 'html.parser')
+board_div = soup.find('div', class_='game-board-grid')
+game_id = board_div.get('data-game-id')
+```
+
+**Benefits:**
+- Single source of truth for SSE events (no duplication)
+- Automatic consistency between web and desktop clients
+- Leverages existing battle-tested SSE infrastructure
+
+### Authentication Integration
+
+**Token Management:**
+```python
+class SSEClient:
+    def __init__(self, auth_manager, on_game_update):
+        # Get current token for SSE authentication
+        token = self.auth_manager.get_current_token()
+        self.headers = {"Authorization": f"Token {token}"}
+```
+
+**URL Construction:**
+```python
+# SSE endpoint with user-specific channel
+user_id = auth_manager.get_current_user().id
+endpoint_url = f"{base_url}/api/v1/events/?channel=user-{user_id}"
+```
+
+### Threading Model
+
+**Background SSE Processing:**
+```python
+class SSEIntegration:
+    def start_connection(self):
+        # Run SSE client in background thread
+        self.sse_thread = threading.Thread(
+            target=self._run_sse_loop, 
+            daemon=True
+        )
+        self.sse_thread.start()
+    
+    def _run_sse_loop(self):
+        # Create new event loop for this thread
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(self.sse_client.connect())
+```
+
+### Template Integration
+
+**Backend Template Updates:**
+```html
+<!-- Added data attributes for GUI parsing -->
+<div class="game-board-grid" 
+     data-game-id="{{ game.id }}"
+     data-board-size="{{ game.ruleset.board_size }}"
+     data-current-player="{{ game.current_player }}"
+     data-game-status="{{ game.status }}">
+```
+
+**GUI HTML Parsing:**
+```python
+# Parse board intersections for stone positions
+intersections = soup.find_all('div', class_='board-intersection')
+for intersection in intersections:
+    row = int(intersection.get('data-row'))
+    col = int(intersection.get('data-col'))
+    
+    if intersection.find('div', class_='stone-black'):
+        board_state[row][col] = 'black'
+    elif intersection.find('div', class_='stone-white'):
+        board_state[row][col] = 'white'
+```
+
+### Bidirectional Updates
+
+**GUI → Web:**
+- GUI makes move via REST API
+- Backend triggers SSE event for all connected clients
+- Web browser receives SSE event and updates via HTMX
+
+**Web → GUI:**
+- Web client makes move via HTMX
+- Backend triggers SSE event for all connected clients  
+- GUI receives SSE event, parses HTML, and updates board
+
+### Connection Management
+
+**Robust Reconnection:**
+```python
+async def _connection_loop(self):
+    while self.should_connect:
+        try:
+            await self.sse_client.connect()
+            await self.sse_client._listen_for_events()
+        except Exception as e:
+            logger.warning(f"SSE connection failed: {e}")
+            await asyncio.sleep(self.reconnect_delay)
+            self.reconnect_delay = min(self.reconnect_delay * 2, 30)  # Exponential backoff
+```
+
+**Visual Status Indicators:**
+```python
+def update_sse_status(self, status):
+    color = {
+        'Connected': (0, 255, 0),     # Green
+        'Connecting': (255, 255, 0),  # Yellow  
+        'Disconnected': (255, 0, 0)   # Red
+    }[status]
+    dpg.configure_item("sse_status", default_value=status, color=color)
+```
+
+### Lessons Learned
+
+**Template Caching Issues:**
+- Django template changes may require server restart in production
+- Template caching can prevent SSE HTML updates from reflecting code changes
+- Solution: Restart django server after template modifications
+
+**Authentication Compatibility:**
+- GUI auth manager wraps direct AuthManager instance
+- SSE client must detect wrapper vs direct instance for compatibility
+- Solution: Duck typing to handle both authentication patterns
+
+**HTML Parsing Edge Cases:**
+- Missing data attributes cause "game unknown" parsing errors
+- Template updates require careful coordination with HTML parser expectations
+- Solution: Comprehensive logging and graceful fallback to "unknown" game ID
 
 ---
 

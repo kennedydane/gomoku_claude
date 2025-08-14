@@ -10,8 +10,8 @@ This frontend provides a clean, intuitive interface for playing Gomoku (Five-in-
 - **Interactive Board**: Click-to-place stone mechanics on configurable board sizes
 - **Enhanced Authentication**: Complete user management with login, registration, and profile switching
 - **Game Management**: Multi-game support with filtering, sorting, and game switching
+- **Real-time Updates**: Bidirectional real-time gameplay using Server-Sent Events (SSE)
 - **Configuration Management**: JSON and environment variable configuration support
-- **Real-time Gameplay**: Alternating turns with automatic token refresh
 - **Win Detection**: Automatic detection of 5-in-a-row victories
 - **Multi-Profile Support**: Save and switch between multiple user accounts
 - **Debug Logging**: Comprehensive logging with configurable levels
@@ -35,6 +35,14 @@ This frontend provides a clean, intuitive interface for playing Gomoku (Five-in-
 - **Status Indicators**: Visual indicators for game status (🔥 Your Turn, ⏳ Opponent's Turn, ✅ Won, ❌ Lost)
 - **Real-time Updates**: Game list refreshes automatically to show current status
 
+### Real-time Updates System
+- **Server-Sent Events (SSE)**: Live connection to backend for instant game updates
+- **Bidirectional Updates**: Changes made in GUI appear in web browser instantly and vice versa
+- **HTML Parsing**: Intelligent parsing of SSE HTML events to extract game state
+- **Automatic Reconnection**: Robust connection management with automatic retry logic
+- **Authentication Integration**: Secure SSE connections with token-based authentication
+- **Visual Indicators**: SSE connection status displayed in GUI interface
+
 ## Architecture
 
 ### Core Components
@@ -42,6 +50,8 @@ This frontend provides a clean, intuitive interface for playing Gomoku (Five-in-
 - **Authentication Manager**: Comprehensive auth system with profile management
 - **Configuration Manager**: JSON and environment variable configuration
 - **API Client**: httpx async HTTP client with automatic authentication
+- **SSE Client**: Server-Sent Events client for real-time updates
+- **HTML Parser**: BeautifulSoup-based parser for extracting game state from SSE events
 - **Backend Integration**: Django REST API with enhanced token authentication
 
 ### New Authentication Architecture
@@ -49,6 +59,8 @@ This frontend provides a clean, intuitive interface for playing Gomoku (Five-in-
 - **ConfigManager**: Configuration loading from JSON files and environment variables
 - **APIClient**: HTTP client with integrated authentication and auto-refresh
 - **Enhanced Tokens**: Server-side tokens with expiration, device tracking, and refresh capability
+- **SSEClient**: Async SSE client with authentication integration and HTML parsing
+- **SSEIntegration**: Background thread management for SSE connections
 
 ## Quick Start
 
