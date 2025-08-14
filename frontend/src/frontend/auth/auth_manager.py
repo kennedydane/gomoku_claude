@@ -460,11 +460,19 @@ class AuthManager:
     # Token validation methods
     def _is_token_expired(self, token: TokenInfo) -> bool:
         """Check if token has expired."""
-        return datetime.now() >= token.expires_at
+        from datetime import timezone
+        now = datetime.now(timezone.utc)
+        # Ensure both datetimes are timezone-aware for comparison
+        expires_at = token.expires_at if token.expires_at.tzinfo else token.expires_at.replace(tzinfo=timezone.utc)
+        return now >= expires_at
     
     def _token_needs_refresh(self, token: TokenInfo) -> bool:
         """Check if token needs refresh (expires within threshold)."""
-        return datetime.now() + self.TOKEN_REFRESH_THRESHOLD >= token.expires_at
+        from datetime import timezone
+        now = datetime.now(timezone.utc)
+        # Ensure both datetimes are timezone-aware for comparison
+        expires_at = token.expires_at if token.expires_at.tzinfo else token.expires_at.replace(tzinfo=timezone.utc)
+        return now + self.TOKEN_REFRESH_THRESHOLD >= expires_at
     
     # HTTP request methods
     async def _make_request(
@@ -485,7 +493,17 @@ class AuthManager:
             Response data as dictionary
         """
         try:
-            response = await self.client.request(method, endpoint, **kwargs)
+            # Try to use the existing client first
+            try:
+                response = await self.client.request(method, endpoint, **kwargs)
+            except RuntimeError as e:
+                if "event loop" in str(e).lower():
+                    # Create a new client for this thread's event loop
+                    async with httpx.AsyncClient(base_url=self.base_url) as new_client:
+                        response = await new_client.request(method, endpoint, **kwargs)
+                else:
+                    raise
+            
             response.raise_for_status()
             return response.json()
             

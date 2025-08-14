@@ -1,1 +1,5 @@
-"""UI package for Dear PyGUI interface components."""
+"""
+Frontend UI components.
+
+This package contains user interface components for the Gomoku frontend application.
+"""

@@ -1,0 +1,29 @@
+{
+  "base_url": "http://localhost:8001",
+  "timeout": 30.0,
+  "current_profile": "default",
+  "auto_refresh_token": true,
+  "max_retries": 3,
+  "profiles": {
+    "default": {
+      "user": {
+        "id": 29,
+        "username": "bob",
+        "email": "bob@bob.com",
+        "display_name": "BobZor",
+        "date_joined": "2025-08-14T11:09:48.147175Z"
+      },
+      "token": {
+        "token": "d280515057ab6e6570b1627da1ef9d8da8aa3b99",
+        "expires_at": "2025-08-21T11:09:48.304567+00:00",
+        "device_name": "Desktop App",
+        "device_info": {}
+      }
+    }
+  },
+  "default_device_info": {},
+  "log_level": "INFO",
+  "debug_mode": false,
+  "save_credentials": true,
+  "encrypt_credentials": false
+}

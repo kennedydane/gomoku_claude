@@ -101,7 +101,14 @@ def obtain_enhanced_token(request):
     return Response({
         'token': token.key,
         'expires_at': token.expires_at.isoformat(),
-        'device_name': token.device_name
+        'device_name': token.device_name,
+        'user': {
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'display_name': getattr(user, 'display_name', None),
+            'date_joined': user.date_joined.isoformat()
+        }
     })
 
 
