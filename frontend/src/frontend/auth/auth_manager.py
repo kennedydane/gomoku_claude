@@ -16,6 +16,7 @@ from loguru import logger
 
 from .models import TokenInfo, UserProfile, AuthConfig
 from .exceptions import AuthError, TokenExpiredError, InvalidCredentialsError, RegistrationError, ConfigurationError
+from .config_manager import ConfigManager
 
 
 class AuthManager:
@@ -32,16 +33,29 @@ class AuthManager:
     # Token refresh threshold (refresh if expires within this time)
     TOKEN_REFRESH_THRESHOLD = timedelta(hours=1)
     
-    def __init__(self, base_url: str = "http://localhost:8001", config_file: Optional[str] = None):
+    def __init__(
+        self, 
+        base_url: Optional[str] = None, 
+        config_file: Optional[str] = None, 
+        env_file: Optional[str] = None
+    ):
         """
         Initialize the authentication manager.
         
         Args:
-            base_url: Base URL of the authentication server
+            base_url: Base URL of the authentication server (overrides config)
             config_file: Path to configuration file for credential storage
+            env_file: Path to .env file for environment configuration
         """
-        self.base_url = base_url.rstrip("/")
-        self.config_file = Path(config_file) if config_file else Path.home() / ".gomoku" / "auth_config.json"
+        # Initialize configuration manager
+        self.config_manager = ConfigManager(config_file=config_file, env_file=env_file)
+        self.config = self.config_manager.load_config()
+        
+        # Use provided base_url or fall back to config
+        self.base_url = (base_url or self.config.base_url).rstrip("/")
+        
+        # Legacy config file path for backward compatibility
+        self.config_file = self.config_manager.config_file
         
         # Authentication state
         self._current_user: Optional[UserProfile] = None
@@ -50,6 +64,25 @@ class AuthManager:
         
         logger.info(f"Initialized AuthManager for {self.base_url}")
         logger.debug(f"Config file: {self.config_file}")
+        
+        # Apply configuration settings
+        self._apply_config_settings()
+    
+    def _apply_config_settings(self) -> None:
+        """Apply configuration settings to the auth manager."""
+        # Apply logging settings
+        if self.config.log_level:
+            logger.remove()  # Remove default handler
+            logger.add(
+                level=self.config.log_level,
+                sink=lambda msg: print(msg, end="")  # Use print for console output
+            )
+        
+        # Apply token refresh threshold if configured
+        if hasattr(self.config, 'token_refresh_hours'):
+            self.TOKEN_REFRESH_THRESHOLD = timedelta(hours=self.config.token_refresh_hours)
+        
+        logger.debug(f"Applied configuration settings: log_level={self.config.log_level}")
     
     @property
     def client(self) -> httpx.AsyncClient:
@@ -57,7 +90,7 @@ class AuthManager:
         if self._client is None:
             self._client = httpx.AsyncClient(
                 base_url=self.base_url,
-                timeout=30.0
+                timeout=self.config.timeout
             )
         return self._client
     
@@ -300,24 +333,20 @@ class AuthManager:
             user: User profile information
             token: Token information
         """
+        if not self.config.save_credentials:
+            logger.debug("Credential saving is disabled in configuration")
+            return
+            
         try:
-            # Ensure config directory exists
-            self.config_file.parent.mkdir(parents=True, exist_ok=True)
+            # Save as default profile and also update current session
+            self.save_profile("default", user, token)
             
-            config_data = {
-                "user": user.model_dump(mode='json'),
-                "token": {
-                    "token": token.token,
-                    "expires_at": token.expires_at.isoformat(),
-                    "device_name": token.device_name,
-                    "device_info": getattr(token, 'device_info', {})
-                }
-            }
+            # Update current profile to default if not set
+            if not self.config.current_profile:
+                self.config.current_profile = "default"
+                self.config_manager.save_config(self.config)
             
-            with self.config_file.open('w') as f:
-                json.dump(config_data, f, indent=2)
-            
-            logger.debug(f"Credentials saved to {self.config_file}")
+            logger.debug("Credentials saved to configuration")
             
         except Exception as e:
             logger.error(f"Failed to save credentials: {e}")
@@ -330,24 +359,24 @@ class AuthManager:
             Tuple of (user_profile, token_info) or (None, None) if not found
         """
         try:
-            if not self.config_file.exists():
-                return None, None
+            # Reload config to get latest state
+            self.config = self.config_manager.load_config()
             
-            with self.config_file.open('r') as f:
-                config_data = json.load(f)
+            # Try to load current profile first
+            if self.config.current_profile:
+                user, token = self.config_manager.load_profile(self.config.current_profile, self.config)
+                if user and token:
+                    logger.debug(f"Credentials loaded from profile: {self.config.current_profile}")
+                    return user, token
             
-            # Parse user data
-            user_data = config_data["user"]
-            user_data["date_joined"] = datetime.fromisoformat(user_data["date_joined"])
-            user = UserProfile(**user_data)
+            # Fall back to default profile
+            user, token = self.config_manager.load_profile("default", self.config)
+            if user and token:
+                logger.debug("Credentials loaded from default profile")
+                return user, token
             
-            # Parse token data
-            token_data = config_data["token"]
-            token_data["expires_at"] = datetime.fromisoformat(token_data["expires_at"])
-            token = TokenInfo(**token_data)
-            
-            logger.debug("Credentials loaded from configuration")
-            return user, token
+            logger.debug("No saved credentials found")
+            return None, None
             
         except Exception as e:
             logger.warning(f"Failed to load credentials: {e}")
@@ -363,21 +392,15 @@ class AuthManager:
             token: Token information
         """
         try:
-            # Load existing config
-            config = self._load_config()
+            # Reload config to get latest state
+            self.config = self.config_manager.load_config()
             
-            # Save profile
-            config.profiles[profile_name] = {
-                "user": user.model_dump(mode='json'),
-                "token": {
-                    "token": token.token,
-                    "expires_at": token.expires_at.isoformat(),
-                    "device_name": token.device_name,
-                    "device_info": getattr(token, 'device_info', {})
-                }
-            }
+            # Save profile using config manager
+            self.config_manager.save_profile(profile_name, user, token, self.config)
             
-            self._save_config(config)
+            # Save updated config
+            self.config_manager.save_config(self.config)
+            
             logger.debug(f"Profile '{profile_name}' saved")
             
         except Exception as e:
@@ -386,8 +409,9 @@ class AuthManager:
     def get_saved_profiles(self) -> List[str]:
         """Get list of saved profile names."""
         try:
-            config = self._load_config()
-            return list(config.profiles.keys())
+            # Reload config to get latest state
+            self.config = self.config_manager.load_config()
+            return self.config_manager.get_profile_names(self.config)
         except Exception as e:
             logger.error(f"Failed to get saved profiles: {e}")
             return []
@@ -403,23 +427,15 @@ class AuthManager:
             True if successful, False otherwise
         """
         try:
-            config = self._load_config()
+            # Reload config to get latest state
+            self.config = self.config_manager.load_config()
             
-            if profile_name not in config.profiles:
+            # Load profile using config manager
+            user, token = self.config_manager.load_profile(profile_name, self.config)
+            
+            if user is None or token is None:
                 logger.warning(f"Profile '{profile_name}' not found")
                 return False
-            
-            profile_data = config.profiles[profile_name]
-            
-            # Parse user data
-            user_data = profile_data["user"]
-            user_data["date_joined"] = datetime.fromisoformat(user_data["date_joined"])
-            user = UserProfile(**user_data)
-            
-            # Parse token data
-            token_data = profile_data["token"]
-            token_data["expires_at"] = datetime.fromisoformat(token_data["expires_at"])
-            token = TokenInfo(**token_data)
             
             # Check if token is still valid
             if self._is_token_expired(token):
@@ -431,8 +447,8 @@ class AuthManager:
             self._current_token = token
             
             # Update current profile
-            config.current_profile = profile_name
-            self._save_config(config)
+            self.config.current_profile = profile_name
+            self.config_manager.save_config(self.config)
             
             logger.info(f"Switched to profile: {profile_name}")
             return True
@@ -507,31 +523,3 @@ class AuthManager:
         
         return await self._make_request(method, endpoint, **kwargs)
     
-    # Configuration file management
-    def _load_config(self) -> AuthConfig:
-        """Load authentication configuration."""
-        try:
-            if not self.config_file.exists():
-                return AuthConfig()
-            
-            with self.config_file.open('r') as f:
-                data = json.load(f)
-            
-            return AuthConfig(**data)
-            
-        except Exception as e:
-            logger.warning(f"Failed to load config: {e}")
-            return AuthConfig()
-    
-    def _save_config(self, config: AuthConfig) -> None:
-        """Save authentication configuration."""
-        try:
-            # Ensure config directory exists
-            self.config_file.parent.mkdir(parents=True, exist_ok=True)
-            
-            with self.config_file.open('w') as f:
-                json.dump(config.model_dump(mode='json'), f, indent=2)
-            
-        except Exception as e:
-            logger.error(f"Failed to save config: {e}")
-            raise ConfigurationError(f"Failed to save config: {e}")

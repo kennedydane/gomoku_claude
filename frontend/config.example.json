@@ -1,0 +1,17 @@
+{
+  "base_url": "http://localhost:8001",
+  "timeout": 30.0,
+  "auto_refresh_token": true,
+  "max_retries": 3,
+  "log_level": "INFO",
+  "debug_mode": false,
+  "save_credentials": true,
+  "encrypt_credentials": false,
+  "current_profile": null,
+  "profiles": {},
+  "default_device_info": {
+    "platform": "Linux",
+    "app": "Gomoku Desktop",
+    "version": "1.0.0"
+  }
+}

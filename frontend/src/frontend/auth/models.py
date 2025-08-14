@@ -28,7 +28,24 @@ class UserProfile(BaseModel):
 
 
 class AuthConfig(BaseModel):
-    """Authentication configuration data."""
+    """Enhanced authentication configuration data."""
+    # Server configuration
+    base_url: str = Field(default="http://localhost:8001", description="Base URL of the API server")
+    timeout: float = Field(default=30.0, description="Request timeout in seconds")
+    
+    # Authentication settings
     current_profile: Optional[str] = Field(None, description="Currently active profile")
+    auto_refresh_token: bool = Field(default=True, description="Automatically refresh tokens")
+    max_retries: int = Field(default=3, description="Maximum request retries")
+    
+    # Profile management
     profiles: Dict[str, Dict[str, Any]] = Field(default_factory=dict, description="Saved user profiles")
     default_device_info: Dict[str, Any] = Field(default_factory=dict, description="Default device information")
+    
+    # Logging and debugging
+    log_level: str = Field(default="INFO", description="Logging level")
+    debug_mode: bool = Field(default=False, description="Enable debug mode")
+    
+    # Security settings
+    save_credentials: bool = Field(default=True, description="Save credentials to disk")
+    encrypt_credentials: bool = Field(default=False, description="Encrypt saved credentials")
