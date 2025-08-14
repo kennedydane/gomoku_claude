@@ -7,15 +7,15 @@
   "profiles": {
     "default": {
       "user": {
-        "id": 28,
-        "username": "dane",
+        "id": 27,
+        "username": "admin",
         "email": null,
         "display_name": "",
-        "date_joined": "2025-08-13T20:15:56.460017Z"
+        "date_joined": "2025-08-13T20:14:32.414679Z"
       },
       "token": {
-        "token": "0cd5e69a7cdf5f225bff693609093c18a29de347",
-        "expires_at": "2025-08-21T11:21:59.466211+00:00",
+        "token": "2bb59436fc09ad6d3b26780eb5874e1fdd4d784e",
+        "expires_at": "2025-08-21T12:44:41.401473+00:00",
         "device_name": "Desktop App",
         "device_info": {}
       }

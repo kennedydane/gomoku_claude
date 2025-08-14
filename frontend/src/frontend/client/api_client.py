@@ -23,6 +23,14 @@ class UserInfo(BaseModel):
     id: int
     username: str
     display_name: str
+    email: Optional[str] = None
+    games_played: int = 0
+    games_won: int = 0
+    win_rate: float = 0.0
+    losses: int = 0
+    is_experienced: bool = False
+    is_active: bool = True
+    date_joined: datetime
 
 
 class RuleSetInfo(BaseModel):
@@ -31,6 +39,10 @@ class RuleSetInfo(BaseModel):
     name: str
     board_size: int
     allow_overlines: bool
+    forbidden_moves: Dict[str, Any] = {}
+    description: str = ""
+    created_at: datetime
+    updated_at: datetime
 
 
 class BoardState(BaseModel):
@@ -42,37 +54,66 @@ class BoardState(BaseModel):
 class GameInfo(BaseModel):
     """Game information model."""
     id: str
-    black_player_id: int
-    white_player_id: int
-    ruleset_id: int
     status: str
     current_player: str
     board_state: BoardState
-    winner_id: Optional[int] = None
     move_count: int
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
-    is_game_over: bool
-    can_start: bool
-    black_player: Optional[UserInfo] = None
-    white_player: Optional[UserInfo] = None
+    black_player: UserInfo
+    white_player: UserInfo
     winner: Optional[UserInfo] = None
-    ruleset: Optional[RuleSetInfo] = None
+    ruleset: RuleSetInfo
+    
+    # Derived properties for backward compatibility
+    @property
+    def black_player_id(self) -> int:
+        return self.black_player.id
+    
+    @property 
+    def white_player_id(self) -> int:
+        return self.white_player.id
+        
+    @property
+    def winner_id(self) -> Optional[int]:
+        return self.winner.id if self.winner else None
+        
+    @property
+    def ruleset_id(self) -> int:
+        return self.ruleset.id
+        
+    @property
+    def is_game_over(self) -> bool:
+        return self.status in ["FINISHED", "COMPLETED"]
+        
+    @property
+    def can_start(self) -> bool:
+        return self.status == "WAITING"
 
 
 class MoveInfo(BaseModel):
     """Move information model."""
     id: int
-    game_id: str
-    player_id: int
+    game: str  # API returns 'game' not 'game_id'
+    player: int  # API returns 'player' not 'player_id'
+    player_username: str
     move_number: int
     row: int
     col: int
     player_color: str
     is_winning_move: bool
     created_at: datetime
+    
+    # Backward compatibility properties
+    @property
+    def game_id(self) -> str:
+        return self.game
+        
+    @property 
+    def player_id(self) -> int:
+        return self.player
 
 
 class APIClient:
@@ -328,10 +369,7 @@ class APIClient:
         Returns:
             User information
         """
-        response = await self.client.get(f"/api/v1/users/{user_id}")
-        response.raise_for_status()
-        
-        user_data = response.json()
+        user_data = await self._make_authenticated_request("GET", f"/api/v1/users/{user_id}/")
         return UserInfo(**user_data)
     
     # Rule set management
@@ -356,13 +394,29 @@ class APIClient:
         Returns:
             Rule set information
         """
-        response = await self.client.get(f"/api/v1/rulesets/{ruleset_id}")
-        response.raise_for_status()
+        # Use authenticated request for consistency, though rulesets may be public
+        if self.auth_manager and self.auth_manager.is_authenticated():
+            ruleset_data = await self._make_authenticated_request("GET", f"/api/v1/rulesets/{ruleset_id}/")
+        else:
+            response = await self.client.get(f"/api/v1/rulesets/{ruleset_id}/")
+            response.raise_for_status()
+            ruleset_data = response.json()
         
-        ruleset_data = response.json()
         return RuleSetInfo(**ruleset_data)
     
     # Game management
+    async def get_games(self) -> List[Dict[str, Any]]:
+        """Get list of all games for the current user.
+        
+        Returns:
+            List of game dictionaries
+        """
+        response = await self._make_authenticated_request("GET", "/api/v1/games/")
+        # Handle paginated response from DRF
+        if isinstance(response, dict) and 'results' in response:
+            return response['results']
+        return response
+
     async def create_game(self, black_player_id: int, white_player_id: int, ruleset_id: int) -> GameInfo:
         """Create a new game.
         
@@ -400,10 +454,7 @@ class APIClient:
         Returns:
             Game information
         """
-        response = await self.client.get(f"/api/v1/games/{game_id}")
-        response.raise_for_status()
-        
-        game_data = response.json()
+        game_data = await self._make_authenticated_request("GET", f"/api/v1/games/{game_id}/")
         return GameInfo(**game_data)
     
     async def start_game(self, game_id: str) -> GameInfo:
@@ -415,10 +466,7 @@ class APIClient:
         Returns:
             Updated game information
         """
-        response = await self.client.put(f"/api/v1/games/{game_id}/start")
-        response.raise_for_status()
-        
-        game_data = response.json()
+        game_data = await self._make_authenticated_request("PUT", f"/api/v1/games/{game_id}/start/")
         logger.info(f"Started game: {game_id}")
         return GameInfo(**game_data)
     
@@ -435,20 +483,22 @@ class APIClient:
             Move information
         """
         payload = {
-            "player_id": player_id,
             "row": row,
             "col": col
         }
         
+        logger.info(f"Making move in game {game_id}: ({row}, {col}) for player {player_id}")
+        logger.debug(f"Move payload: {payload}")
+        
         # Use authenticated request if auth manager is available and authenticated
         if self.auth_manager and self.auth_manager.is_authenticated():
-            move_data = await self._make_authenticated_request("POST", f"/api/v1/games/{game_id}/moves/", json=payload)
+            move_data = await self._make_authenticated_request("POST", f"/api/v1/games/{game_id}/move/", json=payload)
         else:
-            response = await self.client.post(f"/api/v1/games/{game_id}/moves/", json=payload)
+            response = await self.client.post(f"/api/v1/games/{game_id}/move/", json=payload)
             response.raise_for_status()
             move_data = response.json()
         
-        logger.debug(f"Made move in game {game_id}: ({row}, {col})")
+        logger.info(f"Move successful: {move_data}")
         return MoveInfo(**move_data)
     
     async def get_game_moves(self, game_id: str) -> List[MoveInfo]:
@@ -460,8 +510,5 @@ class APIClient:
         Returns:
             List of move information
         """
-        response = await self.client.get(f"/api/v1/games/{game_id}/moves/")
-        response.raise_for_status()
-        
-        moves_data = response.json()
+        moves_data = await self._make_authenticated_request("GET", f"/api/v1/games/{game_id}/moves/")
         return [MoveInfo(**move) for move in moves_data]

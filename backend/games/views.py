@@ -107,26 +107,107 @@ class GameViewSet(viewsets.ModelViewSet):
                 serializer.validated_data['col']
             )
             
-            # Create game event for SSE
-            # Notify both players
-            for player in [game.black_player, game.white_player]:
-                GameEvent.objects.create(
-                    user=player,
-                    event_type='move',
-                    event_data={
-                        'game_id': str(game.id),
-                        'move': {
-                            'row': move.row,
-                            'col': move.col,
-                            'player': move.player_color,
-                            'move_number': move.move_number,
-                            'is_winning_move': move.is_winning_move
-                        },
-                        'game_status': game.status,
-                        'current_player': game.current_player,
-                        'winner_id': game.winner_id
-                    }
-                )
+            # Import logger at the top level to avoid scoping issues
+            from loguru import logger
+            
+            # Send SSE events using same system as HTMX views
+            logger.info(f"🎮 REST API MOVE START: User {user.username} (ID: {user.id}) making move in game {game.id}")
+            logger.info(f"📊 GAME STATE: Status={game.status}, Current Player={game.current_player}")
+            logger.info(f"👥 PLAYERS: Black={game.black_player.username} (ID: {game.black_player.id}), White={game.white_player.username} (ID: {game.white_player.id})")
+            
+            try:
+                from django_eventstream import send_event
+                from django.template.loader import render_to_string
+                
+                logger.success(f"🔧 SSE IMPORT: django_eventstream imported successfully")
+                
+                # Refresh game state after move
+                game.refresh_from_db()
+                logger.info(f"🔄 GAME REFRESH: Updated status={game.status}, current_player={game.current_player}")
+                
+                # Notify both players (like HTMX does, but for both players)
+                players_to_notify = []
+                for player in [game.black_player, game.white_player]:
+                    if player.id != user.id:  # Don't notify the player who made the move
+                        players_to_notify.append(player)
+                        
+                logger.info(f"📋 NOTIFICATION PLAN: Will notify {len(players_to_notify)} players: {[p.username for p in players_to_notify]}")
+                
+                for player in players_to_notify:
+                    try:
+                        logger.info(f"📡 SSE PROCESS START: Processing notification for {player.username} (ID: {player.id})")
+                        
+                        # Create CSRF token for the target user (approximation)
+                        from django.middleware.csrf import get_token
+                        from django.test import RequestFactory
+                        
+                        # Create a mock request for template rendering
+                        factory = RequestFactory()
+                        mock_request = factory.get('/')
+                        mock_request.user = player
+                        csrf_token = get_token(mock_request)
+                        
+                        logger.debug(f"🔐 CSRF TOKEN: Generated token for {player.username}: {csrf_token[:10] if csrf_token else 'None'}...")
+                        
+                        # Generate board HTML for this player
+                        logger.info(f"📄 HTML GENERATION: Rendering template for {player.username}")
+                        board_html = render_to_string('web/partials/game_board.html', {
+                            'game': game,
+                            'user': player,
+                            'csrf_token': csrf_token
+                        }, request=mock_request).strip()
+                        
+                        logger.debug(f"📄 HTML SIZE: Generated {len(board_html)} characters for {player.username}")
+                        logger.debug(f"📄 HTML PREVIEW: {board_html[:100]}..." if len(board_html) > 100 else board_html)
+                        
+                        # Fix SSE protocol newlines
+                        board_html_sse = board_html.replace('\n\n', ' ').replace('\r\n\r\n', ' ').strip()
+                        logger.debug(f"📄 HTML SSE SIZE: Cleaned to {len(board_html_sse)} characters")
+                        
+                        channel = f'user-{player.id}'
+                        event_name = 'game_move'
+                        logger.info(f"📤 SSE SEND ATTEMPT: Channel='{channel}', Event='{event_name}', Player={player.username}")
+                        
+                        # Send event with same format as HTMX
+                        send_event(channel, event_name, board_html_sse, json_encode=False)
+                        logger.success(f"✅ SSE SUCCESS: Event sent to {player.username} on channel '{channel}'")
+                        
+                    except Exception as player_error:
+                        logger.error(f"❌ SSE PLAYER ERROR: Failed to notify {player.username}: {type(player_error).__name__}: {str(player_error)}")
+                        import traceback
+                        logger.debug(f"📋 PLAYER ERROR TRACE: {traceback.format_exc()}")
+                        
+                logger.success(f"🎉 SSE COMPLETE: Processed all notifications for REST API move")
+                        
+            except ImportError as import_error:
+                logger.error(f"❌ SSE IMPORT ERROR: django-eventstream not available: {import_error}")
+                logger.warning("⚠️  SSE: Falling back to GameEvent system")
+                # Fallback to GameEvent system 
+                for player in [game.black_player, game.white_player]:
+                    GameEvent.objects.create(
+                        user=player,
+                        event_type='move',
+                        event_data={
+                            'game_id': str(game.id),
+                            'move': {
+                                'row': move.row,
+                                'col': move.col,
+                                'player': move.player_color,
+                                'move_number': move.move_number,
+                                'is_winning_move': move.is_winning_move
+                            },
+                            'game_status': game.status,
+                            'current_player': game.current_player,
+                            'winner_id': game.winner_id
+                        }
+                    )
+                logger.info(f"💾 FALLBACK: Created GameEvent notifications for both players")
+                
+            except Exception as e:
+                logger.error(f"❌ SSE CRITICAL ERROR: {type(e).__name__}: {str(e)}")
+                import traceback
+                logger.debug(f"📋 CRITICAL ERROR TRACE: {traceback.format_exc()}")
+                # Don't fail the request if SSE fails, still return success
             
             return Response(GameMoveSerializer(move).data)
             

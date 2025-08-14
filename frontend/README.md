@@ -9,6 +9,7 @@ This frontend provides a clean, intuitive interface for playing Gomoku (Five-in-
 ### Core Features
 - **Interactive Board**: Click-to-place stone mechanics on configurable board sizes
 - **Enhanced Authentication**: Complete user management with login, registration, and profile switching
+- **Game Management**: Multi-game support with filtering, sorting, and game switching
 - **Configuration Management**: JSON and environment variable configuration support
 - **Real-time Gameplay**: Alternating turns with automatic token refresh
 - **Win Detection**: Automatic detection of 5-in-a-row victories
@@ -24,6 +25,15 @@ This frontend provides a clean, intuitive interface for playing Gomoku (Five-in-
 - **GUI Integration**: Complete authentication interface integrated into main application
 - **Protected Operations**: All game operations require authentication
 - **Session Restoration**: Automatic login restoration on application startup
+
+### Game Management System
+- **Multi-Game Support**: View and manage multiple active games simultaneously
+- **Smart Filtering**: Filter games by status (All, Active, Your Turn, Completed)
+- **Intelligent Sorting**: Games sorted by priority (active games first, then by date)
+- **Game Information**: Display opponent name, board size, turn status, and game progress
+- **One-Click Loading**: Load any game directly into the main game board
+- **Status Indicators**: Visual indicators for game status (🔥 Your Turn, ⏳ Opponent's Turn, ✅ Won, ❌ Lost)
+- **Real-time Updates**: Game list refreshes automatically to show current status
 
 ## Architecture
 
@@ -122,8 +132,25 @@ The frontend supports multiple configuration methods:
 - **Register Button**: Open registration dialog to create new user account
 - **Logout Button**: Clear authentication state and return to login screen
 - **New Game Button**: Start a fresh game (requires authentication)
+- **My Games Button**: Open the game management panel to view and switch between games
 - **Mouse Click**: Place stones on board intersections (requires active game)
 - **Check Backend**: Verify backend connectivity and server status
+
+### Game Management Panel ("My Games")
+- **Game List**: View all your games with status indicators and opponent information
+- **Filter Dropdown**: Filter games by status:
+  - "All Games": Show all games you're participating in
+  - "Active Games": Show only games currently in progress
+  - "Your Turn": Show only games where it's your turn to move
+  - "Completed Games": Show only finished games
+- **Refresh Button**: Manually update the game list from the server
+- **Load Game Button**: Click to load a specific game into the main board for play
+- **Game Information Display**:
+  - Game ID (shortened for readability)
+  - Your color (Black/White) vs opponent name
+  - Game status with colored indicators
+  - Board size (if different from standard 15×15)
+  - Game creation date and time
 
 ### Authentication Dialogs
 - **Login Dialog**: Username/password authentication with "Remember Me" option
@@ -169,6 +196,30 @@ api_client = APIClient(auth_manager=auth_manager)
 users = await api_client.get_users()
 ```
 
+## User Guide
+
+### Getting Started with Game Management
+
+1. **Login or Register**: Use the authentication system to create an account or log in
+2. **Create Games**: Use the "New Game" button to start new games  
+3. **View Your Games**: Click "My Games" to open the game management panel
+4. **Filter Games**: Use the dropdown to filter by game status:
+   - Show all games, active games only, games where it's your turn, or completed games
+5. **Load Games**: Click "Load Game" next to any game to switch to it
+6. **Game Status**: Visual indicators show:
+   - 🔥 **YOUR TURN** (orange): It's your turn to make a move
+   - ⏳ **Opponent's Turn** (blue): Waiting for opponent to move
+   - ✅ **You Won!** (green): You won this game
+   - ❌ **You Lost** (red): You lost this game
+   - ⚫ **Draw** (gray): Game ended in a draw
+
+### Workflow Example
+```
+1. Login → "My Games" → Filter to "Your Turn" → Click "Load Game" → Make move
+2. Create new game → Switch between games using "My Games" panel
+3. View completed games to review your wins/losses
+```
+
 ## Game Rules
 
 - **Turn Order**: Black player always goes first
@@ -195,13 +246,17 @@ frontend/
 │       │   └── exceptions.py       # Authentication exceptions
 │       ├── client/       # API client code
 │       │   └── api_client.py       # HTTP client with auth integration
-│       ├── game/         # Game state management
+│       ├── game/         # Game state and management
+│       │   ├── game_management.py  # Game filtering, sorting, and display logic
+│       │   └── game_state.py       # Local game state management
 │       ├── ui/           # UI components
+│       │   └── auth_dialogs.py     # Authentication dialog components
 │       └── main.py       # Application entry point
 ├── tests/                # Comprehensive test suite
 │   ├── test_auth_manager.py        # AuthManager tests (16 tests)
 │   ├── test_api_client_auth.py     # API client auth tests (16 tests)
 │   ├── test_config_management.py   # Config management tests (16 tests)
+│   ├── test_game_management.py     # Game management tests (27 tests)
 │   ├── test_integration_full.py    # Full integration tests (4 tests)
 │   ├── test_gui.py                # GUI functionality tests
 │   ├── test_gameplay.py           # Game logic tests
@@ -224,7 +279,7 @@ The frontend connects to the Django backend's enhanced REST API:
 - `POST /api/v1/games/` - Create new game (authenticated)
 - `GET /api/v1/games/{id}/` - Get specific game details
 - `POST /api/v1/games/{id}/start/` - Start game
-- `POST /api/v1/games/{id}/moves/` - Make move (authenticated)
+- `POST /api/v1/games/{id}/move/` - Make move (authenticated)
 - `GET /api/v1/games/{id}/moves/` - Get game moves
 
 ### User Management
@@ -255,6 +310,7 @@ uv run python -m pytest tests/ -v
 uv run python -m pytest tests/test_auth_manager.py -v          # AuthManager tests
 uv run python -m pytest tests/test_api_client_auth.py -v       # API client tests  
 uv run python -m pytest tests/test_config_management.py -v     # Config management
+uv run python -m pytest tests/test_game_management.py -v       # Game management tests
 uv run python -m pytest tests/test_integration_full.py -v      # Integration tests
 ```
 
@@ -274,6 +330,7 @@ uv run python test_win.py
 - **Authentication System**: 32 tests covering login, registration, token refresh, profiles
 - **Configuration Management**: 16 tests covering JSON, env vars, validation, backup/restore  
 - **API Integration**: 16 tests covering authenticated requests, auto-refresh, error handling
+- **Game Management**: 27 tests covering filtering, sorting, status display, and UI integration
 - **Full Integration**: 4 tests covering complete system workflows
 - **Legacy Components**: GUI, gameplay, and win detection tests
 

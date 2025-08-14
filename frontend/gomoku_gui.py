@@ -15,6 +15,10 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from frontend.ui.auth_dialogs import AuthenticationManager
 from frontend.client.api_client import APIClient
+from frontend.game.game_management import (
+    process_games_for_display,
+    get_filter_display_name
+)
 
 # Game board state
 board_state = [[None for _ in range(15)] for _ in range(15)]
@@ -25,6 +29,11 @@ api_base_url = "http://localhost:8001"
 # Authentication and API
 auth_manager: Optional[AuthenticationManager] = None
 api_client: Optional[APIClient] = None
+
+# Game management state
+user_games = []
+games_window_open = False
+games_filter = "all"  # "all", "active", "completed", "your_turn"
 
 
 def on_login_success():
@@ -56,8 +65,13 @@ def update_ui_auth_state():
     
     # Update game controls
     dpg.configure_item("new_game_button", enabled=is_authenticated)
+    dpg.configure_item("my_games_button", enabled=is_authenticated)
     
     logger.debug(f"UI auth state updated: authenticated={is_authenticated}")
+    
+    # Refresh games list if authenticated and games window is open
+    if is_authenticated and games_window_open:
+        refresh_games_list()
 
 def show_login():
     """Show login dialog."""
@@ -75,6 +89,256 @@ def logout():
         auth_manager.logout()
         on_logout()
 
+def show_my_games():
+    """Show the My Games window."""
+    global games_window_open
+    
+    if not auth_manager or not auth_manager.is_authenticated():
+        dpg.set_value("status_text", "Please login first to view games")
+        return
+    
+    if dpg.does_item_exist("my_games_window"):
+        if games_window_open:
+            # Window exists and is open, just refresh
+            refresh_games_list()
+            return
+        else:
+            # Window exists but is closed, show it
+            dpg.show_item("my_games_window")
+            games_window_open = True
+            refresh_games_list()
+            return
+    
+    # Create new games window
+    games_window_open = True
+    
+    with dpg.window(label="My Games", tag="my_games_window", width=650, height=450, 
+                   on_close=lambda: globals().update({'games_window_open': False})):
+        dpg.add_text("Your Games", color=(100, 150, 255))
+        dpg.add_separator()
+        
+        # Controls row
+        with dpg.group(horizontal=True):
+            dpg.add_button(label="Refresh", callback=refresh_games_list)
+            dpg.add_button(label="New Game", callback=create_new_game)
+            
+            # Filter dropdown
+            dpg.add_text("Filter:")
+            dpg.add_combo(
+                items=["All Games", "Active Games", "Your Turn", "Completed Games"],
+                tag="games_filter_combo",
+                default_value="All Games",
+                callback=on_filter_changed,
+                width=120
+            )
+        
+        dpg.add_separator()
+        
+        # Games list container
+        with dpg.child_window(tag="games_list_container", height=320):
+            dpg.add_text("Loading games...", tag="games_loading_text")
+    
+    # Initial games load
+    refresh_games_list()
+
+def on_filter_changed(sender, app_data):
+    """Handle filter dropdown change."""
+    global games_filter
+    
+    # Map display names to filter values
+    filter_map = {
+        "All Games": "all",
+        "Active Games": "active",
+        "Your Turn": "your_turn",
+        "Completed Games": "completed"
+    }
+    
+    games_filter = filter_map.get(app_data, "all")
+    logger.debug(f"Filter changed to: {games_filter}")
+    
+    # Update display with current games
+    update_games_display()
+
+def refresh_games_list():
+    """Refresh the games list from the API."""
+    if not auth_manager or not auth_manager.is_authenticated():
+        return
+    
+    logger.info("Refreshing games list")
+    
+    async def fetch_games():
+        global user_games
+        
+        if not api_client:
+            logger.error("API client not initialized")
+            return
+        
+        try:
+            current_user = auth_manager.get_current_user()
+            if not current_user:
+                logger.error("No current user")
+                return
+            
+            # Fetch games from API
+            games_data = await api_client.get_games()
+            
+            # Store games - filtering is now done by the game management functions
+            user_games = games_data
+            
+            logger.info(f"Fetched {len(user_games)} games for user {current_user.username}")
+            
+            # Update UI on main thread
+            update_games_display()
+            
+        except Exception as e:
+            logger.error(f"Error fetching games: {e}", exc_info=True)
+            if dpg.does_item_exist("games_loading_text"):
+                dpg.set_value("games_loading_text", f"Error loading games: {e}")
+    
+    # Use threading approach
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(fetch_games())
+    except RuntimeError:
+        import threading
+        def run_fetch():
+            try:
+                asyncio.run(fetch_games())
+            except Exception as e:
+                logger.error(f"Error in fetch games thread: {e}")
+        threading.Thread(target=run_fetch, daemon=True).start()
+
+def update_games_display():
+    """Update the games display in the UI."""
+    if not dpg.does_item_exist("games_list_container"):
+        return
+    
+    # Clear existing items
+    dpg.delete_item("games_list_container", children_only=True)
+    
+    if not user_games:
+        dpg.add_text("No games found", parent="games_list_container", color=(150, 150, 150))
+        return
+    
+    current_user = auth_manager.get_current_user() if auth_manager else None
+    if not current_user:
+        dpg.add_text("No user information", parent="games_list_container", color=(255, 100, 100))
+        return
+    
+    # Use the testable game management functions
+    # Use username for matching since API returns usernames
+    formatted_games = process_games_for_display(user_games, games_filter, current_user.username)
+    
+    if not formatted_games:
+        filter_name = get_filter_display_name(games_filter)
+        dpg.add_text(f"No {filter_name} found", parent="games_list_container", color=(150, 150, 150))
+        return
+    
+    # Create UI elements for each formatted game
+    for game_info in formatted_games:
+        with dpg.group(parent="games_list_container"):
+            # Main game info line
+            with dpg.group(horizontal=True):
+                dpg.add_text(f"Game {game_info['game_id_short']}", color=(200, 200, 255))
+                dpg.add_text(f"({game_info['player_color']} vs {game_info['opponent_name']})", color=(180, 180, 180))
+                dpg.add_text(game_info['status_text'], color=game_info['status_color'])
+                
+                # Action buttons for active games
+                if game_info['full_game'].get('status') == 'ACTIVE':
+                    dpg.add_button(
+                        label="Load Game", 
+                        callback=lambda s, a, u=game_info['full_game']: load_game(u),
+                        user_data=game_info['full_game'],
+                        width=80
+                    )
+                
+            # Secondary info line
+            info_parts = []
+            if game_info['board_size'] and game_info['board_size'] != 15:
+                info_parts.append(f"{game_info['board_size']}×{game_info['board_size']}")
+            if game_info['date_str']:
+                info_parts.append(game_info['date_str'])
+            
+            if info_parts:
+                info_text = " • ".join(info_parts)
+                dpg.add_text(f"  {info_text}", color=(120, 120, 120))
+            
+        dpg.add_separator(parent="games_list_container")
+
+def load_game(game_data):
+    """Load a specific game into the main board."""
+    global game_id, board_state, current_player
+    
+    logger.info(f"Loading game {game_data['id']}")
+    
+    async def load():
+        global game_id, board_state, current_player
+        
+        if not api_client:
+            logger.error("API client not initialized")
+            return
+        
+        try:
+            # Get detailed game data including moves
+            detailed_game = await api_client.get_game(game_data['id'])
+            moves_data = await api_client.get_game_moves(game_data['id'])
+            
+            # Set global game state
+            game_id = detailed_game.id
+            board_size = detailed_game.board_state.size
+            
+            # Load board state directly from API response
+            api_board = detailed_game.board_state.board
+            board_state = []
+            for row in api_board:
+                board_row = []
+                for cell in row:
+                    if cell is None:
+                        board_row.append(None)
+                    else:
+                        # Convert API format to GUI format
+                        board_row.append(cell.lower())
+                board_state.append(board_row)
+            
+            move_count = detailed_game.move_count
+            
+            # Set current player based on move count
+            current_player = "black" if move_count % 2 == 0 else "white"
+            
+            # Update board display
+            draw_board()
+            
+            # Update status
+            current_user = auth_manager.get_current_user()
+            user_color = "Black" if detailed_game.black_player_id == current_user.id else "White"
+            
+            msg = f"Loaded game {game_id[:8]}. You are {user_color}. {current_player.title()}'s turn."
+            dpg.set_value("status_text", msg)
+            logger.info(f"Game loaded successfully: {msg}")
+            
+            # Close games window
+            if dpg.does_item_exist("my_games_window"):
+                dpg.hide_item("my_games_window")
+                globals()['games_window_open'] = False
+            
+        except Exception as e:
+            msg = f"Error loading game: {e}"
+            logger.error(f"Error loading game {game_data['id']}: {e}", exc_info=True)
+            dpg.set_value("status_text", msg)
+    
+    # Use threading approach
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(load())
+    except RuntimeError:
+        import threading
+        def run_load():
+            try:
+                asyncio.run(load())
+            except Exception as e:
+                logger.error(f"Error in load game thread: {e}")
+        threading.Thread(target=run_load, daemon=True).start()
+
 def setup_logging(debug: bool = False):
     """Configure loguru logging."""
     logger.remove()  # Remove default handler
@@ -90,31 +354,92 @@ def setup_logging(debug: bool = False):
     logger.info(f"Logging initialized at {log_level} level")
 
 
+def get_optimal_board_size():
+    """Calculate optimal board size based on current window size."""
+    if not dpg.does_item_exist("main_window"):
+        return 450
+    
+    # Get window size
+    window_width = dpg.get_item_width("main_window")
+    window_height = dpg.get_item_height("main_window")
+    
+    # Reserve space for menus, text, and padding (about 200px total)
+    available_width = max(window_width - 50, 300)  # Min 300px
+    available_height = max(window_height - 200, 300)  # Min 300px for menus/text
+    
+    # Keep it square and reasonably sized
+    optimal_size = min(available_width, available_height, 800)  # Max 800px
+    return max(optimal_size, 300)  # Min 300px
+
+
 def draw_board():
-    """Draw the game board."""
+    """Draw the game board with cell-based rendering (like web app)."""
     logger.debug("Redrawing game board")
     dpg.delete_item("board_drawing", children_only=True)
     
-    # Draw grid
-    for i in range(16):
-        # Vertical lines
-        dpg.draw_line((i * 30, 0), (i * 30, 450), 
-                     color=(100, 100, 100), parent="board_drawing")
-        # Horizontal lines
-        dpg.draw_line((0, i * 30), (450, i * 30), 
-                     color=(100, 100, 100), parent="board_drawing")
+    # Determine board size dynamically
+    if not board_state:
+        return
     
-    # Draw stones
-    stone_count = 0
-    for row in range(15):
-        for col in range(15):
+    current_board_size = len(board_state)
+    
+    # Calculate optimal board size based on window size
+    board_pixel_size = get_optimal_board_size()
+    cell_size = board_pixel_size / current_board_size
+    
+    # Update the drawlist size to match calculated size
+    dpg.configure_item("board_drawing", width=board_pixel_size, height=board_pixel_size)
+    
+    # Draw cells (like web app - filled rectangles with borders)
+    for row in range(current_board_size):
+        for col in range(current_board_size):
+            x1 = col * cell_size
+            y1 = row * cell_size
+            x2 = x1 + cell_size
+            y2 = y1 + cell_size
+            
+            # Determine cell color based on content and position
             if board_state[row][col]:
-                stone_count += 1
-                color = (20, 20, 20) if board_state[row][col] == "black" else (240, 240, 240)
-                dpg.draw_circle((col * 30, row * 30), 12, 
-                              color=color, fill=color, parent="board_drawing")
+                # Occupied cell - draw stone
+                if board_state[row][col] == "black":
+                    cell_color = (40, 40, 40)      # Dark for black stone
+                    border_color = (60, 60, 60)
+                else:  # white
+                    cell_color = (220, 220, 220)   # Light for white stone  
+                    border_color = (180, 180, 180)
+            else:
+                # Empty cell - alternating pattern like web app
+                if (row + col) % 2 == 0:
+                    cell_color = (240, 217, 181)   # Light wood color
+                else:
+                    cell_color = (238, 214, 175)   # Slightly darker wood
+                border_color = (200, 170, 140)
+            
+            # Draw filled cell
+            dpg.draw_rectangle((x1, y1), (x2, y2), 
+                             color=border_color, fill=cell_color, 
+                             parent="board_drawing")
+            
+            # Draw stone circle if occupied (for better visual clarity)
+            if board_state[row][col]:
+                center_x = x1 + cell_size / 2
+                center_y = y1 + cell_size / 2
+                stone_radius = min(cell_size * 0.35, 15)  # 35% of cell size, max 15px
+                
+                if board_state[row][col] == "black":
+                    stone_color = (0, 0, 0)
+                    stone_border = (40, 40, 40)
+                else:
+                    stone_color = (255, 255, 255)
+                    stone_border = (200, 200, 200)
+                    
+                dpg.draw_circle((center_x, center_y), stone_radius,
+                              color=stone_border, fill=stone_color, 
+                              parent="board_drawing")
     
-    logger.debug(f"Board drawn with {stone_count} stones")
+    # Count stones for logging
+    stone_count = sum(1 for row in board_state for cell in row if cell)
+    logger.debug(f"Board drawn: {current_board_size}x{current_board_size}, {stone_count} stones, {board_pixel_size:.0f}px ({cell_size:.1f}px/cell)")
 
 
 def cell_clicked(sender, app_data, user_data):
@@ -168,7 +493,7 @@ def cell_clicked(sender, app_data, user_data):
             payload = {"player_id": player_id, "row": row, "col": col}
             logger.debug(f"Move payload: {payload}")
             
-            move = await api_client.post(f"/api/v1/games/{game_id}/moves/", json=payload)
+            move = await api_client.make_move(game_id, player_id, row, col)
             
             board_state[row][col] = current_player
             logger.info(f"Move successful: {current_player} at ({row}, {col})")
@@ -178,8 +503,8 @@ def cell_clicked(sender, app_data, user_data):
             current_player = "white" if current_player == "black" else "black"
             logger.debug(f"Switched turn from {old_player} to {current_player}")
             
-            if move.get("is_winning_move"):
-                winner_color = move['player_color'].lower()
+            if move.is_winning_move:
+                winner_color = move.player_color.lower()
                 msg = f"{winner_color.title()} wins!"
                 logger.info(f"GAME OVER: {msg}")
                 dpg.set_value("status_text", msg)
@@ -238,20 +563,18 @@ def create_new_game():
         
         try:
             # Create game using authenticated API client
-            payload = {
-                "black_player_id": current_user.id,
-                "white_player_id": current_user.id,  # For now, single player against self
-                "ruleset_id": 1
-            }
+            logger.debug(f"Creating game for user {current_user.id}")
             
-            logger.debug(f"Creating game with payload: {payload}")
-            
-            game_data = await api_client.post("/api/v1/games/", json=payload)
-            game_id = game_data["id"]
+            game_data = await api_client.create_game(
+                black_player_id=current_user.id,
+                white_player_id=current_user.id,  # For now, single player against self  
+                ruleset_id=1
+            )
+            game_id = game_data.id
             logger.info(f"Game created successfully with ID: {game_id}")
             
             # Start the game
-            start_response = await api_client.put(f"/api/v1/games/{game_id}/start")
+            start_response = await api_client.start_game(game_id)
             logger.debug(f"Game started: {start_response}")
             
             # Reset board state
@@ -337,20 +660,26 @@ def check_backend():
 def handle_board_click():
     """Handle clicks on the board."""
     if dpg.is_item_hovered("board_drawing"):
-        mouse_pos = dpg.get_mouse_pos(local=False)
-        board_pos = dpg.get_item_pos("board_drawing")
+        # Use drawing mouse position which is relative to the drawing area
+        draw_mouse_pos = dpg.get_drawing_mouse_pos()
+        rel_x = draw_mouse_pos[0]
+        rel_y = draw_mouse_pos[1]
         
-        # Calculate relative position
-        rel_x = mouse_pos[0] - board_pos[0]
-        rel_y = mouse_pos[1] - board_pos[1]
+        # Determine current board size and cell size
+        if not board_state:
+            return
+            
+        current_board_size = len(board_state)
+        board_pixel_size = get_optimal_board_size()
+        cell_size = board_pixel_size / current_board_size
         
-        # Convert to grid coordinates
-        col = round(rel_x / 30)
-        row = round(rel_y / 30)
+        # Convert to grid coordinates (cell-based, not intersection-based)
+        col = int(rel_x // cell_size)
+        row = int(rel_y // cell_size)
         
-        logger.debug(f"Mouse click at screen ({mouse_pos[0]:.0f}, {mouse_pos[1]:.0f}), board ({rel_x:.0f}, {rel_y:.0f}), grid ({row}, {col})")
+        logger.debug(f"Mouse click at drawing ({rel_x:.0f}, {rel_y:.0f}), cell size {cell_size:.1f}, grid ({row}, {col})")
         
-        if 0 <= row < 15 and 0 <= col < 15:
+        if 0 <= row < current_board_size and 0 <= col < current_board_size:
             cell_clicked(None, None, (row, col))
         else:
             logger.debug(f"Click outside board bounds: ({row}, {col})")
@@ -413,13 +742,14 @@ def main():
         dpg.add_text("Game Controls:")
         with dpg.group(horizontal=True):
             dpg.add_button(label="New Game", tag="new_game_button", callback=create_new_game, enabled=False)
+            dpg.add_button(label="My Games", tag="my_games_button", callback=show_my_games, enabled=False)
             dpg.add_button(label="Check Backend", callback=check_backend)
         
         dpg.add_text("Click on the board to make moves", color=(150, 150, 150))
         dpg.add_text("Status: Please login to play", tag="status_text")
         dpg.add_separator()
         
-        # Game board
+        # Game board - will be resized dynamically
         with dpg.drawlist(width=450, height=450, tag="board_drawing"):
             pass
         
