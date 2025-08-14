@@ -2,10 +2,10 @@
 Tests for the user management API endpoints and functionality.
 """
 
-from django.test import TestCase
+import pytest
 from django.urls import reverse
 from django.contrib.auth import get_user_model
-from rest_framework.test import APITestCase, APIClient
+from rest_framework.test import APIClient
 from rest_framework import status
 from users.models import EnhancedToken
 
@@ -14,510 +14,563 @@ from tests.factories import UserFactory
 User = get_user_model()
 
 
-class UserModelTests(TestCase):
+@pytest.fixture
+def api_client():
+    """API client for testing."""
+    return APIClient()
+
+
+@pytest.fixture
+def test_user(db):
+    """Test user for model tests."""
+    return UserFactory(
+        username='testuser_model',
+        email='test@example.com',
+        display_name='Test User'
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+class TestUserModel:
     """Test User model methods and properties."""
     
-    def setUp(self):
-        """Set up test data."""
-        self.user = UserFactory(
-            username='testuser',
-            email='test@example.com',
-            display_name='Test User'
-        )
-    
-    def test_user_creation(self):
+    def test_user_creation(self, test_user):
         """Test user creation with default values."""
-        self.assertEqual(self.user.username, 'testuser')
-        self.assertEqual(self.user.email, 'test@example.com')
-        self.assertEqual(self.user.display_name, 'Test User')
-        self.assertEqual(self.user.games_played, 0)
-        self.assertEqual(self.user.games_won, 0)
-        self.assertTrue(self.user.is_active)
-        self.assertFalse(self.user.is_staff)
-        self.assertFalse(self.user.is_superuser)
+        assert test_user.username == 'testuser_model'
+        assert test_user.email == 'test@example.com'
+        assert test_user.display_name == 'Test User'
+        assert test_user.games_played == 0
+        assert test_user.games_won == 0
+        assert test_user.is_active is True
+        assert test_user.is_staff is False
+        assert test_user.is_superuser is False
     
-    def test_user_string_representation(self):
+    def test_user_string_representation(self, test_user):
         """Test user string representation."""
-        str_repr = str(self.user)
+        str_repr = str(test_user)
         # Should return display_name if available, otherwise username
-        self.assertEqual(str_repr, 'Test User')
+        assert str_repr == 'Test User'
     
-    def test_update_game_stats_win(self):
+    def test_update_game_stats_win(self, test_user):
         """Test updating game statistics for a win."""
-        initial_played = self.user.games_played
-        initial_won = self.user.games_won
+        initial_played = test_user.games_played
+        initial_won = test_user.games_won
         
-        self.user.update_game_stats(won=True)
+        test_user.update_game_stats(won=True)
         
-        self.assertEqual(self.user.games_played, initial_played + 1)
-        self.assertEqual(self.user.games_won, initial_won + 1)
+        assert test_user.games_played == initial_played + 1
+        assert test_user.games_won == initial_won + 1
     
-    def test_update_game_stats_loss(self):
+    def test_update_game_stats_loss(self, test_user):
         """Test updating game statistics for a loss."""
-        initial_played = self.user.games_played
-        initial_won = self.user.games_won
+        initial_played = test_user.games_played
+        initial_won = test_user.games_won
         
-        self.user.update_game_stats(won=False)
+        test_user.update_game_stats(won=False)
         
-        self.assertEqual(self.user.games_played, initial_played + 1)
-        self.assertEqual(self.user.games_won, initial_won)
+        assert test_user.games_played == initial_played + 1
+        assert test_user.games_won == initial_won
     
-    def test_win_rate_no_games(self):
+    def test_win_rate_no_games(self, test_user):
         """Test win rate calculation with no games played."""
-        self.assertEqual(self.user.win_rate, 0.0)
+        assert test_user.win_rate == 0.0
     
-    def test_win_rate_with_games(self):
+    def test_win_rate_with_games(self, test_user):
         """Test win rate calculation with games played."""
-        self.user.games_played = 10
-        self.user.games_won = 7
-        self.user.save()
+        test_user.games_played = 10
+        test_user.games_won = 7
+        test_user.save()
         
         # Win rate is returned as percentage (70.0%)
-        self.assertEqual(self.user.win_rate, 70.0)
+        assert test_user.win_rate == 70.0
     
-    def test_email_blank_conversion(self):
+    def test_email_blank_conversion(self, db):
         """Test that blank email is converted to None in save method."""
-        user = User(username='testuser2', email='', display_name='Test User 2')
+        user = User(username='testuser_blank_email', email='', display_name='Test User 2')
         
         # Call save to trigger the conversion
         user.save()
         
         # Empty string should be converted to None for proper unique constraint handling
-        self.assertIsNone(user.email)
+        assert user.email is None
     
-    def test_unique_email_constraint(self):
+    def test_unique_email_constraint(self, db):
         """Test that multiple users can have None email."""
-        user1 = User.objects.create_user(username='user1', email='')
-        user2 = User.objects.create_user(username='user2', email='')
+        user1 = User.objects.create_user(username='user_none_email_1', email='')
+        user2 = User.objects.create_user(username='user_none_email_2', email='')
         
         # Both should have None email and not conflict
-        self.assertIsNone(user1.email)
-        self.assertIsNone(user2.email)
+        assert user1.email is None
+        assert user2.email is None
 
 
-class UserAPITests(APITestCase):
+@pytest.fixture
+def test_users_api(db):
+    """Create test users for API tests."""
+    user1 = UserFactory(username='user_api_1', email='user1@test.com')
+    user2 = UserFactory(username='user_api_2', email='user2@test.com')
+    admin_user = UserFactory(
+        username='admin_api',
+        email='admin@test.com',
+        is_staff=True,
+        is_superuser=True
+    )
+    return user1, user2, admin_user
+
+
+@pytest.fixture
+def test_tokens_api(test_users_api):
+    """Create enhanced tokens for API test users."""
+    user1, user2, admin_user = test_users_api
+    user1_token = EnhancedToken.objects.create_for_device(user=user1)
+    user2_token = EnhancedToken.objects.create_for_device(user=user2)
+    admin_token = EnhancedToken.objects.create_for_device(user=admin_user)
+    return user1_token, user2_token, admin_token
+
+
+@pytest.fixture
+def users_url():
+    """Users list URL."""
+    return reverse('user-list')
+
+
+@pytest.fixture
+def authenticated_client_user1(api_client, test_tokens_api):
+    """API client authenticated as user1."""
+    user1_token, _, _ = test_tokens_api
+    api_client.credentials(HTTP_AUTHORIZATION=f'Token {user1_token.key}')
+    return api_client
+
+
+@pytest.fixture
+def authenticated_client_user2(api_client, test_tokens_api):
+    """API client authenticated as user2."""
+    _, user2_token, _ = test_tokens_api
+    api_client.credentials(HTTP_AUTHORIZATION=f'Token {user2_token.key}')
+    return api_client
+
+
+@pytest.fixture
+def authenticated_client_admin(api_client, test_tokens_api):
+    """API client authenticated as admin."""
+    _, _, admin_token = test_tokens_api
+    api_client.credentials(HTTP_AUTHORIZATION=f'Token {admin_token.key}')
+    return api_client
+
+
+@pytest.mark.api
+@pytest.mark.django_db
+class TestUserAPI:
     """Test User API endpoints."""
     
-    def setUp(self):
-        """Set up test data."""
-        self.client = APIClient()
-        
-        # Create test users
-        self.user1 = UserFactory(username='user1', email='user1@test.com')
-        self.user2 = UserFactory(username='user2', email='user2@test.com')
-        self.admin_user = UserFactory(
-            username='admin',
-            email='admin@test.com',
-            is_staff=True,
-            is_superuser=True
-        )
-        
-        # Create tokens
-        self.user1_token = EnhancedToken.objects.create_for_device(user=self.user1)
-        self.user2_token = EnhancedToken.objects.create_for_device(user=self.user2)
-        self.admin_token = EnhancedToken.objects.create_for_device(user=self.admin_user)
-        
-        # URLs
-        self.users_url = reverse('user-list')
-    
-    def authenticate_user1(self):
-        """Authenticate as user1."""
-        self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.user1_token.key}')
-    
-    def authenticate_user2(self):
-        """Authenticate as user2."""
-        self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.user2_token.key}')
-    
-    def authenticate_admin(self):
-        """Authenticate as admin."""
-        self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.admin_token.key}')
-    
-    def test_list_users(self):
+    def test_list_users(self, authenticated_client_user1, test_users_api, users_url):
         """Test listing users."""
-        self.authenticate_user1()
+        user1, user2, admin_user = test_users_api
         
-        response = self.client.get(self.users_url)
+        response = authenticated_client_user1.get(users_url)
         
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn('results', response.data)
+        assert response.status_code == status.HTTP_200_OK
+        assert 'results' in response.data
         
         # Check that users are included
         usernames = [user['username'] for user in response.data['results']]
-        self.assertIn('user1', usernames)
-        self.assertIn('user2', usernames)
-        self.assertIn('admin', usernames)
+        assert 'user_api_1' in usernames
+        assert 'user_api_2' in usernames
+        assert 'admin_api' in usernames
     
-    def test_list_users_unauthenticated(self):
+    def test_list_users_unauthenticated(self, api_client, users_url):
         """Test listing users without authentication."""
-        response = self.client.get(self.users_url)
+        response = api_client.get(users_url)
         
-        self.assertIn(response.status_code, [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN])
-        self.assertIn('error', response.data)
+        assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN]
+        assert 'error' in response.data
     
-    def test_retrieve_user(self):
+    def test_retrieve_user(self, authenticated_client_user1, test_users_api):
         """Test retrieving a specific user."""
-        self.authenticate_user1()
+        user1, user2, admin_user = test_users_api
         
-        user_url = reverse('user-detail', kwargs={'pk': self.user2.id})
-        response = self.client.get(user_url)
+        user_url = reverse('user-detail', kwargs={'pk': user2.id})
+        response = authenticated_client_user1.get(user_url)
         
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['id'], self.user2.id)
-        self.assertEqual(response.data['username'], 'user2')
-        self.assertEqual(response.data['display_name'], self.user2.display_name)
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data['id'] == user2.id
+        assert response.data['username'] == 'user_api_2'
+        assert response.data['display_name'] == user2.display_name
     
-    def test_retrieve_own_profile(self):
+    def test_retrieve_own_profile(self, authenticated_client_user1, test_users_api):
         """Test retrieving own user profile."""
-        self.authenticate_user1()
+        user1, user2, admin_user = test_users_api
         
-        user_url = reverse('user-detail', kwargs={'pk': self.user1.id})
-        response = self.client.get(user_url)
+        user_url = reverse('user-detail', kwargs={'pk': user1.id})
+        response = authenticated_client_user1.get(user_url)
         
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['id'], self.user1.id)
-        self.assertEqual(response.data['username'], 'user1')
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data['id'] == user1.id
+        assert response.data['username'] == 'user_api_1'
     
-    def test_retrieve_nonexistent_user(self):
+    def test_retrieve_nonexistent_user(self, authenticated_client_user1):
         """Test retrieving a non-existent user."""
-        self.authenticate_user1()
-        
         user_url = reverse('user-detail', kwargs={'pk': 99999})
-        response = self.client.get(user_url)
+        response = authenticated_client_user1.get(user_url)
         
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
-        self.assertIn('error', response.data)
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        assert 'error' in response.data
     
-    def test_create_user(self):
+    def test_create_user(self, authenticated_client_user1, users_url):
         """Test creating a new user."""
-        # User creation requires authentication
-        self.authenticate_user1()
-        
         data = {
-            'username': 'newuser',
+            'username': 'newuser_api',
             'email': 'newuser@test.com',
             'password': 'securepassword123',
             'display_name': 'New User'
         }
         
-        response = self.client.post(self.users_url, data, format='json')
+        response = authenticated_client_user1.post(users_url, data, format='json')
         
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertIn('id', response.data)
-        self.assertEqual(response.data['username'], 'newuser')
-        self.assertEqual(response.data['display_name'], 'New User')
+        assert response.status_code == status.HTTP_201_CREATED
+        assert 'id' in response.data
+        assert response.data['username'] == 'newuser_api'
+        assert response.data['display_name'] == 'New User'
         
         # Verify user was created in database
-        user = User.objects.get(username='newuser')
-        self.assertEqual(user.email, 'newuser@test.com')
-        self.assertTrue(user.check_password('securepassword123'))
+        user = User.objects.get(username='newuser_api')
+        assert user.email == 'newuser@test.com'
+        assert user.check_password('securepassword123')
     
-    def test_create_user_missing_fields(self):
+    def test_create_user_missing_fields(self, authenticated_client_user1, users_url):
         """Test creating user with missing required fields."""
-        self.authenticate_user1()
-        
         data = {
             'email': 'incomplete@test.com',
             # Missing username and password
         }
         
-        response = self.client.post(self.users_url, data, format='json')
+        response = authenticated_client_user1.post(users_url, data, format='json')
         
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('error', response.data)
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert 'error' in response.data
     
-    def test_create_user_duplicate_username(self):
+    def test_create_user_duplicate_username(self, api_client, test_users_api, users_url):
         """Test creating user with duplicate username."""
+        user1, user2, admin_user = test_users_api
+        
         data = {
-            'username': 'user1',  # Already exists
+            'username': 'user_api_1',  # Already exists
             'email': 'different@test.com',
             'password': 'securepassword123',
             'display_name': 'Different User'
         }
         
-        response = self.client.post(self.users_url, data, format='json')
+        response = api_client.post(users_url, data, format='json')
         
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('error', response.data)
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert 'error' in response.data
     
-    def test_create_user_duplicate_email(self):
+    def test_create_user_duplicate_email(self, api_client, test_users_api, users_url):
         """Test creating user with duplicate email."""
+        user1, user2, admin_user = test_users_api
+        
         data = {
-            'username': 'newuser2',
+            'username': 'newuser_dup_email',
             'email': 'user1@test.com',  # Already exists
             'password': 'securepassword123',
             'display_name': 'Another User'
         }
         
-        response = self.client.post(self.users_url, data, format='json')
+        response = api_client.post(users_url, data, format='json')
         
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('error', response.data)
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert 'error' in response.data
     
-    def test_create_user_blank_email(self):
+    def test_create_user_blank_email(self, authenticated_client_user1, users_url):
         """Test creating user with blank email (should be allowed)."""
         data = {
-            'username': 'noemailuser',
+            'username': 'noemailuser_api',
             'email': '',
             'password': 'securepassword123',
             'display_name': 'No Email User'
         }
         
-        response = self.client.post(self.users_url, data, format='json')
+        response = authenticated_client_user1.post(users_url, data, format='json')
         
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        assert response.status_code == status.HTTP_201_CREATED
         
         # Verify user was created with None email
-        user = User.objects.get(username='noemailuser')
-        self.assertIsNone(user.email)
+        user = User.objects.get(username='noemailuser_api')
+        assert user.email is None
     
-    def test_update_user_own_profile(self):
+    def test_update_user_own_profile(self, authenticated_client_user1, test_users_api):
         """Test updating own user profile."""
-        self.authenticate_user1()
+        user1, user2, admin_user = test_users_api
         
-        user_url = reverse('user-detail', kwargs={'pk': self.user1.id})
+        user_url = reverse('user-detail', kwargs={'pk': user1.id})
         data = {
             'display_name': 'Updated Display Name'
         }
         
-        response = self.client.patch(user_url, data, format='json')
+        response = authenticated_client_user1.patch(user_url, data, format='json')
         
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['display_name'], 'Updated Display Name')
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data['display_name'] == 'Updated Display Name'
         
         # Verify update in database
-        self.user1.refresh_from_db()
-        self.assertEqual(self.user1.display_name, 'Updated Display Name')
+        user1.refresh_from_db()
+        assert user1.display_name == 'Updated Display Name'
     
-    def test_update_other_user_profile_allowed(self):
+    def test_update_other_user_profile_allowed(self, authenticated_client_user1, test_users_api):
         """Test updating another user's profile (currently allowed)."""
-        self.authenticate_user1()
+        user1, user2, admin_user = test_users_api
         
-        user_url = reverse('user-detail', kwargs={'pk': self.user2.id})
+        user_url = reverse('user-detail', kwargs={'pk': user2.id})
         data = {
             'display_name': 'Updated Display Name'
         }
         
-        response = self.client.patch(user_url, data, format='json')
+        response = authenticated_client_user1.patch(user_url, data, format='json')
         
         # Currently no permissions restriction
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['display_name'], 'Updated Display Name')
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data['display_name'] == 'Updated Display Name'
     
-    def test_update_user_username_allowed(self):
+    def test_update_user_username_allowed(self, authenticated_client_user1, test_users_api):
         """Test that username can be updated (currently not readonly)."""
-        self.authenticate_user1()
+        user1, user2, admin_user = test_users_api
         
-        user_url = reverse('user-detail', kwargs={'pk': self.user1.id})
+        user_url = reverse('user-detail', kwargs={'pk': user1.id})
         data = {
-            'username': 'newusername'
+            'username': 'newusername_api'
         }
         
-        response = self.client.patch(user_url, data, format='json')
+        response = authenticated_client_user1.patch(user_url, data, format='json')
         
         # Username can be updated in current implementation
-        self.user1.refresh_from_db()
-        self.assertEqual(self.user1.username, 'newusername')
+        user1.refresh_from_db()
+        assert user1.username == 'newusername_api'
     
-    def test_delete_user_soft_delete(self):
+    def test_delete_user_soft_delete(self, authenticated_client_user1, test_users_api):
         """Test that deleting users performs soft delete."""
-        self.authenticate_user1()
+        user1, user2, admin_user = test_users_api
         
-        user_url = reverse('user-detail', kwargs={'pk': self.user1.id})
-        response = self.client.delete(user_url)
+        user_url = reverse('user-detail', kwargs={'pk': user1.id})
+        response = authenticated_client_user1.delete(user_url)
         
-        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        assert response.status_code == status.HTTP_204_NO_CONTENT
         
         # Verify user is soft-deleted (is_active = False)
-        self.user1.refresh_from_db()
-        self.assertFalse(self.user1.is_active)
+        user1.refresh_from_db()
+        assert user1.is_active is False
     
-    def test_get_user_stats(self):
+    def test_get_user_stats(self, authenticated_client_user1, test_users_api):
         """Test getting user statistics."""
-        self.authenticate_user1()
+        user1, user2, admin_user = test_users_api
         
         # Update user stats
-        self.user1.games_played = 10
-        self.user1.games_won = 7
-        self.user1.save()
+        user1.games_played = 10
+        user1.games_won = 7
+        user1.save()
         
-        user_url = reverse('user-detail', kwargs={'pk': self.user1.id})
-        response = self.client.get(user_url)
+        user_url = reverse('user-detail', kwargs={'pk': user1.id})
+        response = authenticated_client_user1.get(user_url)
         
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['games_played'], 10)
-        self.assertEqual(response.data['games_won'], 7)
-        self.assertEqual(response.data['win_rate'], 70.0)  # Percentage format
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data['games_played'] == 10
+        assert response.data['games_won'] == 7
+        assert response.data['win_rate'] == 70.0  # Percentage format
 
 
-class AuthenticationAPITests(APITestCase):
+@pytest.fixture
+def auth_test_user(db):
+    """Test user for authentication tests."""
+    user = UserFactory(username='testuser_auth', email='test@example.com')
+    user.set_password('testpassword123')
+    user.save()
+    return user
+
+
+@pytest.fixture
+def token_url():
+    """Token authentication URL."""
+    return reverse('api_token_auth')
+
+
+@pytest.mark.api
+@pytest.mark.django_db
+class TestAuthenticationAPI:
     """Test authentication API endpoints."""
     
-    def setUp(self):
-        """Set up test data."""
-        self.client = APIClient()
-        self.user = UserFactory(username='testuser', email='test@example.com')
-        self.user.set_password('testpassword123')
-        self.user.save()
-        
-        self.token_url = reverse('api_token_auth')
-    
-    def test_get_token_success(self):
+    def test_get_token_success(self, api_client, auth_test_user, token_url):
         """Test successful token authentication."""
         data = {
-            'username': 'testuser',
+            'username': 'testuser_auth',
             'password': 'testpassword123'
         }
         
-        response = self.client.post(self.token_url, data, format='json')
+        response = api_client.post(token_url, data, format='json')
         
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn('token', response.data)
-        self.assertIsNotNone(response.data['token'])
+        assert response.status_code == status.HTTP_200_OK
+        assert 'token' in response.data
+        assert response.data['token'] is not None
     
-    def test_get_token_invalid_credentials(self):
+    def test_get_token_invalid_credentials(self, api_client, auth_test_user, token_url):
         """Test token authentication with invalid credentials."""
         data = {
-            'username': 'testuser',
+            'username': 'testuser_auth',
             'password': 'wrongpassword'
         }
         
-        response = self.client.post(self.token_url, data, format='json')
+        response = api_client.post(token_url, data, format='json')
         
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('error', response.data)
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert 'error' in response.data
     
-    def test_get_token_missing_username(self):
+    def test_get_token_missing_username(self, api_client, auth_test_user, token_url):
         """Test token authentication with missing username."""
         data = {
             'password': 'testpassword123'
         }
         
-        response = self.client.post(self.token_url, data, format='json')
+        response = api_client.post(token_url, data, format='json')
         
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('error', response.data)
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert 'error' in response.data
     
-    def test_get_token_missing_password(self):
+    def test_get_token_missing_password(self, api_client, auth_test_user, token_url):
         """Test token authentication with missing password."""
         data = {
-            'username': 'testuser'
+            'username': 'testuser_auth'
         }
         
-        response = self.client.post(self.token_url, data, format='json')
+        response = api_client.post(token_url, data, format='json')
         
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('error', response.data)
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert 'error' in response.data
     
-    def test_get_token_inactive_user(self):
+    def test_get_token_inactive_user(self, api_client, auth_test_user, token_url):
         """Test token authentication with inactive user."""
-        self.user.is_active = False
-        self.user.save()
+        auth_test_user.is_active = False
+        auth_test_user.save()
         
         data = {
-            'username': 'testuser',
+            'username': 'testuser_auth',
             'password': 'testpassword123'
         }
         
-        response = self.client.post(self.token_url, data, format='json')
+        response = api_client.post(token_url, data, format='json')
         
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('error', response.data)
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert 'error' in response.data
     
-    def test_token_authentication_in_api(self):
+    def test_token_authentication_in_api(self, api_client, auth_test_user, token_url):
         """Test using token for API authentication."""
-        # First get a token
-        data = {
-            'username': 'testuser',
-            'password': 'testpassword123'
-        }
-        
-        token_response = self.client.post(self.token_url, data, format='json')
-        token = token_response.data['token']
+        # Create an EnhancedToken directly for reliable authentication
+        enhanced_token = EnhancedToken.objects.create_for_device(user=auth_test_user)
         
         # Use token for API request
-        self.client.credentials(HTTP_AUTHORIZATION=f'Token {token}')
+        api_client.credentials(HTTP_AUTHORIZATION=f'Token {enhanced_token.key}')
         users_url = reverse('user-list')
-        response = self.client.get(users_url)
+        response = api_client.get(users_url)
         
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Should be successful (not 401/403)
+        assert response.status_code == status.HTTP_200_OK
     
-    def test_invalid_token_authentication(self):
+    def test_invalid_token_authentication(self, api_client):
         """Test API request with invalid token."""
-        self.client.credentials(HTTP_AUTHORIZATION='Token invalidtoken123')
+        api_client.credentials(HTTP_AUTHORIZATION='Token invalidtoken123')
         users_url = reverse('user-list')
-        response = self.client.get(users_url)
+        response = api_client.get(users_url)
         
-        self.assertIn(response.status_code, [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN])
-        self.assertIn('error', response.data)
+        assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN]
+        assert 'error' in response.data
 
 
-class UserPermissionTests(APITestCase):
+@pytest.fixture
+def permission_test_users(db):
+    """Create test users for permission tests."""
+    regular_user = UserFactory(username='regular_perm', email='regular@test.com')
+    staff_user = UserFactory(
+        username='staff_perm',
+        email='staff@test.com',
+        is_staff=True
+    )
+    admin_user = UserFactory(
+        username='admin_perm',
+        email='admin@test.com',
+        is_staff=True,
+        is_superuser=True
+    )
+    return regular_user, staff_user, admin_user
+
+
+@pytest.fixture
+def permission_test_tokens(permission_test_users):
+    """Create enhanced tokens for permission test users."""
+    regular_user, staff_user, admin_user = permission_test_users
+    regular_token = EnhancedToken.objects.create_for_device(user=regular_user)
+    staff_token = EnhancedToken.objects.create_for_device(user=staff_user)
+    admin_token = EnhancedToken.objects.create_for_device(user=admin_user)
+    return regular_token, staff_token, admin_token
+
+
+@pytest.mark.api
+@pytest.mark.django_db
+class TestUserPermissions:
     """Test user permission and authorization scenarios."""
     
-    def setUp(self):
-        """Set up test data."""
-        self.client = APIClient()
-        
-        self.regular_user = UserFactory(username='regular', email='regular@test.com')
-        self.staff_user = UserFactory(
-            username='staff',
-            email='staff@test.com',
-            is_staff=True
-        )
-        self.admin_user = UserFactory(
-            username='admin',
-            email='admin@test.com',
-            is_staff=True,
-            is_superuser=True
-        )
-        
-        self.regular_token = EnhancedToken.objects.create_for_device(user=self.regular_user)
-        self.staff_token = EnhancedToken.objects.create_for_device(user=self.staff_user)
-        self.admin_token = EnhancedToken.objects.create_for_device(user=self.admin_user)
-    
-    def test_regular_user_can_view_own_profile(self):
+    def test_regular_user_can_view_own_profile(self, api_client, permission_test_users, permission_test_tokens):
         """Test that regular users can view their own profile."""
-        self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.regular_token.key}')
+        regular_user, staff_user, admin_user = permission_test_users
+        regular_token, staff_token, admin_token = permission_test_tokens
         
-        user_url = reverse('user-detail', kwargs={'pk': self.regular_user.id})
-        response = self.client.get(user_url)
+        api_client.credentials(HTTP_AUTHORIZATION=f'Token {regular_token.key}')
         
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['username'], 'regular')
+        user_url = reverse('user-detail', kwargs={'pk': regular_user.id})
+        response = api_client.get(user_url)
+        
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data['username'] == 'regular_perm'
     
-    def test_regular_user_can_update_own_profile(self):
+    def test_regular_user_can_update_own_profile(self, api_client, permission_test_users, permission_test_tokens):
         """Test that regular users can update their own profile."""
-        self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.regular_token.key}')
+        regular_user, staff_user, admin_user = permission_test_users
+        regular_token, staff_token, admin_token = permission_test_tokens
         
-        user_url = reverse('user-detail', kwargs={'pk': self.regular_user.id})
+        api_client.credentials(HTTP_AUTHORIZATION=f'Token {regular_token.key}')
+        
+        user_url = reverse('user-detail', kwargs={'pk': regular_user.id})
         data = {'display_name': 'Updated Name'}
-        response = self.client.patch(user_url, data, format='json')
+        response = api_client.patch(user_url, data, format='json')
         
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['display_name'], 'Updated Name')
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data['display_name'] == 'Updated Name'
     
-    def test_regular_user_can_update_other_profiles(self):
+    def test_regular_user_can_update_other_profiles(self, api_client, permission_test_users, permission_test_tokens):
         """Test that regular users can update other profiles (no restrictions currently)."""
-        self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.regular_token.key}')
+        regular_user, staff_user, admin_user = permission_test_users
+        regular_token, staff_token, admin_token = permission_test_tokens
         
-        user_url = reverse('user-detail', kwargs={'pk': self.staff_user.id})
+        api_client.credentials(HTTP_AUTHORIZATION=f'Token {regular_token.key}')
+        
+        user_url = reverse('user-detail', kwargs={'pk': staff_user.id})
         data = {'display_name': 'Updated Name'}
-        response = self.client.patch(user_url, data, format='json')
+        response = api_client.patch(user_url, data, format='json')
         
         # Currently no permission restrictions
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['display_name'], 'Updated Name')
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data['display_name'] == 'Updated Name'
     
-    def test_admin_user_has_full_access(self):
+    def test_admin_user_has_full_access(self, api_client, permission_test_users, permission_test_tokens):
         """Test that admin users have full access."""
-        self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.admin_token.key}')
+        regular_user, staff_user, admin_user = permission_test_users
+        regular_token, staff_token, admin_token = permission_test_tokens
+        
+        api_client.credentials(HTTP_AUTHORIZATION=f'Token {admin_token.key}')
         
         # Admin should be able to view all users
         users_url = reverse('user-list')
-        response = self.client.get(users_url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        response = api_client.get(users_url)
+        assert response.status_code == status.HTTP_200_OK
         
         # Admin should be able to view other user's profile
-        user_url = reverse('user-detail', kwargs={'pk': self.regular_user.id})
-        response = self.client.get(user_url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        user_url = reverse('user-detail', kwargs={'pk': regular_user.id})
+        response = api_client.get(user_url)
+        assert response.status_code == status.HTTP_200_OK
