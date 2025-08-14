@@ -12,8 +12,11 @@ A complete Gomoku (Five in a Row) game with Django backend API and responsive we
 - **Friend System**: Add friends, send/accept friend requests
 
 ### **🔐 Authentication & Security**
+- **Enhanced Token Authentication**: Extended tokens with expiration, device tracking, and refresh capability
 - **Web Authentication**: Django sessions with login/logout
-- **API Authentication**: Token-based authentication for API endpoints
+- **API Authentication**: Enhanced token-based authentication with fallback support
+- **Token Management**: Token refresh, device-specific tokens, and usage tracking
+- **User Registration**: Full registration API with validation
 - **CSRF Protection**: Built-in CSRF protection for all forms
 - **Input Validation**: Comprehensive validation across all endpoints
 
@@ -85,8 +88,11 @@ Access the complete web interface at: **http://localhost:8001/**
 
 ## API Endpoints
 
-### Authentication
-- `POST /api/v1/auth/token/` - Get authentication token
+### Enhanced Authentication
+- `POST /api/v1/auth/token/` - Get enhanced authentication token (with device tracking)
+- `POST /api/v1/auth/token/refresh/` - Refresh authentication token
+- `POST /api/v1/auth/register/` - Register new user account
+- `POST /api/v1/auth/token/legacy/` - Legacy token authentication (fallback)
 
 ### Games
 - `GET /api/v1/games/` - List games
@@ -106,31 +112,78 @@ Access the complete web interface at: **http://localhost:8001/**
 - `POST /api/v1/challenges/` - Create challenge
 - `POST /api/v1/challenges/{id}/respond/` - Respond to challenge
 
-## Authentication
+## Enhanced Authentication
 
-All API endpoints require authentication using Token Authentication:
+### **Token Authentication**
+
+All API endpoints require authentication using Enhanced Token Authentication:
 
 ```bash
 curl -H "Authorization: Token YOUR_TOKEN_HERE" http://localhost:8001/api/v1/games/
 ```
 
+### **Enhanced Token Features**
+
+- **Automatic Expiration**: Tokens expire after 7 days (configurable)
+- **Device Tracking**: Associate tokens with specific devices/applications
+- **Token Refresh**: Refresh expiring tokens without re-authentication
+- **Usage Tracking**: Track when tokens are last used
+- **Multiple Tokens**: Users can have multiple active tokens for different devices
+
+### **API Examples**
+
+**User Registration:**
+```bash
+curl -X POST http://localhost:8001/api/v1/auth/register/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "newuser",
+    "email": "user@example.com",
+    "password": "securepass123",
+    "display_name": "New User",
+    "device_name": "Mobile App",
+    "device_info": {"os": "iOS", "version": "15.0"}
+  }'
+```
+
+**Token Obtain:**
+```bash
+curl -X POST http://localhost:8001/api/v1/auth/token/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "user",
+    "password": "password",
+    "device_name": "Desktop App",
+    "device_info": {"os": "Linux", "app": "Gomoku-Client-v1.0"}
+  }'
+```
+
+**Token Refresh:**
+```bash
+curl -X POST http://localhost:8001/api/v1/auth/token/refresh/ \
+  -H "Authorization: Token YOUR_TOKEN_HERE"
+```
+
 ## Testing
 
-Run the comprehensive 300+ test suite:
+Run the comprehensive 330+ test suite:
 
 ```bash
-# Run all tests (300+ tests)
+# Run all tests (330+ tests)
 uv run python manage.py test
 
 # Run specific app tests  
 uv run python manage.py test games      # API tests
-uv run python manage.py test users      # User management tests
+uv run python manage.py test users      # User management and enhanced auth tests (70+ tests)
 uv run python manage.py test web        # Web interface tests (74 tests)
 
 # Run web-specific test suites
 uv run python manage.py test web.test_challenge_system  # Challenge system TDD (11 tests)
 uv run python manage.py test web.test_friend_system     # Friend system TDD (25 tests)
 uv run python manage.py test web.test_game_board        # Game board TDD (20 tests)
+
+# Run enhanced authentication test suites
+uv run python manage.py test users.test_enhanced_auth   # Enhanced authentication TDD (36 tests)
 
 # Run with coverage
 uv run coverage run manage.py test
@@ -140,9 +193,10 @@ uv run coverage report
 ### **Test Categories**
 - **API Tests**: Comprehensive REST API endpoint testing
 - **Web Interface Tests**: TDD-developed web functionality (74 tests)
+- **Enhanced Authentication Tests**: Token management, registration, refresh (36 tests)
 - **Integration Tests**: End-to-end workflows
 - **Game Logic Tests**: Move validation, win detection, rule enforcement
-- **Authentication Tests**: Both API token and web session auth
+- **Authentication Tests**: Both enhanced token and web session auth
 - **Real-time Tests**: SSE and HTMX interactions
 
 ### **Test-Driven Development (TDD)**

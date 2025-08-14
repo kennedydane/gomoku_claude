@@ -21,7 +21,7 @@ from django.conf.urls.static import static
 from rest_framework.routers import DefaultRouter
 from rest_framework.authtoken.views import obtain_auth_token
 
-from users.views import UserViewSet
+from users.views import UserViewSet, obtain_enhanced_token, refresh_token, register_user
 from games.views import (
     RuleSetViewSet, GameViewSet, PlayerSessionViewSet, ChallengeViewSet
 )
@@ -37,7 +37,10 @@ router.register(r'challenges', ChallengeViewSet)
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/v1/', include(router.urls)),
-    path('api/v1/auth/token/', obtain_auth_token, name='api_token_auth'),
+    path('api/v1/auth/token/', obtain_enhanced_token, name='api_enhanced_token_auth'),  # Enhanced token obtain
+    path('api/v1/auth/token/refresh/', refresh_token, name='api_token_refresh'),  # Token refresh
+    path('api/v1/auth/register/', register_user, name='api_user_register'),  # User registration
+    path('api/v1/auth/token/legacy/', obtain_auth_token, name='api_token_auth'),  # Legacy fallback
     path('api/v1/events/', include('django_eventstream.urls')),
     path('api-auth/', include('rest_framework.urls')),
     path('', include('web.urls')),  # Root goes to web interface

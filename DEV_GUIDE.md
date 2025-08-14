@@ -12,11 +12,12 @@ This development guide documents the key lessons learned, best practices, and ar
 4. [Server-Sent Events (SSE)](#server-sent-events-sse)
 5. [Testing Strategy](#testing-strategy)
 6. [Database Design](#database-design)
-7. [Frontend Development](#frontend-development)
-8. [Performance Optimization](#performance-optimization)
-9. [Security Considerations](#security-considerations)
-10. [Debugging Tips](#debugging-tips)
-11. [Common Pitfalls](#common-pitfalls)
+7. [Enhanced Authentication System](#enhanced-authentication-system)
+8. [Frontend Development](#frontend-development)
+9. [Performance Optimization](#performance-optimization)
+10. [Security Considerations](#security-considerations)
+11. [Debugging Tips](#debugging-tips)
+12. [Common Pitfalls](#common-pitfalls)
 
 ---
 
@@ -401,6 +402,139 @@ application = ProtocolTypeRouter({
 ```bash
 uv run daphne -p 8001 gomoku.asgi:application
 ```
+
+---
+
+## Enhanced Authentication System
+
+### Overview
+
+The enhanced authentication system extends Django's basic token authentication with modern features required for desktop and mobile applications. Built using TDD methodology with 36 comprehensive tests.
+
+### Architecture
+
+**Enhanced Token Model:**
+```python
+class EnhancedToken(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    key = models.CharField(max_length=40, unique=True)
+    device_name = models.CharField(max_length=100, blank=True)
+    device_info = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    last_used = models.DateTimeField(null=True, blank=True)
+```
+
+**Key Features:**
+- **Automatic Expiration**: Tokens expire after 7 days (configurable)
+- **Device Tracking**: Associate tokens with specific devices/applications
+- **Usage Monitoring**: Track when tokens were last used
+- **Multiple Tokens**: Users can have multiple active tokens for different devices
+- **Token Refresh**: Refresh expiring tokens without re-authentication
+
+### API Endpoints
+
+**User Registration:**
+```bash
+POST /api/v1/auth/register/
+{
+  "username": "newuser",
+  "email": "user@example.com",
+  "password": "securepass123",
+  "display_name": "New User",
+  "device_name": "Mobile App",
+  "device_info": {"os": "iOS", "version": "15.0"}
+}
+```
+
+**Enhanced Token Obtain:**
+```bash
+POST /api/v1/auth/token/
+{
+  "username": "user",
+  "password": "password",
+  "device_name": "Desktop App",
+  "device_info": {"os": "Linux", "app": "Gomoku-Client-v1.0"}
+}
+```
+
+**Token Refresh:**
+```bash
+POST /api/v1/auth/token/refresh/
+Authorization: Token YOUR_TOKEN_HERE
+```
+
+### Authentication Backend
+
+**Custom Authentication:**
+```python
+class EnhancedTokenAuthentication(TokenAuthentication):
+    model = EnhancedToken
+    
+    def authenticate_credentials(self, key):
+        token = self.model.objects.get(key=key)
+        
+        # Check expiration
+        if token.is_expired:
+            raise AuthenticationFailed('Token has expired.')
+        
+        # Update usage tracking
+        token.update_last_used()
+        
+        return (token.user, token)
+```
+
+### Development Patterns
+
+**TDD Implementation:**
+1. **RED**: Write failing tests for desired behavior
+2. **GREEN**: Implement minimal code to pass tests
+3. **REFACTOR**: Clean up implementation while maintaining test coverage
+
+**Test Categories:**
+- **Model Tests**: Token creation, expiration, device tracking (15 tests)
+- **Manager Tests**: Token management operations (3 tests)
+- **Authentication Tests**: API authentication flows (3 tests)
+- **Endpoint Tests**: Registration and token management (18 tests)
+
+### Best Practices
+
+**Token Security:**
+- Tokens use cryptographically secure random generation
+- Automatic expiration prevents indefinite access
+- Device tracking aids in security monitoring
+- Expired tokens are automatically cleaned up
+
+**Database Optimization:**
+- Strategic indexes on key, user+expires_at, and expires_at
+- Efficient queries with select_related for user data
+- Bulk cleanup operations for expired tokens
+
+**Error Handling:**
+- Standardized error responses across all endpoints
+- Proper HTTP status codes (400, 401, 403)
+- Detailed validation messages for registration
+
+### Mobile/Desktop Integration
+
+**Device Information Structure:**
+```json
+{
+  "device_name": "User-friendly device name",
+  "device_info": {
+    "os": "iOS/Android/Windows/Linux",
+    "version": "OS version",
+    "app": "Application name",
+    "app_version": "Application version"
+  }
+}
+```
+
+**Frontend Implementation Patterns:**
+- Configuration-based credential storage
+- Automatic token refresh before expiration
+- Multiple user profile support
+- Secure token storage (keychain/keystore for mobile)
 
 ---
 

@@ -2,12 +2,16 @@
 User models for the Gomoku game system.
 
 This module defines the User model which extends Django's AbstractUser
-to include game statistics and custom fields.
+to include game statistics and custom fields, plus enhanced token authentication.
 """
 
+import binascii
+import os
+from datetime import timedelta
 from django.contrib.auth.models import AbstractUser, UserManager as BaseUserManager
 from django.core.validators import MinLengthValidator, RegexValidator
 from django.db import models
+from django.utils import timezone
 
 
 class UserManager(BaseUserManager):
@@ -148,3 +152,129 @@ class User(AbstractUser):
         self.games_played = 0
         self.games_won = 0
         self.save(update_fields=['games_played', 'games_won'])
+
+
+class EnhancedTokenManager(models.Manager):
+    """Manager for enhanced token operations."""
+    
+    def create_for_device(self, user, device_name='', device_info=None):
+        """Create a token for a specific device."""
+        if device_info is None:
+            device_info = {}
+        
+        return self.create(
+            user=user,
+            device_name=device_name,
+            device_info=device_info
+        )
+    
+    def get_valid_tokens_for_user(self, user):
+        """Get all valid (non-expired) tokens for a user."""
+        return self.filter(
+            user=user,
+            expires_at__gt=timezone.now()
+        )
+    
+    def revoke_all_for_user(self, user):
+        """Revoke (delete) all tokens for a user."""
+        return self.filter(user=user).delete()[0]
+    
+    def cleanup_expired(self):
+        """Remove all expired tokens."""
+        return self.filter(expires_at__lte=timezone.now()).delete()[0]
+
+
+class EnhancedToken(models.Model):
+    """
+    Enhanced authentication token with expiration, device tracking, and usage tracking.
+    
+    This model extends the basic DRF token functionality to provide:
+    - Token expiration
+    - Device-specific tokens
+    - Last used tracking
+    - Multiple tokens per user
+    """
+    
+    user = models.ForeignKey(
+        'User',
+        related_name='enhanced_tokens',
+        on_delete=models.CASCADE,
+        help_text="The user this token belongs to"
+    )
+    
+    key = models.CharField(
+        max_length=40,
+        unique=True,
+        db_index=True,
+        help_text="The token key used for authentication"
+    )
+    
+    device_name = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Optional device identifier"
+    )
+    
+    device_info = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Additional device information"
+    )
+    
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="When this token was created"
+    )
+    
+    expires_at = models.DateTimeField(
+        help_text="When this token expires"
+    )
+    
+    last_used = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this token was last used"
+    )
+    
+    objects = EnhancedTokenManager()
+    
+    class Meta:
+        db_table = 'enhanced_tokens'
+        verbose_name = 'Enhanced Token'
+        verbose_name_plural = 'Enhanced Tokens'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', 'expires_at']),
+            models.Index(fields=['key']),
+            models.Index(fields=['expires_at']),
+        ]
+    
+    def __str__(self):
+        """Return string representation."""
+        device = f" ({self.device_name})" if self.device_name else ""
+        return f"Token for {self.user.username}{device}"
+    
+    def save(self, *args, **kwargs):
+        """Override save to generate key and set expiration."""
+        if not self.key:
+            self.key = self.generate_key()
+        
+        if not self.expires_at:
+            # Default expiration: 7 days from now
+            self.expires_at = timezone.now() + timedelta(days=7)
+        
+        super().save(*args, **kwargs)
+    
+    @property
+    def is_expired(self):
+        """Check if token has expired."""
+        return timezone.now() > self.expires_at
+    
+    def generate_key(self):
+        """Generate a random token key."""
+        return binascii.hexlify(os.urandom(20)).decode()
+    
+    def update_last_used(self):
+        """Update the last_used timestamp."""
+        self.last_used = timezone.now()
+        self.save(update_fields=['last_used'])
