@@ -9,9 +9,9 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 from rest_framework.test import APITestCase, APIClient
 from rest_framework import status
-from rest_framework.authtoken.models import Token
 
 from games.models import Challenge, ChallengeStatus, Game, RuleSet, GameEvent
+from users.models import EnhancedToken
 from tests.factories import UserFactory, ChallengeFactory, RuleSetFactory
 
 User = get_user_model()
@@ -29,10 +29,10 @@ class ChallengeSystemTests(APITestCase):
         self.challenged = UserFactory(username='challenged', email='challenged@test.com')
         self.spectator = UserFactory(username='spectator', email='spectator@test.com')
         
-        # Create tokens
-        self.challenger_token = Token.objects.create(user=self.challenger)
-        self.challenged_token = Token.objects.create(user=self.challenged)
-        self.spectator_token = Token.objects.create(user=self.spectator)
+        # Create enhanced tokens
+        self.challenger_token = EnhancedToken.objects.create_for_device(user=self.challenger)
+        self.challenged_token = EnhancedToken.objects.create_for_device(user=self.challenged)
+        self.spectator_token = EnhancedToken.objects.create_for_device(user=self.spectator)
         
         # Create ruleset
         self.ruleset = RuleSetFactory()
@@ -195,9 +195,9 @@ class ChallengeResponseTests(APITestCase):
         self.challenged = UserFactory(username='challenged')
         self.spectator = UserFactory(username='spectator')
         
-        self.challenger_token = Token.objects.create(user=self.challenger)
-        self.challenged_token = Token.objects.create(user=self.challenged)
-        self.spectator_token = Token.objects.create(user=self.spectator)
+        self.challenger_token = EnhancedToken.objects.create_for_device(user=self.challenger)
+        self.challenged_token = EnhancedToken.objects.create_for_device(user=self.challenged)
+        self.spectator_token = EnhancedToken.objects.create_for_device(user=self.spectator)
         
         self.ruleset = RuleSetFactory()
         
@@ -343,7 +343,7 @@ class ChallengePendingTests(APITestCase):
         self.challenged = UserFactory(username='challenged')
         self.other_user = UserFactory(username='other')
         
-        self.challenged_token = Token.objects.create(user=self.challenged)
+        self.challenged_token = EnhancedToken.objects.create_for_device(user=self.challenged)
         
         # Create various challenges
         self.pending_challenge = ChallengeFactory(

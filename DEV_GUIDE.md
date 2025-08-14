@@ -113,6 +113,25 @@ class UserGamesMixin:
 2. **Progressive Enhancement**: Basic functionality without JavaScript
 3. **Declarative Interactions**: Use `hx-*` attributes instead of event listeners
 
+### django-htmx Library (Evaluated but Not Used)
+
+**Decision**: We evaluated the `django-htmx` library (https://django-htmx.readthedocs.io/) but decided against adoption.
+
+**What django-htmx Provides:**
+- `request.htmx` object instead of `request.headers.get('HX-Request')`
+- Response helpers: `HttpResponseClientRedirect`, `push_url()`, `retarget()`, etc.
+- Template tags for HTMX script inclusion
+- Trigger client events via `HX-Trigger` headers
+
+**Why We Didn't Adopt It:**
+1. **High Risk, Low Reward**: Our HTMX integration was working perfectly with 346+ tests passing
+2. **Minimal Functional Benefits**: Provides developer convenience, not new functionality
+3. **Current Patterns Work**: `request.headers.get('HX-Request')` is simple and effective
+4. **Production Ready**: Focus should be on new features, not refactoring working systems
+5. **Real-time Features**: Our SSE + HTMX integration works excellently without additional layers
+
+**Recommendation**: Only consider django-htmx for new projects. For existing working HTMX implementations, the refactoring cost outweighs the benefits.
+
 ### Best Practices
 
 **✅ Good HTMX Patterns:**

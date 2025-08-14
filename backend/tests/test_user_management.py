@@ -7,7 +7,7 @@ from django.urls import reverse
 from django.contrib.auth import get_user_model
 from rest_framework.test import APITestCase, APIClient
 from rest_framework import status
-from rest_framework.authtoken.models import Token
+from users.models import EnhancedToken
 
 from tests.factories import UserFactory
 
@@ -113,9 +113,9 @@ class UserAPITests(APITestCase):
         )
         
         # Create tokens
-        self.user1_token = Token.objects.create(user=self.user1)
-        self.user2_token = Token.objects.create(user=self.user2)
-        self.admin_token = Token.objects.create(user=self.admin_user)
+        self.user1_token = EnhancedToken.objects.create_for_device(user=self.user1)
+        self.user2_token = EnhancedToken.objects.create_for_device(user=self.user2)
+        self.admin_token = EnhancedToken.objects.create_for_device(user=self.admin_user)
         
         # URLs
         self.users_url = reverse('user-list')
@@ -471,9 +471,9 @@ class UserPermissionTests(APITestCase):
             is_superuser=True
         )
         
-        self.regular_token = Token.objects.create(user=self.regular_user)
-        self.staff_token = Token.objects.create(user=self.staff_user)
-        self.admin_token = Token.objects.create(user=self.admin_user)
+        self.regular_token = EnhancedToken.objects.create_for_device(user=self.regular_user)
+        self.staff_token = EnhancedToken.objects.create_for_device(user=self.staff_user)
+        self.admin_token = EnhancedToken.objects.create_for_device(user=self.admin_user)
     
     def test_regular_user_can_view_own_profile(self):
         """Test that regular users can view their own profile."""

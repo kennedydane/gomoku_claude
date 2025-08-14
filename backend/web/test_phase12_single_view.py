@@ -12,6 +12,7 @@ Test Categories:
 - Mobile responsive behavior tests
 """
 
+import pytest
 from django.test import TestCase, Client
 from django.contrib.auth import get_user_model
 from django.urls import reverse
@@ -26,72 +27,99 @@ from web.models import Friendship, FriendshipStatus
 User = get_user_model()
 
 
-class Phase12DashboardEmbeddedGameTests(TestCase):
-    """Tests for embedded game display in dashboard center panel."""
+@pytest.fixture
+def users(db):
+    """Create test users."""
+    user1 = User.objects.create_user(username='player1', password='pass123')
+    user2 = User.objects.create_user(username='player2', password='pass123')
+    return user1, user2
+
+
+@pytest.fixture
+def ruleset(db):
+    """Create test ruleset."""
+    return RuleSet.objects.create(
+        name='Standard Gomoku',
+        board_size=15,
+        description='Standard 15x15 Gomoku'
+    )
+
+
+@pytest.fixture
+def games(users, ruleset):
+    """Create test games."""
+    user1, user2 = users
     
-    def setUp(self):
-        self.user1 = User.objects.create_user(username='player1', password='pass123')
-        self.user2 = User.objects.create_user(username='player2', password='pass123')
+    # Active game
+    active_game = Game.objects.create(
+        black_player=user1,
+        white_player=user2,
+        ruleset=ruleset,
+        status=GameStatus.ACTIVE,
+        current_player=Player.BLACK
+    )
+    active_game.initialize_board()
+    active_game.save()
+    
+    # Finished game
+    finished_game = Game.objects.create(
+        black_player=user1,
+        white_player=user2,
+        ruleset=ruleset,
+        status=GameStatus.FINISHED,
+        winner=user1
+    )
+    
+    return active_game, finished_game
+
+
+@pytest.mark.web
+@pytest.mark.integration
+class TestDashboardEmbeddedGames:
+    """Tests for embedded game display in dashboard center panel."""
         
-        self.ruleset = RuleSet.objects.create(
-            name='Standard Gomoku',
-            board_size=15,
-            description='Standard 15x15 Gomoku'
-        )
-        
-        # Create test games
-        self.active_game = Game.objects.create(
-            black_player=self.user1,
-            white_player=self.user2,
-            ruleset=self.ruleset,
-            status=GameStatus.ACTIVE,
-            current_player=Player.BLACK
-        )
-        self.active_game.initialize_board()
-        self.active_game.save()
-        
-        self.finished_game = Game.objects.create(
-            black_player=self.user1,
-            white_player=self.user2,
-            ruleset=self.ruleset,
-            status=GameStatus.FINISHED,
-            winner=self.user1
-        )
-        
-        self.client = Client()
-        
-    def test_dashboard_shows_embedded_game_by_default(self):
+    def test_dashboard_shows_embedded_game_by_default(self, client, users, games):
         """Test that dashboard shows most recent active game in center panel."""
-        self.client.login(username='player1', password='pass123')
+        user1, user2 = users
+        active_game, finished_game = games
         
-        response = self.client.get(reverse('web:dashboard'))
-        self.assertEqual(response.status_code, 200)
+        client.force_login(user1)
+        response = client.get(reverse('web:dashboard'))
         
-        # Should have selected game in context
-        self.assertIn('selected_game', response.context)
-        self.assertEqual(response.context['selected_game'], self.active_game)
+        assert response.status_code == 200
+        assert 'selected_game' in response.context
+        assert response.context['selected_game'] == active_game
         
         soup = BeautifulSoup(response.content, 'html.parser')
         
         # Should have a center panel with embedded game
         center_panel = soup.find('div', id='center-game-panel')
-        self.assertIsNotNone(center_panel, "Dashboard should have center game panel")
+        assert center_panel is not None, "Dashboard should have center game panel"
         
         # Should contain game board
         game_board = center_panel.find('div', class_='game-board-grid') if center_panel else None
-        self.assertIsNotNone(game_board, "Center panel should contain game board")
+        assert game_board is not None, "Center panel should contain game board"
         
-    def test_dashboard_shows_placeholder_when_no_active_games(self):
+        # Enhanced Beautiful Soup validation
+        assert game_board.get('data-board-size') == '15', "Board should have correct size attribute"
+        
+        # Check for HTMX attributes
+        intersections = game_board.find_all('div', class_='board-intersection')
+        assert len(intersections) == 225, f"Should have 225 intersections (15x15), got {len(intersections)}"
+        
+        # Verify some intersections have interactive HTMX attributes
+        interactive_intersections = [i for i in intersections if i.get('hx-post')]
+        assert len(interactive_intersections) > 0, "Should have interactive intersections for current player"
+        
+    def test_dashboard_shows_placeholder_when_no_active_games(self, client, db):
         """Test that dashboard shows placeholder when user has no active games."""
         # Create user with no active games
         user_no_games = User.objects.create_user(username='nogames', password='pass123')
-        self.client.login(username='nogames', password='pass123')
+        client.force_login(user_no_games)
         
-        response = self.client.get(reverse('web:dashboard'))
-        self.assertEqual(response.status_code, 200)
-        
-        # Should not have selected game
-        self.assertIsNone(response.context.get('selected_game'))
+        response = client.get(reverse('web:dashboard'))
+        assert response.status_code == 200
+        assert response.context.get('selected_game') is None
         
         soup = BeautifulSoup(response.content, 'html.parser')
         
@@ -100,81 +128,91 @@ class Phase12DashboardEmbeddedGameTests(TestCase):
         if center_panel:
             # Should contain placeholder text or empty state
             panel_text = center_panel.get_text().lower()
-            self.assertTrue(
-                'no active games' in panel_text or 
-                'no games' in panel_text or
-                'start playing' in panel_text,
-                "Should show placeholder when no active games"
-            )
+            placeholder_messages = ['no active games', 'no games', 'start playing']
+            assert any(msg in panel_text for msg in placeholder_messages), \
+                f"Should show placeholder when no active games. Found: {panel_text[:100]}"
             
-    def test_embedded_game_shows_essential_info(self):
+    def test_embedded_game_shows_essential_info(self, client, users, games):
         """Test that embedded game display shows player info and game state.""" 
-        self.client.login(username='player1', password='pass123')
+        user1, user2 = users
+        active_game, finished_game = games
         
-        response = self.client.get(reverse('web:dashboard'))
+        client.force_login(user1)
+        response = client.get(reverse('web:dashboard'))
         soup = BeautifulSoup(response.content, 'html.parser')
         
         center_panel = soup.find('div', id='center-game-panel')
-        if center_panel:
-            panel_text = center_panel.get_text()
-            
-            # Should show player names
-            self.assertIn('player1', panel_text)
-            self.assertIn('player2', panel_text)
-            
-            # Should show game status or turn info
-            self.assertTrue(
-                'active' in panel_text.lower() or
-                'turn' in panel_text.lower() or
-                'black' in panel_text.lower() or
-                'white' in panel_text.lower(),
-                "Should show game status information"
-            )
-            
-    def test_embedded_game_board_is_interactive(self):
-        """Test that embedded game board allows moves when it's player's turn."""
-        self.client.login(username='player1', password='pass123')
+        assert center_panel is not None, "Should have center game panel"
         
-        response = self.client.get(reverse('web:dashboard'))
+        panel_text = center_panel.get_text()
+        
+        # Should show player names
+        assert 'player1' in panel_text, "Should show black player name"
+        assert 'player2' in panel_text, "Should show white player name"
+        
+        # Should show game status or turn info
+        status_keywords = ['active', 'turn', 'black', 'white']
+        assert any(keyword in panel_text.lower() for keyword in status_keywords), \
+            f"Should show game status information. Found: {panel_text[:100]}"
+        
+        # Enhanced validation: Check for specific game elements
+        game_info = center_panel.find('div', class_='game-info')
+        if game_info:
+            # Test for structured game information
+            player_info = game_info.find_all('span', class_=['player-name', 'current-player'])
+            assert len(player_info) > 0, "Should have structured player information"
+            
+    def test_embedded_game_board_is_interactive(self, client, users, games):
+        """Test that embedded game board allows moves when it's player's turn."""
+        user1, user2 = users
+        active_game, finished_game = games
+        
+        client.force_login(user1)
+        response = client.get(reverse('web:dashboard'))
         soup = BeautifulSoup(response.content, 'html.parser')
         
-        # Debug: Check if we have a selected game
+        # Validate game context
         selected_game = response.context.get('selected_game')
-        self.assertIsNotNone(selected_game, "Should have a selected game in context")
-        
-        # Debug: Check game details
-        self.assertEqual(selected_game.status, GameStatus.ACTIVE, "Selected game should be active")
-        self.assertEqual(selected_game.current_player, Player.BLACK, "Current player should be BLACK")
+        assert selected_game is not None, "Should have a selected game in context"
+        assert selected_game.status == GameStatus.ACTIVE, "Selected game should be active"
+        assert selected_game.current_player == Player.BLACK, "Current player should be BLACK"
         
         # Find board intersections
         intersections = soup.find_all('div', class_='board-intersection')
-        
-        # Should have intersections
-        self.assertGreater(len(intersections), 0, "Should have board intersections")
-        
-        # Debug: Print some intersections to see what we're getting
-        print(f"Total intersections: {len(intersections)}")
-        if intersections:
-            print(f"First intersection: {intersections[0]}")
+        assert len(intersections) > 0, "Should have board intersections"
         
         # Find center game panel
         center_panel = soup.find('div', id='center-game-panel')
-        self.assertIsNotNone(center_panel, "Should have center game panel")
+        assert center_panel is not None, "Should have center game panel"
         
-        # Some intersections should be clickable (have hx-post for current player)
+        # Enhanced Beautiful Soup validation for HTMX attributes
         clickable_intersections = [
             i for i in intersections 
             if i.get('hx-post') and 'game_move' in str(i.get('hx-post', ''))
         ]
         
-        print(f"Clickable intersections: {len(clickable_intersections)}")
+        # Validate board structure and interactivity
+        assert len(intersections) > 0, "Should have board intersections"
         
-        # Since it's player1's turn (BLACK), should have clickable intersections
-        # Make this assertion more lenient for now - just check that board exists
-        # TODO: Fix the HTMX target issue for embedded boards
-        if len(clickable_intersections) == 0:
-            # For now, just ensure the board structure exists
-            self.assertGreater(len(intersections), 0, "At minimum should have board structure")
+        # Check for HTMX SSE wrapper
+        board_wrapper = soup.find('div', id='dashboard-game-board-wrapper')
+        if board_wrapper:
+            # Validate SSE configuration
+            sse_attrs = board_wrapper.get('hx-ext')
+            assert sse_attrs and 'sse' in sse_attrs, "Board wrapper should have SSE extension"
+            
+            # Check for SSE event listeners
+            sse_swap = board_wrapper.get('sse-swap')
+            assert sse_swap and 'game_move' in sse_swap, "Should listen for game_move SSE events"
+        
+        # Validate intersection data attributes
+        for intersection in intersections[:5]:  # Check first 5 intersections
+            assert intersection.get('data-row') is not None, "Intersection should have row data"
+            assert intersection.get('data-col') is not None, "Intersection should have col data"
+            
+        # Check CSRF token presence for interactive elements
+        csrf_token = soup.find('input', {'name': 'csrfmiddlewaretoken'})
+        assert csrf_token is not None, "Should have CSRF token for secure interactions"
 
 
 class Phase12GameSelectionTests(TestCase):

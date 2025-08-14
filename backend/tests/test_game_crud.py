@@ -8,7 +8,7 @@ from django.urls import reverse
 from django.contrib.auth import get_user_model
 from rest_framework.test import APITestCase, APIClient
 from rest_framework import status
-from rest_framework.authtoken.models import Token
+from users.models import EnhancedToken
 
 from games.models import Game, RuleSet, GameStatus, Player
 from tests.factories import UserFactory, GameFactory, RuleSetFactory
@@ -29,8 +29,8 @@ class GameCRUDTests(APITestCase):
         self.user3 = UserFactory(username='player3', email='p3@test.com')
         
         # Create tokens
-        self.token1 = Token.objects.create(user=self.user1)
-        self.token2 = Token.objects.create(user=self.user2)
+        self.token1 = EnhancedToken.objects.create_for_device(user=self.user1)
+        self.token2 = EnhancedToken.objects.create_for_device(user=self.user2)
         
         # Create ruleset
         self.ruleset = RuleSetFactory()
@@ -239,8 +239,8 @@ class GameActionTests(APITestCase):
         self.user1 = UserFactory(username='player1')
         self.user2 = UserFactory(username='player2')
         
-        self.token1 = Token.objects.create(user=self.user1)
-        self.token2 = Token.objects.create(user=self.user2)
+        self.token1 = EnhancedToken.objects.create_for_device(user=self.user1)
+        self.token2 = EnhancedToken.objects.create_for_device(user=self.user2)
         
         self.game = GameFactory(black_player=self.user1, white_player=self.user2)
     

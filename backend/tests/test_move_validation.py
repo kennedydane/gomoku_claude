@@ -2,12 +2,13 @@
 Tests for game move validation and gameplay mechanics.
 """
 
+import pytest
 from django.test import TestCase
 from django.urls import reverse
 from django.contrib.auth import get_user_model
 from rest_framework.test import APITestCase, APIClient
 from rest_framework import status
-from rest_framework.authtoken.models import Token
+from users.models import EnhancedToken
 
 from games.models import Game, GameMove, GameStatus, Player
 from games.services import GameService
@@ -16,64 +17,134 @@ from tests.factories import UserFactory, GameFactory, RuleSetFactory
 User = get_user_model()
 
 
-class MoveValidationTests(APITestCase):
+@pytest.fixture
+def api_client():
+    """API client for testing."""
+    return APIClient()
+
+
+@pytest.fixture
+def game_users(db):
+    """Create test users for game testing."""
+    user1 = UserFactory(username='player1')  # Black player
+    user2 = UserFactory(username='player2')  # White player
+    user3 = UserFactory(username='spectator')  # Not in game
+    return user1, user2, user3
+
+
+@pytest.fixture
+def user_tokens(game_users):
+    """Create authentication tokens for users."""
+    user1, user2, user3 = game_users
+    return (
+        EnhancedToken.objects.create_for_device(user=user1),
+        EnhancedToken.objects.create_for_device(user=user2),
+        EnhancedToken.objects.create_for_device(user=user3)
+    )
+
+
+@pytest.fixture
+def active_game(game_users):
+    """Create an active game for testing."""
+    user1, user2, user3 = game_users
+    game = GameFactory(
+        black_player=user1,
+        white_player=user2,
+        status=GameStatus.WAITING
+    )
+    game.start_game()
+    return game
+
+
+@pytest.mark.api
+@pytest.mark.unit
+class TestMoveValidationAPI:
     """Test move validation via API endpoints."""
     
-    def setUp(self):
-        """Set up test data."""
-        self.client = APIClient()
-        
-        self.user1 = UserFactory(username='player1')  # Black player
-        self.user2 = UserFactory(username='player2')  # White player
-        self.user3 = UserFactory(username='spectator')  # Not in game
-        
-        self.token1 = Token.objects.create(user=self.user1)
-        self.token2 = Token.objects.create(user=self.user2)
-        self.token3 = Token.objects.create(user=self.user3)
-        
-        self.game = GameFactory(
-            black_player=self.user1,
-            white_player=self.user2,
-            status=GameStatus.WAITING
-        )
-        self.game.start_game()
-        
-        self.move_url = reverse('game-move', kwargs={'pk': self.game.id})
-    
-    def authenticate_user1(self):
-        """Authenticate as user1 (black player)."""
-        self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token1.key}')
-    
-    def authenticate_user2(self):
-        """Authenticate as user2 (white player)."""
-        self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token2.key}')
-    
-    def authenticate_user3(self):
-        """Authenticate as user3 (spectator)."""
-        self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token3.key}')
-    
-    def test_valid_first_move(self):
+    def test_valid_first_move(self, api_client, game_users, user_tokens, active_game):
         """Test making a valid first move."""
-        self.authenticate_user1()  # Black goes first
+        user1, user2, user3 = game_users
+        token1, token2, token3 = user_tokens
+        
+        # Black goes first
+        api_client.credentials(HTTP_AUTHORIZATION=f'Token {token1.key}')
+        move_url = reverse('game-move', kwargs={'pk': active_game.id})
         
         data = {'row': 7, 'col': 7}  # Center of 15x15 board
-        response = self.client.post(self.move_url, data, format='json')
+        response = api_client.post(move_url, data, format='json')
         
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn('id', response.data)
-        self.assertEqual(response.data['row'], 7)
-        self.assertEqual(response.data['col'], 7)
-        self.assertEqual(response.data['player_color'], Player.BLACK)
-        self.assertEqual(response.data['move_number'], 1)
+        # Enhanced assertions with better error messages
+        assert response.status_code == status.HTTP_200_OK, \
+            f"Expected 200, got {response.status_code}: {response.data}"
         
-        # Verify game state updated
-        self.game.refresh_from_db()
-        self.assertEqual(self.game.current_player, Player.WHITE)
-        self.assertEqual(self.game.move_count, 1)
+        # Validate response structure
+        required_fields = ['id', 'row', 'col', 'player_color', 'move_number']
+        for field in required_fields:
+            assert field in response.data, f"Response missing required field: {field}"
+        
+        # Validate response values
+        assert response.data['row'] == 7, "Move row should be 7"
+        assert response.data['col'] == 7, "Move col should be 7"
+        assert response.data['player_color'] == Player.BLACK, "Player should be BLACK"
+        assert response.data['move_number'] == 1, "Should be first move"
+        
+        # Verify game state updated correctly
+        active_game.refresh_from_db()
+        assert active_game.current_player == Player.WHITE, "Turn should switch to WHITE"
+        assert active_game.move_count == 1, "Move count should be 1"
+    
+    def test_move_out_of_bounds_comprehensive(self, api_client, game_users, user_tokens, active_game):
+        """Test comprehensive out of bounds validation."""
+        user1, user2, user3 = game_users
+        token1, token2, token3 = user_tokens
+        
+        api_client.credentials(HTTP_AUTHORIZATION=f'Token {token1.key}')
+        move_url = reverse('game-move', kwargs={'pk': active_game.id})
+        
+        # Test various out-of-bounds positions
+        invalid_positions = [
+            ({'row': -1, 'col': 7}, "Negative row should be invalid"),
+            ({'row': 7, 'col': -1}, "Negative col should be invalid"),
+            ({'row': 15, 'col': 7}, "Row 15 should be invalid (0-14 valid)"),
+            ({'row': 7, 'col': 15}, "Col 15 should be invalid (0-14 valid)"),
+            ({'row': 100, 'col': 100}, "Way out of bounds should be invalid"),
+        ]
+        
+        for invalid_data, error_msg in invalid_positions:
+            response = api_client.post(move_url, invalid_data, format='json')
+            assert response.status_code == status.HTTP_400_BAD_REQUEST, \
+                f"{error_msg}. Got {response.status_code}: {response.data}"
+            
+            # Verify error response structure
+            assert 'error' in response.data or any(field in response.data for field in ['row', 'col']), \
+                f"Should have error details for invalid position {invalid_data}"
+    
+    def test_move_invalid_data_types_enhanced(self, api_client, game_users, user_tokens, active_game):
+        """Test moves with invalid data types and enhanced validation."""
+        user1, user2, user3 = game_users
+        token1, token2, token3 = user_tokens
+        
+        api_client.credentials(HTTP_AUTHORIZATION=f'Token {token1.key}')
+        move_url = reverse('game-move', kwargs={'pk': active_game.id})
+        
+        # Test various invalid data types
+        invalid_data_tests = [
+            ({'row': 'invalid', 'col': 7}, "String row should be rejected"),
+            ({'row': 7, 'col': 'invalid'}, "String col should be rejected"),  
+            ({'row': 7.5, 'col': 7}, "Float row should be rejected"),
+            ({'row': None, 'col': 7}, "None row should be rejected"),
+            ({'row': [], 'col': 7}, "List row should be rejected"),
+            ({}, "Empty data should be rejected"),
+            ({'row': 7}, "Missing col should be rejected"),
+            ({'col': 7}, "Missing row should be rejected"),
+        ]
+        
+        for invalid_data, error_msg in invalid_data_tests:
+            response = api_client.post(move_url, invalid_data, format='json')
+            assert response.status_code == status.HTTP_400_BAD_REQUEST, \
+                f"{error_msg}. Got {response.status_code}: {response.data}"
     
     def test_valid_second_move(self):
-        """Test making a valid second move."""
-        # Black makes first move
         self.authenticate_user1()
         data = {'row': 7, 'col': 7}
         response = self.client.post(self.move_url, data, format='json')
@@ -92,31 +163,46 @@ class MoveValidationTests(APITestCase):
         self.game.refresh_from_db()
         self.assertEqual(self.game.current_player, Player.BLACK)
     
-    def test_move_out_of_turn(self):
+    def test_move_out_of_turn(self, api_client, game_users, user_tokens, active_game):
         """Test making a move out of turn."""
-        self.authenticate_user2()  # White tries to go first
+        user1, user2, user3 = game_users
+        token1, token2, token3 = user_tokens
+        
+        # White tries to go first (should be black's turn)
+        api_client.credentials(HTTP_AUTHORIZATION=f'Token {token2.key}')
+        move_url = reverse('game-move', kwargs={'pk': active_game.id})
         
         data = {'row': 7, 'col': 7}
-        response = self.client.post(self.move_url, data, format='json')
+        response = api_client.post(move_url, data, format='json')
         
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('error', response.data)
-        self.assertIn('turn', str(response.data).lower())
+        assert response.status_code == status.HTTP_400_BAD_REQUEST, \
+            f"Expected 400, got {response.status_code}: {response.data}"
+        assert 'error' in response.data
+        assert 'turn' in str(response.data).lower()
     
-    def test_move_by_non_player(self):
+    def test_move_by_non_player(self, api_client, game_users, user_tokens, active_game):
         """Test move attempt by user not in the game."""
-        self.authenticate_user3()  # Spectator
+        user1, user2, user3 = game_users
+        token1, token2, token3 = user_tokens
+        
+        # Spectator tries to make a move
+        api_client.credentials(HTTP_AUTHORIZATION=f'Token {token3.key}')
+        move_url = reverse('game-move', kwargs={'pk': active_game.id})
         
         data = {'row': 7, 'col': 7}
-        response = self.client.post(self.move_url, data, format='json')
+        response = api_client.post(move_url, data, format='json')
         
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertIn('error', response.data)
-        self.assertIn('player', str(response.data).lower())
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert 'error' in response.data
+        assert 'player' in str(response.data).lower()
     
-    def test_move_out_of_bounds(self):
+    def test_move_out_of_bounds(self, api_client, game_users, user_tokens, active_game):
         """Test moves outside the board boundaries."""
-        self.authenticate_user1()
+        user1, user2, user3 = game_users
+        token1, token2, token3 = user_tokens
+        
+        api_client.credentials(HTTP_AUTHORIZATION=f'Token {token1.key}')
+        move_url = reverse('game-move', kwargs={'pk': active_game.id})
         
         invalid_positions = [
             {'row': -1, 'col': 7},    # Negative row
@@ -127,31 +213,38 @@ class MoveValidationTests(APITestCase):
         ]
         
         for data in invalid_positions:
-            response = self.client.post(self.move_url, data, format='json')
-            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+            response = api_client.post(move_url, data, format='json')
+            assert response.status_code == status.HTTP_400_BAD_REQUEST
             # Check that there's an error in the response
-            self.assertTrue('error' in response.data or len(response.data) > 0)
+            assert 'error' in response.data or len(response.data) > 0
     
-    def test_move_on_occupied_position(self):
+    def test_move_on_occupied_position(self, api_client, game_users, user_tokens, active_game):
         """Test move on already occupied position."""
-        self.authenticate_user1()
+        user1, user2, user3 = game_users
+        token1, token2, token3 = user_tokens
+        move_url = reverse('game-move', kwargs={'pk': active_game.id})
         
-        # Make first move
+        # Make first move as black
+        api_client.credentials(HTTP_AUTHORIZATION=f'Token {token1.key}')
         data = {'row': 7, 'col': 7}
-        response = self.client.post(self.move_url, data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        response = api_client.post(move_url, data, format='json')
+        assert response.status_code == status.HTTP_200_OK
         
-        # Try to move on same position
-        self.authenticate_user2()
-        response = self.client.post(self.move_url, data, format='json')
+        # Try to move on same position as white
+        api_client.credentials(HTTP_AUTHORIZATION=f'Token {token2.key}')
+        response = api_client.post(move_url, data, format='json')
         
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('error', response.data)
-        self.assertIn('occupied', str(response.data).lower())
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert 'error' in response.data
+        assert 'occupied' in str(response.data).lower()
     
-    def test_move_invalid_data_types(self):
+    def test_move_invalid_data_types(self, api_client, game_users, user_tokens, active_game):
         """Test moves with invalid data types."""
-        self.authenticate_user1()
+        user1, user2, user3 = game_users
+        token1, token2, token3 = user_tokens
+        
+        api_client.credentials(HTTP_AUTHORIZATION=f'Token {token1.key}')
+        move_url = reverse('game-move', kwargs={'pk': active_game.id})
         
         invalid_data = [
             {'row': 'invalid', 'col': 7},      # String instead of int
@@ -162,119 +255,149 @@ class MoveValidationTests(APITestCase):
         ]
         
         for data in invalid_data:
-            response = self.client.post(self.move_url, data, format='json')
-            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+            response = api_client.post(move_url, data, format='json')
+            assert response.status_code == status.HTTP_400_BAD_REQUEST
             # Check that there's an error in the response (could be in 'error' or field-specific)
-            self.assertTrue('error' in response.data or any(key != 'error' for key in response.data.keys()))
+            assert 'error' in response.data or any(key != 'error' for key in response.data.keys())
     
-    def test_move_missing_coordinates(self):
+    def test_move_missing_coordinates(self, api_client, game_users, user_tokens, active_game):
         """Test moves with missing coordinates."""
-        self.authenticate_user1()
+        user1, user2, user3 = game_users
+        token1, token2, token3 = user_tokens
+        
+        api_client.credentials(HTTP_AUTHORIZATION=f'Token {token1.key}')
+        move_url = reverse('game-move', kwargs={'pk': active_game.id})
         
         # Missing row
         data = {'col': 7}
-        response = self.client.post(self.move_url, data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        response = api_client.post(move_url, data, format='json')
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
         
         # Missing col
         data = {'row': 7}
-        response = self.client.post(self.move_url, data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        response = api_client.post(move_url, data, format='json')
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
         
         # Missing both
         data = {}
-        response = self.client.post(self.move_url, data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        response = api_client.post(move_url, data, format='json')
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
     
-    def test_move_on_inactive_game(self):
+    def test_move_on_inactive_game(self, api_client, game_users, user_tokens):
         """Test making move on inactive game."""
+        user1, user2, user3 = game_users
+        token1, token2, token3 = user_tokens
+        
         # Create inactive game
         inactive_game = GameFactory(
-            black_player=self.user1,
-            white_player=self.user2,
+            black_player=user1,
+            white_player=user2,
             status=GameStatus.WAITING  # Not active
         )
         move_url = reverse('game-move', kwargs={'pk': inactive_game.id})
         
-        self.authenticate_user1()
+        api_client.credentials(HTTP_AUTHORIZATION=f'Token {token1.key}')
         data = {'row': 7, 'col': 7}
-        response = self.client.post(move_url, data, format='json')
+        response = api_client.post(move_url, data, format='json')
         
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('error', response.data)
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert 'error' in response.data
         # Check that the error mentions the game status issue
-        self.assertIn('waiting', str(response.data).lower())
+        assert 'waiting' in str(response.data).lower()
     
-    def test_move_on_finished_game(self):
+    def test_move_on_finished_game(self, api_client, game_users, user_tokens, active_game):
         """Test making move on finished game."""
+        user1, user2, user3 = game_users
+        token1, token2, token3 = user_tokens
+        
         # Finish the game
-        self.game.status = GameStatus.FINISHED
-        self.game.winner = self.user1
-        self.game.save()
+        active_game.status = GameStatus.FINISHED
+        active_game.winner = user1
+        active_game.save()
         
-        self.authenticate_user1()
+        api_client.credentials(HTTP_AUTHORIZATION=f'Token {token1.key}')
+        move_url = reverse('game-move', kwargs={'pk': active_game.id})
         data = {'row': 7, 'col': 7}
-        response = self.client.post(self.move_url, data, format='json')
+        response = api_client.post(move_url, data, format='json')
         
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('error', response.data)
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert 'error' in response.data
     
-    def test_move_unauthenticated(self):
+    def test_move_unauthenticated(self, api_client, active_game):
         """Test making move without authentication."""
+        move_url = reverse('game-move', kwargs={'pk': active_game.id})
         data = {'row': 7, 'col': 7}
-        response = self.client.post(self.move_url, data, format='json')
+        response = api_client.post(move_url, data, format='json')
         
-        self.assertIn(response.status_code, [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN])
-        self.assertIn('error', response.data)
+        assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN]
+        assert 'error' in response.data
 
 
-class MoveSequenceTests(APITestCase):
+@pytest.fixture
+def sequence_users(db):
+    """Create test users for sequence testing."""
+    user1 = UserFactory(username='sequence_player1')  # Black
+    user2 = UserFactory(username='sequence_player2')  # White
+    return user1, user2
+
+
+@pytest.fixture
+def sequence_tokens(sequence_users):
+    """Create authentication tokens for sequence users."""
+    user1, user2 = sequence_users
+    return (
+        EnhancedToken.objects.create_for_device(user=user1),
+        EnhancedToken.objects.create_for_device(user=user2)
+    )
+
+
+@pytest.fixture
+def sequence_game(sequence_users):
+    """Create an active game for sequence testing."""
+    user1, user2 = sequence_users
+    game = GameFactory(
+        black_player=user1,
+        white_player=user2,
+        status=GameStatus.WAITING
+    )
+    game.start_game()
+    return game
+
+
+@pytest.mark.api
+@pytest.mark.django_db
+class TestMoveSequences:
     """Test sequences of moves and game progression."""
     
-    def setUp(self):
-        """Set up test data."""
-        self.client = APIClient()
-        
-        self.user1 = UserFactory(username='player1')  # Black
-        self.user2 = UserFactory(username='player2')  # White
-        
-        self.token1 = Token.objects.create(user=self.user1)
-        self.token2 = Token.objects.create(user=self.user2)
-        
-        self.game = GameFactory(
-            black_player=self.user1,
-            white_player=self.user2,
-            status=GameStatus.WAITING
-        )
-        self.game.start_game()
-        
-        self.move_url = reverse('game-move', kwargs={'pk': self.game.id})
-    
-    def make_move(self, user_token, row, col):
+    def make_move(self, api_client, user_token, row, col, game):
         """Helper to make a move."""
-        self.client.credentials(HTTP_AUTHORIZATION=f'Token {user_token.key}')
+        api_client.credentials(HTTP_AUTHORIZATION=f'Token {user_token.key}')
+        move_url = reverse('game-move', kwargs={'pk': game.id})
         data = {'row': row, 'col': col}
-        return self.client.post(self.move_url, data, format='json')
+        return api_client.post(move_url, data, format='json')
     
-    def test_alternating_moves(self):
+    def test_alternating_moves(self, api_client, sequence_users, sequence_tokens, sequence_game):
         """Test that moves alternate between players correctly."""
+        user1, user2 = sequence_users
+        token1, token2 = sequence_tokens
+        
         moves = [
-            (self.token1, 7, 7),   # Black
-            (self.token2, 7, 8),   # White
-            (self.token1, 8, 7),   # Black
-            (self.token2, 8, 8),   # White
-            (self.token1, 9, 7),   # Black
+            (token1, 7, 7),   # Black
+            (token2, 7, 8),   # White
+            (token1, 8, 7),   # Black
+            (token2, 8, 8),   # White
+            (token1, 9, 7),   # Black
         ]
         
         for i, (token, row, col) in enumerate(moves, 1):
-            response = self.make_move(token, row, col)
-            self.assertEqual(response.status_code, status.HTTP_200_OK)
-            self.assertEqual(response.data['move_number'], i)
+            response = self.make_move(api_client, token, row, col, sequence_game)
+            assert response.status_code == status.HTTP_200_OK
+            assert response.data['move_number'] == i
         
         # Verify final game state
-        self.game.refresh_from_db()
-        self.assertEqual(self.game.move_count, 5)
-        self.assertEqual(self.game.current_player, Player.WHITE)  # White's turn
+        sequence_game.refresh_from_db()
+        assert sequence_game.move_count == 5
+        assert sequence_game.current_player == Player.WHITE  # White's turn
     
     def test_move_count_tracking(self):
         """Test that move count is tracked correctly."""
@@ -332,11 +455,11 @@ class WinDetectionTests(APITestCase):
         """Set up test data."""
         self.client = APIClient()
         
-        self.user1 = UserFactory(username='player1')  # Black
-        self.user2 = UserFactory(username='player2')  # White
+        self.user1 = UserFactory(username='win_player1')  # Black
+        self.user2 = UserFactory(username='win_player2')  # White
         
-        self.token1 = Token.objects.create(user=self.user1)
-        self.token2 = Token.objects.create(user=self.user2)
+        self.token1 = EnhancedToken.objects.create_for_device(user=self.user1)
+        self.token2 = EnhancedToken.objects.create_for_device(user=self.user2)
         
         self.game = GameFactory(
             black_player=self.user1,

@@ -23,9 +23,10 @@ dependencies = [
     "python-decouple>=3.8",
     "redis>=6.4.0",
     "daphne>=4.2.1",
-    "selenium>=4.20.0",
+    "pytest>=7.0.0",
     "pytest-django>=4.9.0",
-    "webdriver-manager>=4.0.0",
+    "pytest-html>=4.1.1",
+    "beautifulsoup4>=4.12.3",
 ]
 
 [project.scripts]

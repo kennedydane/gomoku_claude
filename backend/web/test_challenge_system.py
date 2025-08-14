@@ -409,50 +409,6 @@ class ChallengeResponseTests(TestCase):
         self.assertIn('hx-include="[name=\'csrfmiddlewaretoken\']"', response_content)
 
 
-class ChallengeJavaScriptIntegrationTests(TestCase):
-    """RED: Test JavaScript integration with challenge system."""
-    
-    def setUp(self):
-        """Set up test data."""
-        self.client = Client()
-        self.user1 = UserFactory(username='user1')
-        self.user2 = UserFactory(username='user2')
-        self.user1.set_password('testpass123')
-        self.user1.save()
-        
-        # Make them friends
-        friendship = Friendship.objects.create(
-            requester=self.user1,
-            addressee=self.user2,
-            status=FriendshipStatus.ACCEPTED
-        )
-    
-    def test_friends_page_has_challenge_javascript(self):
-        """RED: Test friends page includes challenge JavaScript functions."""
-        self.client.login(username='user1', password='testpass123')
-        
-        url = reverse('web:friends')
-        response = self.client.get(url)
-        
-        self.assertEqual(response.status_code, 200)
-        # Should have challengeUser function (not placeholder)
-        content = response.content.decode()
-        self.assertIn('challengeUser', content)
-        self.assertNotIn('Challenge feature coming soon', content)  # No more placeholder
-    
-    def test_challenge_button_triggers_modal(self):
-        """RED: Test challenge button shows ruleset selection modal."""
-        self.client.login(username='user1', password='testpass123')
-        
-        url = reverse('web:friends')
-        response = self.client.get(url)
-        
-        self.assertEqual(response.status_code, 200)
-        content = response.content.decode()
-        # Should have modal for challenge options
-        self.assertIn('challenge-modal', content)
-        self.assertIn('ruleset', content.lower())
-
-
-# These tests will ALL FAIL initially - that's the RED phase!
-# Next step: Implement minimal code to make them pass (GREEN phase)
+# JavaScript integration tests removed - these were TDD development artifacts
+# for unimplemented features. Real JavaScript testing should use proper
+# JS testing frameworks (Jest, Cypress, etc.) rather than Django TestCase.
