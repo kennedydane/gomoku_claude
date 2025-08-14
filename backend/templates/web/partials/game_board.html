@@ -18,7 +18,7 @@
                  {% if not cell and game.status == 'ACTIVE' and user == game.get_current_player_user %}
                  hx-post="{% url 'web:game_move' game_id=game.id %}"
                  hx-vals='{"row": {{ forloop.parentloop.counter0 }}, "col": {{ forloop.counter0 }}}'
-                 hx-target="#game-board-wrapper"
+                 hx-target="#{% if wrapper_id %}{{ wrapper_id }}{% else %}game-board-wrapper{% endif %}"
                  hx-swap="innerHTML"
                  hx-disabled-elt="this"
                  hx-indicator="#board-loading"

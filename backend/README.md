@@ -77,9 +77,9 @@ A complete Gomoku (Five in a Row) game with Django backend API and responsive we
 Access the complete web interface at: **http://localhost:8001/**
 
 - **Home**: Game overview and navigation
-- **Dashboard**: Your games, challenges, and stats  
+- **Dashboard**: Unified interface with embedded games, real-time multiplayer, friends panel, and challenge system
 - **Friends**: Manage friends and send challenges
-- **Games**: Interactive game board with real-time updates
+- **Games**: Table view of all games with quick access links
 
 ### **Web Authentication**
 - Register new account or login with existing credentials
@@ -166,21 +166,22 @@ curl -X POST http://localhost:8001/api/v1/auth/token/refresh/ \
 
 ## Testing
 
-Run the comprehensive 330+ test suite:
+Run the comprehensive 346+ test suite:
 
 ```bash
-# Run all tests (330+ tests)
+# Run all tests (346+ tests)
 uv run python manage.py test
 
 # Run specific app tests  
 uv run python manage.py test games      # API tests
 uv run python manage.py test users      # User management and enhanced auth tests (70+ tests)
-uv run python manage.py test web        # Web interface tests (74 tests)
+uv run python manage.py test web        # Web interface tests (86+ tests including Phase 12)
 
 # Run web-specific test suites
 uv run python manage.py test web.test_challenge_system  # Challenge system TDD (11 tests)
 uv run python manage.py test web.test_friend_system     # Friend system TDD (25 tests)
 uv run python manage.py test web.test_game_board        # Game board TDD (20 tests)
+uv run python manage.py test web.test_phase12_single_view # Single-view dashboard TDD (12 tests)
 
 # Run enhanced authentication test suites
 uv run python manage.py test users.test_enhanced_auth   # Enhanced authentication TDD (36 tests)
@@ -192,7 +193,8 @@ uv run coverage report
 
 ### **Test Categories**
 - **API Tests**: Comprehensive REST API endpoint testing
-- **Web Interface Tests**: TDD-developed web functionality (74 tests)
+- **Web Interface Tests**: TDD-developed web functionality (86+ tests)
+- **Single-View Dashboard Tests**: Phase 12 embedded game functionality (12 tests)
 - **Enhanced Authentication Tests**: Token management, registration, refresh (36 tests)
 - **Integration Tests**: End-to-end workflows
 - **Game Logic Tests**: Move validation, win detection, rule enforcement
@@ -261,7 +263,7 @@ web/
 
 ### **🎉 All Major Development Complete!**
 
-**✅ Phases 1-6: Security → Architecture → Testing → Advanced Features → Web Interface → Real-time**
+**✅ Phases 1-12: Security → Architecture → Testing → Advanced Features → Web Interface → Real-time → Single-View Dashboard**
 
 #### **Phase 1-2: Security & Architecture** ✅
 - Authentication system (web + API)
@@ -281,9 +283,15 @@ web/
 - Server-Sent Events for real-time gameplay
 - Progressive enhancement design
 
+#### **Phase 11-12: Enhanced Dashboard & Single-View Interface** ✅
+- Dynamic 3-panel dashboard with real-time updates
+- Unified single-view dashboard with embedded gameplay
+- Real-time multiplayer with seamless turn-based mechanics
+- Dual-player SSE system with proper content scoping
+
 ### **Production-Ready Features**
 - **Scalable**: ASGI server with connection pooling
-- **Tested**: 300+ tests with TDD methodology
+- **Tested**: 346+ tests with TDD methodology
 - **Secure**: Comprehensive authentication and validation
 - **Fast**: Optimized database queries and caching
 - **Modern**: HTMX + SSE for excellent UX without complexity

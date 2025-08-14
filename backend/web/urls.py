@@ -21,7 +21,7 @@ urlpatterns = [
     
     # Games
     path('games/', views.GamesView.as_view(), name='games'),
-    path('games/<uuid:game_id>/', views.GameDetailView.as_view(), name='game_detail'),
+    path('games/<uuid:game_id>/', views.GameDetailRedirectView.as_view(), name='game_detail'),
     path('games/<uuid:game_id>/move/', views.GameMoveView.as_view(), name='game_move'),
     
     # Friends - Web Pages

@@ -3,88 +3,210 @@
 {% block title %}Dashboard - Gomoku{% endblock %}
 
 {% block content %}
-<div class="container">
-    <h1>Welcome, {{ user.username }}!</h1>
-    
-    <div class="row">
-        <div class="col-md-4">
-            <div class="card">
-                <div class="card-body">
-                    <h5 class="card-title">Your Stats</h5>
-                    <p class="card-text">Games Played: {{ games_played }}</p>
-                    <p class="card-text">Games Won: {{ games_won }}</p>
-                </div>
-            </div>
-        </div>
-        
-        <div class="col-md-4">
-            <div class="card">
-                <div class="card-body">
-                    <h5 class="card-title">Active Games</h5>
-                    {% for game in active_games %}
-                        <div class="mb-2">
-                            <a href="{% url 'web:game_detail' game_id=game.id %}" class="btn btn-sm btn-outline-primary">
-                                {{ game.ruleset.name }}
-                            </a>
-                            <span class="badge bg-success">active</span>
-                            <br><small class="text-muted">{{ game.black_player.username }} vs {{ game.white_player.username }}</small>
-                        </div>
-                    {% empty %}
-                        <p class="text-muted">No active games</p>
-                    {% endfor %}
-                </div>
-            </div>
-        </div>
-        
-        <div class="col-md-4">
-            <div class="card">
-                <div class="card-body">
-                    <h5 class="card-title">Pending Challenges</h5>
-                    {% for challenge in pending_challenges %}
-                        <div id="challenge-{{ challenge.id }}" class="mb-3 p-2 border rounded">
-                            <div class="d-flex justify-content-between align-items-start">
-                                <div>
-                                    <strong>{{ challenge.challenger.username }}</strong>
-                                    <br>
-                                    <small class="text-muted">
-                                        {{ challenge.ruleset.name }} ({{ challenge.ruleset.board_size }}x{{ challenge.ruleset.board_size }})
-                                    </small>
-                                    <br>
-                                    <small class="text-muted">
-                                        Expires: {{ challenge.expires_at|timeuntil }}
-                                    </small>
-                                </div>
-                                <div class="btn-group-vertical">
-                                    <button class="btn btn-sm btn-success" 
-                                            hx-post="{% url 'web:respond_challenge' challenge_id=challenge.id %}"
-                                            hx-vals='{"action": "accept"}'
-                                            hx-confirm="Are you sure you want to accept this challenge?"
-                                            hx-target="#challenge-{{ challenge.id }}"
-                                            hx-swap="outerHTML"
-                                            hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
-                                        Accept
-                                    </button>
-                                    <button class="btn btn-sm btn-danger"
-                                            hx-post="{% url 'web:respond_challenge' challenge_id=challenge.id }}"
-                                            hx-vals='{"action": "reject"}'
-                                            hx-confirm="Are you sure you want to reject this challenge?"
-                                            hx-target="#challenge-{{ challenge.id }}"
-                                            hx-swap="outerHTML"
-                                            hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
-                                        Reject
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    {% empty %}
-                        <p class="text-muted">No pending challenges</p>
-                    {% endfor %}
+<div class="container-fluid">
+    <!-- Welcome Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h1>Welcome back, {{ user.username }}!</h1>
+                <div class="d-flex gap-2">
+                    <a href="{% url 'web:friends' %}" class="btn btn-outline-primary btn-sm">
+                        <i class="bi bi-person-plus"></i> Find Friends
+                    </a>
+                    <a href="{% url 'web:games' %}" class="btn btn-primary btn-sm">
+                        <i class="bi bi-grid-3x3-gap"></i> All Games
+                    </a>
                 </div>
             </div>
         </div>
     </div>
+    
+    <div class="row">
+        <!-- Left Panel - Games -->
+        <div class="col-lg-2 col-md-3 d-none d-md-block">
+            <div class="sticky-top" style="top: 20px;" 
+                 hx-ext="sse" 
+                 sse-connect="/api/v1/events/?channel=user-{{ user.id }}" 
+                 sse-swap="dashboard_update">
+                {% include 'web/partials/games_panel.html' %}
+            </div>
+        </div>
+        
+        <!-- Main Content - Embedded Game Panel -->
+        <div class="col-lg-8 col-md-9 col-12"
+             hx-ext="sse" 
+             sse-connect="/api/v1/events/?channel=user-{{ user.id }}" 
+             sse-swap="dashboard_game_update"
+             hx-target="#center-game-panel"
+             hx-swap="outerHTML">
+            <!-- Embedded Game Display -->
+            {% include 'web/partials/dashboard_game_panel.html' %}
+            
+            <!-- Pending Challenges (moved below game) -->
+            {% if pending_challenges %}
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0">
+                                <i class="bi bi-exclamation-triangle me-2"></i>Pending Challenges
+                            </h6>
+                            <span class="badge bg-warning">{{ pending_challenges|length }}</span>
+                        </div>
+                    </div>
+                    <div class="card-body p-2">
+                        {% for challenge in pending_challenges %}
+                            <div id="challenge-{{ challenge.id }}" class="challenge-item p-2 mb-2 border rounded bg-warning-subtle">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div class="challenge-info">
+                                        <div class="d-flex align-items-center">
+                                            <div class="challenger-avatar me-2">
+                                                <div class="rounded-circle bg-warning text-dark d-flex align-items-center justify-content-center" 
+                                                     style="width: 30px; height: 30px; font-size: 0.8rem;">
+                                                    {{ challenge.challenger.username|first|upper }}
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <strong>{{ challenge.challenger.username }}</strong> challenges you!
+                                                <div class="text-muted small">
+                                                    {{ challenge.ruleset.name }} • {{ challenge.ruleset.board_size }}×{{ challenge.ruleset.board_size }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="challenge-actions d-flex gap-1">
+                                        <button class="btn btn-success btn-sm" 
+                                                hx-post="{% url 'web:respond_challenge' challenge_id=challenge.id %}"
+                                                hx-vals='{"action": "accept"}'
+                                                hx-confirm="Accept challenge from {{ challenge.challenger.username }}?"
+                                                hx-target="#challenge-{{ challenge.id }}"
+                                                hx-swap="outerHTML"
+                                                hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+                                            <i class="bi bi-check-lg"></i>
+                                        </button>
+                                        <button class="btn btn-outline-danger btn-sm"
+                                                hx-post="{% url 'web:respond_challenge' challenge_id=challenge.id }}"
+                                                hx-vals='{"action": "reject"}'
+                                                hx-confirm="Reject challenge from {{ challenge.challenger.username }}?"
+                                                hx-target="#challenge-{{ challenge.id }}"
+                                                hx-swap="outerHTML"
+                                                hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+                                            <i class="bi bi-x-lg"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endif %}
+            
+            <!-- Quick Stats (compact) -->
+            <div class="card mt-4">
+                <div class="card-body p-3">
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <div class="stat-compact">
+                                <div class="stat-value h5 mb-1 text-primary">{{ games_played }}</div>
+                                <div class="stat-label small text-muted">Games Played</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="stat-compact">
+                                <div class="stat-value h5 mb-1 text-success">{{ games_won }}</div>
+                                <div class="stat-label small text-muted">
+                                    Games Won
+                                    {% if games_played > 0 %}
+                                        <br><span class="text-primary">({% widthratio games_won games_played 100 %}%)</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Right Panel - Friends -->
+        <div class="col-lg-2 d-none d-lg-block">
+            <div class="sticky-top" style="top: 20px;" 
+                 hx-ext="sse" 
+                 sse-connect="/api/v1/events/?channel=user-{{ user.id }}" 
+                 sse-swap="friends_update">
+                {% include 'web/partials/friends_panel.html' %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Mobile Panels (Collapsible) -->
+    <div class="d-md-none mt-4">
+        <div class="row">
+            <div class="col-6">
+                <button class="btn btn-outline-primary w-100" type="button" data-bs-toggle="collapse" data-bs-target="#mobile-games-panel">
+                    <i class="bi bi-grid-3x3-gap"></i> Games
+                </button>
+            </div>
+            <div class="col-6">
+                <button class="btn btn-outline-primary w-100" type="button" data-bs-toggle="collapse" data-bs-target="#mobile-friends-panel">
+                    <i class="bi bi-people"></i> Friends
+                </button>
+            </div>
+        </div>
+        
+        <div class="collapse mt-3" id="mobile-games-panel">
+            {% include 'web/partials/games_panel.html' %}
+        </div>
+        
+        <div class="collapse mt-3" id="mobile-friends-panel">
+            {% include 'web/partials/friends_panel.html' %}
+        </div>
+    </div>
 </div>
 
+<!-- Additional CSS for dashboard -->
+<style>
+.pulse {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(25, 135, 84, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(25, 135, 84, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(25, 135, 84, 0);
+    }
+}
+
+.challenge-item {
+    transition: all 0.3s ease;
+    border-left: 4px solid #ffc107 !important;
+}
+
+.challenge-item:hover {
+    transform: translateX(5px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.challenger-avatar {
+    position: relative;
+}
+
+.sticky-top {
+    z-index: 1000;
+}
+
+/* Responsive tweaks */
+@media (max-width: 768px) {
+    .container-fluid {
+        padding-left: 15px;
+        padding-right: 15px;
+    }
+}
+</style>
 
 {% csrf_token %}
 {% endblock %}

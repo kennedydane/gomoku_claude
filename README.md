@@ -197,11 +197,14 @@ The game logic is implemented in a service layer that handles:
 Run the Django test suite:
 ```bash
 cd backend
-# Run all tests (265+ total)
+# Run all tests (334+ total)
 uv run python manage.py test
 
-# Run web interface tests (43 tests)
+# Run web interface tests (63+ tests, including 20 new panel tests)
 uv run python manage.py test web
+
+# Run Phase 11 panel tests specifically
+uv run python manage.py test web.test_phase11_panels
 
 # Run with verbose output
 uv run python manage.py test --verbosity=2
@@ -228,7 +231,9 @@ uv run python -m pytest -m cross_browser -v
 
 **Test Coverage:**
 - **API Tests**: 220+ tests covering authentication, game logic, and challenges
-- **Web Interface Tests**: 43 comprehensive TDD tests for web functionality (includes 25 friend system tests)
+- **Web Interface Tests**: 63+ comprehensive TDD tests for web functionality (includes 25 friend system tests + 20 new panel tests)
+- **Panel Tests**: 20 new TDD tests specifically for Phase 11 enhanced web interface features
+  - Navigation cleanup, games table conversion, left/right panels, dashboard layout, SSE integration, styling
 - **Integration Tests**: End-to-end workflows and edge cases
 - **Selenium Tests**: Real-time multiplayer SSE functionality with cross-browser support
   - **Multiplayer Game Flow**: Two-player sessions with real-time move propagation
@@ -293,10 +298,18 @@ Key development practices:
 
 ## Recent Major Changes
 
-- ✅ **Project Cleanup & Maintenance Ready** (Latest): Clean codebase ready for production deployment
+- ✅ **Phase 11: Enhanced Web Interface with Dynamic Panels** (Latest): Complete dashboard redesign with real-time panels
+  - **3-Column Dashboard**: Left panel (games), center (main content), right panel (friends) with responsive mobile design
+  - **Games Table View**: Converted from card layout to sortable table with turn indicators, opponent info, and direct game links
+  - **Real-Time Panel Updates**: All panels update automatically via SSE when moves are made or game state changes
+  - **Dynamic Games Panel**: Shows active games + 5 most recent finished games with visual turn indicators
+  - **Friends Panel**: Online friends display with challenge buttons and quick challenge functionality
+  - **20 New TDD Tests**: Comprehensive test coverage following strict RED-GREEN-REFACTOR methodology
+  - **Enhanced Navigation**: Removed non-functional challenges menu item, streamlined user experience
+- ✅ **Project Cleanup & Maintenance Ready**: Clean codebase ready for production deployment
   - Removed temporary SSE debugging files from development process
   - Fixed test compatibility with current CSRF implementation
-  - All 314 tests passing with clean project structure
+  - All 334+ tests passing with clean project structure
   - Turn validation improvements for better user experience
 - ✅ **SSE Real-Time Multiplayer COMPLETE**: All critical SSE functionality working flawlessly
   - Fixed HTML escaping in SSE data transmission (`json_encode=False`)

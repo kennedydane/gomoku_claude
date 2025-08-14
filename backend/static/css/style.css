@@ -25,7 +25,90 @@ body.dark .table-dark {
     --bs-table-bg: #2d3439;
 }
 
-/* Game Board Styles */
+/* Modern Game Board Styles with CSS Grid */
+.game-board-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+}
+
+.game-board-grid {
+    display: grid;
+    gap: 1px;
+    background-color: #8B4513;
+    border: 2px solid #654321;
+    border-radius: 8px;
+    padding: 10px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    /* Dynamic grid layout - set via CSS custom properties in template */
+    grid-template-columns: repeat(var(--board-size), 1fr);
+    grid-template-rows: repeat(var(--board-size), 1fr);
+}
+
+.board-intersection {
+    /* Dynamic sizing based on board size and viewport */
+    width: var(--intersection-size, 30px);
+    height: var(--intersection-size, 30px);
+    min-width: 16px;
+    min-height: 16px;
+    max-width: 40px;
+    max-height: 40px;
+    background-color: #DEB887;
+    border: 1px solid #8B4513;
+    cursor: default;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: background-color 0.2s;
+    position: relative;
+}
+
+/* Clickable intersections (when it's player's turn) */
+.board-intersection[hx-post] {
+    cursor: pointer;
+}
+
+.board-intersection[hx-post]:hover {
+    background-color: #F5DEB3;
+}
+
+.board-intersection:focus {
+    outline: 2px solid #007bff;
+    outline-offset: -2px;
+}
+
+.stone-black, .stone-white {
+    /* Dynamic stone sizing - roughly 80% of intersection size */
+    width: var(--stone-size, 24px);
+    height: var(--stone-size, 24px);
+    min-width: 12px;
+    min-height: 12px;
+    max-width: 32px;
+    max-height: 32px;
+    border-radius: 50%;
+    border: 1px solid #333;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.stone-black {
+    background: radial-gradient(circle at 30% 30%, #444, #000);
+}
+
+.stone-white {
+    background: radial-gradient(circle at 30% 30%, #fff, #ddd);
+}
+
+.stone-small {
+    width: 16px;
+    height: 16px;
+}
+
+.board-responsive {
+    overflow-x: auto;
+}
+
+/* Legacy Board Styles (kept for compatibility) */
 .game-board {
     display: grid;
     gap: 1px;
@@ -83,7 +166,7 @@ body.dark .table-dark {
     50% { opacity: 0.7; }
 }
 
-/* Board size variants */
+/* Board size variants (legacy) */
 .board-9x9 { grid-template-columns: repeat(9, 1fr); }
 .board-13x13 { grid-template-columns: repeat(13, 1fr); }
 .board-15x15 { grid-template-columns: repeat(15, 1fr); }
@@ -185,6 +268,13 @@ body.dark .table-dark {
 
 /* Responsive Design */
 @media (max-width: 768px) {
+    /* Mobile devices get smaller default sizes for modern board */
+    .board-intersection {
+        --intersection-size: calc(var(--base-intersection-size, 30px) * 0.8);
+        --stone-size: calc(var(--base-stone-size, 24px) * 0.8);
+    }
+    
+    /* Legacy board styles */
     .game-board {
         gap: 0;
         padding: 5px;
@@ -201,6 +291,13 @@ body.dark .table-dark {
 }
 
 @media (max-width: 576px) {
+    /* Very small screens get even smaller sizes for modern board */
+    .board-intersection {
+        --intersection-size: calc(var(--base-intersection-size, 30px) * 0.7);
+        --stone-size: calc(var(--base-stone-size, 24px) * 0.7);
+    }
+    
+    /* Legacy board styles */
     .board-cell {
         font-size: 0.6rem;
         min-height: 18px;

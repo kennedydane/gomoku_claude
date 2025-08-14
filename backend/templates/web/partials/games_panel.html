@@ -1,0 +1,265 @@
+<!-- Games Panel - Left Sidebar -->
+<div class="card games-panel" id="games-panel">
+    <div class="card-header">
+        <div class="d-flex justify-content-between align-items-center">
+            <h6 class="mb-0">
+                <i class="bi bi-grid-3x3-gap me-2"></i>Your Games
+            </h6>
+            <a href="{% url 'web:games' %}" class="btn btn-outline-primary btn-sm">
+                <i class="bi bi-eye"></i> View All
+            </a>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        
+        <!-- Active Games Section -->
+        {% if active_games %}
+            <div class="games-section active-games">
+                <div class="section-header px-3 py-2 bg-light-subtle border-bottom">
+                    <small class="text-muted fw-semibold">
+                        <i class="bi bi-play-circle me-1"></i>Active Games ({{ active_games|length }})
+                    </small>
+                </div>
+                <div class="games-list">
+                    {% for game in active_games %}
+                        <div class="game-item p-3 border-bottom hover-bg-light{% if selected_game and selected_game.id == game.id %} selected-game{% endif %}" 
+                             hx-get="{% url 'web:dashboard' %}?game={{ game.id }}"
+                             hx-target="#center-game-panel"
+                             hx-swap="outerHTML"
+                             hx-indicator="#panel-loading"
+                             style="cursor: pointer;">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="game-info flex-grow-1">
+                                    <div class="d-flex align-items-center mb-1">
+                                        <!-- Opponent name -->
+                                        {% if user == game.black_player %}
+                                            <strong class="opponent-name">{{ game.white_player.username }}</strong>
+                                            <small class="text-muted ms-2">(You: Black)</small>
+                                        {% else %}
+                                            <strong class="opponent-name">{{ game.black_player.username }}</strong>
+                                            <small class="text-muted ms-2">(You: White)</small>
+                                        {% endif %}
+                                    </div>
+                                    
+                                    <!-- Game details -->
+                                    <div class="game-details">
+                                        <small class="text-muted">
+                                            {{ game.ruleset.name }} • {{ game.ruleset.board_size }}×{{ game.ruleset.board_size }}
+                                        </small>
+                                    </div>
+                                </div>
+                                
+                                <!-- Turn indicator -->
+                                <div class="turn-indicator">
+                                    {% if game.current_player == 'BLACK' %}
+                                        {% if user == game.black_player %}
+                                            <span class="badge bg-success my-turn">
+                                                <i class="bi bi-play-circle-fill"></i>
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-secondary their-turn">
+                                                <i class="bi bi-hourglass-split"></i>
+                                            </span>
+                                        {% endif %}
+                                    {% else %}
+                                        {% if user == game.white_player %}
+                                            <span class="badge bg-success my-turn">
+                                                <i class="bi bi-play-circle-fill"></i>
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-secondary their-turn">
+                                                <i class="bi bi-hourglass-split"></i>
+                                            </span>
+                                        {% endif %}
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endif %}
+        
+        <!-- Recent Finished Games Section -->
+        {% if recent_finished_games %}
+            <div class="games-section recent-games">
+                <div class="section-header px-3 py-2 bg-light-subtle border-bottom">
+                    <small class="text-muted fw-semibold">
+                        <i class="bi bi-check-circle me-1"></i>Recent Games ({{ recent_finished_games|length }})
+                    </small>
+                </div>
+                <div class="games-list">
+                    {% for game in recent_finished_games %}
+                        <div class="game-item p-3 border-bottom hover-bg-light{% if selected_game and selected_game.id == game.id %} selected-game{% endif %}" 
+                             hx-get="{% url 'web:dashboard' %}?game={{ game.id }}"
+                             hx-target="#center-game-panel"
+                             hx-swap="outerHTML"
+                             hx-indicator="#panel-loading"
+                             style="cursor: pointer;">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="game-info flex-grow-1">
+                                    <div class="d-flex align-items-center mb-1">
+                                        <!-- Opponent name -->
+                                        {% if user == game.black_player %}
+                                            <strong class="opponent-name">{{ game.white_player.username }}</strong>
+                                            <small class="text-muted ms-2">(You: Black)</small>
+                                        {% else %}
+                                            <strong class="opponent-name">{{ game.black_player.username }}</strong>
+                                            <small class="text-muted ms-2">(You: White)</small>
+                                        {% endif %}
+                                    </div>
+                                    
+                                    <!-- Game details -->
+                                    <div class="game-details">
+                                        <small class="text-muted">
+                                            {{ game.ruleset.name }} • {{ game.finished_at|timesince }} ago
+                                        </small>
+                                    </div>
+                                </div>
+                                
+                                <!-- Result indicator -->
+                                <div class="result-indicator">
+                                    {% if game.winner %}
+                                        {% if game.winner == user %}
+                                            <span class="badge bg-success">
+                                                <i class="bi bi-trophy-fill"></i> Won
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-danger">
+                                                <i class="bi bi-x-circle-fill"></i> Lost
+                                            </span>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="badge bg-secondary">
+                                            <i class="bi bi-dash-circle"></i> Draw
+                                        </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endif %}
+        
+        <!-- Empty state -->
+        {% if not active_games and not recent_finished_games %}
+            <div class="empty-state text-center py-4">
+                <i class="bi bi-grid-3x3-gap display-6 text-muted mb-3"></i>
+                <h6 class="text-muted">No Games Yet</h6>
+                <p class="text-muted small mb-3">Challenge a friend to start playing!</p>
+                <a href="{% url 'web:friends' %}" class="btn btn-primary btn-sm">
+                    <i class="bi bi-people"></i> Find Friends
+                </a>
+            </div>
+        {% endif %}
+        
+    </div>
+</div>
+
+<!-- Loading indicator for panel updates -->
+<div id="panel-loading" class="htmx-indicator text-center p-2">
+    <div class="spinner-border spinner-border-sm text-primary" role="status">
+        <span class="visually-hidden">Loading game...</span>
+    </div>
+    <small class="text-muted d-block mt-1">Loading game...</small>
+</div>
+
+<style>
+/* Games Panel Styling */
+.games-panel {
+    height: fit-content;
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+.games-panel .games-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.games-panel .game-item {
+    transition: all 0.2s ease;
+    border-left: 3px solid transparent;
+}
+
+.games-panel .game-item:hover {
+    background-color: rgba(13, 110, 253, 0.05) !important;
+    border-left-color: #0d6efd;
+    transform: translateX(2px);
+}
+
+.games-panel .active-games .game-item {
+    border-left-color: #198754;
+}
+
+.games-panel .recent-games .game-item {
+    border-left-color: #6c757d;
+}
+
+/* Selected game styling */
+.games-panel .game-item.selected-game {
+    background-color: rgba(13, 110, 253, 0.1) !important;
+    border-left-color: #0d6efd !important;
+    border-left-width: 4px !important;
+    font-weight: 500;
+}
+
+.games-panel .game-item.selected-game .opponent-name {
+    color: #0d6efd;
+}
+
+.games-panel .my-turn {
+    animation: pulse-panel 2s infinite;
+}
+
+@keyframes pulse-panel {
+    0% { 
+        box-shadow: 0 0 0 0 rgba(25, 135, 84, 0.5);
+    }
+    70% {
+        box-shadow: 0 0 0 4px rgba(25, 135, 84, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(25, 135, 84, 0);
+    }
+}
+
+.games-panel .their-turn {
+    opacity: 0.6;
+}
+
+.games-panel .opponent-name {
+    font-size: 0.9rem;
+}
+
+.games-panel .section-header {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.hover-bg-light:hover {
+    background-color: rgba(0, 0, 0, 0.02);
+}
+
+/* Panel loading indicator */
+#panel-loading {
+    display: none;
+}
+
+.htmx-request #panel-loading {
+    display: block;
+}
+
+/* Responsive behavior */
+@media (max-width: 768px) {
+    .games-panel {
+        max-height: 50vh;
+    }
+    
+    .games-panel .games-list {
+        max-height: 200px;
+    }
+}
+</style>

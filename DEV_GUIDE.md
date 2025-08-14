@@ -18,6 +18,7 @@ This development guide documents the key lessons learned, best practices, and ar
 10. [Security Considerations](#security-considerations)
 11. [Debugging Tips](#debugging-tips)
 12. [Common Pitfalls](#common-pitfalls)
+13. [Web Interface Panel Development](#web-interface-panel-development)
 
 ---
 
@@ -1111,14 +1112,225 @@ uv run python manage.py createsuperuser
 
 ---
 
+## Web Interface Panel Development
+
+### Panel Architecture (Phase 11)
+
+The enhanced web interface implements a 3-column dashboard with dynamic panels that update in real-time via SSE. This section documents the architectural patterns and best practices established in Phase 11.
+
+### Dashboard Layout Structure
+
+**3-Column Responsive Layout:**
+```html
+<div class="container-fluid">
+  <div class="row">
+    <!-- Left Panel - Games (col-lg-3 col-md-4) -->
+    <div class="col-lg-3 col-md-4 d-none d-md-block">
+      {% include 'web/partials/games_panel.html' %}
+    </div>
+    
+    <!-- Main Content (col-lg-6 col-md-8 col-12) -->
+    <div class="col-lg-6 col-md-8 col-12">
+      <!-- Main dashboard content -->
+    </div>
+    
+    <!-- Right Panel - Friends (col-lg-3 d-none d-lg-block) -->
+    <div class="col-lg-3 d-none d-lg-block">
+      {% include 'web/partials/friends_panel.html' %}
+    </div>
+  </div>
+</div>
+```
+
+### Panel Development Patterns
+
+**1. Partial Templates:**
+- Create separate partial templates for each panel: `web/partials/games_panel.html`, `web/partials/friends_panel.html`
+- Use consistent naming conventions and structure
+- Include proper CSS styling within each partial
+
+**2. View Context Integration:**
+```python
+def get_context_data(self, **kwargs):
+    context = super().get_context_data(**kwargs)
+    
+    # Panel data
+    context.update({
+        'active_games': active_games,
+        'recent_finished_games': recent_finished_games[:5],
+        'friends': Friendship.objects.get_friends(user),
+    })
+    return context
+```
+
+**3. SSE Real-Time Updates:**
+```html
+<div hx-ext="sse" 
+     sse-connect="/api/v1/events/?channel=user-{{ user.id }}" 
+     sse-swap="dashboard_update">
+  {% include 'web/partials/games_panel.html' %}
+</div>
+```
+
+### CSS Styling Conventions
+
+**Panel Styling:**
+```css
+.games-panel, .friends-panel {
+    height: fit-content;
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+/* Responsive behavior */
+@media (max-width: 768px) {
+    .games-panel, .friends-panel {
+        max-height: 50vh;
+    }
+}
+```
+
+**Turn Indicator Animations:**
+```css
+.my-turn {
+    animation: pulse-panel 2s infinite;
+}
+
+@keyframes pulse-panel {
+    0% { box-shadow: 0 0 0 0 rgba(25, 135, 84, 0.5); }
+    70% { box-shadow: 0 0 0 4px rgba(25, 135, 84, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(25, 135, 84, 0); }
+}
+```
+
+### SSE Panel Update Implementation
+
+**Backend SSE Events:**
+```python
+# Send both game board update AND panel update
+send_event(channel, 'game_move', board_html_sse, json_encode=False)
+send_event(channel, 'dashboard_update', panel_html_sse, json_encode=False)
+```
+
+**Frontend HTMX SSE:**
+- Use `sse-swap` attributes to specify which events update which panels
+- Maintain separate event channels for different types of updates
+- Ensure proper HTML escaping prevention with `json_encode=False`
+
+### Testing Patterns
+
+**TDD for Panels:**
+1. **RED**: Write failing tests for panel structure, content, and behavior
+2. **GREEN**: Implement minimal template and view logic to pass tests
+3. **REFACTOR**: Optimize queries, improve styling, enhance UX
+
+**Test Categories:**
+```python
+# Navigation tests
+def test_challenges_menu_removed_from_navigation(self):
+
+# Layout tests  
+def test_dashboard_three_column_layout(self):
+
+# Panel content tests
+def test_games_panel_shows_active_games(self):
+
+# SSE integration tests
+def test_sse_updates_turn_indicators(self):
+```
+
+### Mobile Responsive Design
+
+**Collapsible Panels:**
+```html
+<!-- Mobile Panels (Collapsible) -->
+<div class="d-md-none mt-4">
+  <div class="row">
+    <div class="col-6">
+      <button class="btn btn-outline-primary w-100" 
+              data-bs-toggle="collapse" 
+              data-bs-target="#mobile-games-panel">
+        <i class="bi bi-grid-3x3-gap"></i> Games
+      </button>
+    </div>
+  </div>
+  
+  <div class="collapse mt-3" id="mobile-games-panel">
+    {% include 'web/partials/games_panel.html' %}
+  </div>
+</div>
+```
+
+### Performance Optimization
+
+**Database Query Optimization:**
+```python
+# Optimized queries with select_related
+active_games = Game.objects.select_related(
+    'black_player', 'white_player', 'ruleset'
+).filter(user_games_query, status=GameStatus.ACTIVE).order_by('-created_at')
+
+# Limited result sets
+recent_finished_games = games.filter(status=GameStatus.FINISHED).order_by('-finished_at')[:5]
+```
+
+**SSE Event Optimization:**
+- Only send panel updates when relevant data changes
+- Use efficient HTML template rendering
+- Minimize SSE event payload size
+
+### Best Practices
+
+**Panel Development:**
+1. **Consistent Styling**: Use Bootstrap 5 classes and custom CSS consistently across panels
+2. **Responsive Design**: Test panels on mobile devices and ensure collapsible behavior works
+3. **Performance**: Limit panel data (e.g., max 5 recent games) to prevent UI clutter and improve performance
+4. **Accessibility**: Include proper ARIA labels and keyboard navigation support
+
+**SSE Integration:**
+1. **Event Naming**: Use descriptive event names (`dashboard_update`, `friends_update`)
+2. **Error Handling**: Always wrap SSE functionality in try-catch blocks
+3. **Fallback Behavior**: Ensure panels work without SSE (progressive enhancement)
+
+**Testing Strategy:**
+1. **TDD First**: Write tests before implementing panel features
+2. **Integration Tests**: Test complete workflows from dashboard to game play
+3. **Responsive Tests**: Verify panel behavior across different screen sizes
+4. **SSE Tests**: Mock SSE events to test real-time functionality
+
+### Common Patterns
+
+**Turn Indicator Logic:**
+```html
+{% if game.current_player == 'BLACK' %}
+  {% if user == game.black_player %}
+    <span class="badge bg-success my-turn">Your Turn</span>
+  {% else %}
+    <span class="badge bg-secondary their-turn">Their Turn</span>
+  {% endif %}
+{% else %}
+  <!-- Similar logic for WHITE player -->
+{% endif %}
+```
+
+**Panel Navigation:**
+```javascript
+// Panel item click handler
+<div onclick="window.location.href='{% url 'web:game_detail' game_id=game.id %}'"
+     style="cursor: pointer;">
+```
+
+---
+
 ## Conclusion
 
-This development guide captures the key lessons learned during the development of a production-ready, real-time multiplayer Gomoku game. The most important insights are:
+This development guide captures the key lessons learned during the development of a production-ready, real-time multiplayer Gomoku game with enhanced web interface panels. The most important insights are:
 
 1. **Trust Framework Patterns**: Don't fight HTMX with complex JavaScript
 2. **Test-Driven Development**: Write tests first, implement minimal solutions
 3. **Progressive Enhancement**: Ensure basic functionality without JavaScript
 4. **Service Layer Architecture**: Keep business logic separate from views
 5. **Performance First**: Optimize database queries and minimize client-side complexity
+6. **Panel-Based UI**: Use consistent patterns for dynamic, real-time panel updates
 
-The combination of Django + HTMX + SSE provides a powerful, modern web development stack that prioritizes simplicity, performance, and maintainability.
+The combination of Django + HTMX + SSE with panel-based architecture provides a powerful, modern web development stack that prioritizes simplicity, performance, and maintainability while delivering rich, real-time user experiences.

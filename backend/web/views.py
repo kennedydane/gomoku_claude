@@ -1,6 +1,6 @@
 from typing import Optional, Union, Dict, Any
 from django.shortcuts import render, redirect
-from django.views.generic import TemplateView
+from django.views.generic import TemplateView, RedirectView
 from django.contrib.auth.views import LoginView, LogoutView
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth import login
@@ -109,6 +109,40 @@ class DashboardView(LoginRequiredMixin, UserGamesMixin, TemplateView):
             'black_player', 'white_player', 'ruleset'
         ).filter(user_games_query, status=GameStatus.ACTIVE).order_by('-created_at')
         
+        # Recent finished games for left panel (limit to 5)
+        recent_finished_games = Game.objects.select_related(
+            'black_player', 'white_player', 'winner', 'ruleset'
+        ).filter(
+            user_games_query, 
+            status=GameStatus.FINISHED
+        ).order_by('-finished_at')[:5]
+        
+        # Game selection logic for center panel
+        selected_game = None
+        game_id_param = self.request.GET.get('game')
+        
+        if game_id_param:
+            # Try to select specific game from URL parameter
+            try:
+                selected_game = Game.objects.select_related(
+                    'black_player', 'white_player', 'winner', 'ruleset'
+                ).filter(
+                    id=game_id_param
+                ).filter(
+                    Q(black_player=user) | Q(white_player=user)  # User must be a player
+                ).first()
+            except (Game.DoesNotExist, ValueError):
+                # Invalid game ID or user not authorized - fall back to default
+                pass
+        
+        # If no specific game selected, use most recent active game
+        if not selected_game and active_games.exists():
+            selected_game = active_games.first()
+        
+        # Friends for right panel
+        from web.models import Friendship
+        friends = Friendship.objects.get_friends(user)
+        
         # Pending challenges with optimized queries (received challenges)
         from django.utils import timezone
         pending_challenges = Challenge.objects.select_related(
@@ -123,9 +157,22 @@ class DashboardView(LoginRequiredMixin, UserGamesMixin, TemplateView):
             'games_played': games_played,
             'games_won': games_won,
             'active_games': active_games,
+            'recent_finished_games': recent_finished_games,
+            'selected_game': selected_game,  # New: Selected game for center panel
+            'friends': friends,
             'pending_challenges': pending_challenges,
         })
         return context
+    
+    def get(self, request, *args, **kwargs):
+        """Handle GET requests, return partial for HTMX or full page."""
+        # If HTMX request with game parameter, return just the game panel
+        if request.headers.get('HX-Request') and request.GET.get('game'):
+            context = self.get_context_data(**kwargs)
+            return render(request, 'web/partials/dashboard_game_panel.html', context)
+        
+        # Otherwise return full dashboard
+        return super().get(request, *args, **kwargs)
 
 
 class GamesView(LoginRequiredMixin, UserGamesMixin, TemplateView):
@@ -159,33 +206,18 @@ class GamesView(LoginRequiredMixin, UserGamesMixin, TemplateView):
         return context
 
 
-class GameDetailView(LoginRequiredMixin, TemplateView):
-    """Game detail view with interactive board."""
-    template_name = 'web/game_detail.html'
+class GameDetailRedirectView(LoginRequiredMixin, RedirectView):
+    """Redirect game detail requests to dashboard with game parameter."""
     login_url = 'web:login'
+    permanent = False  # Use temporary redirect (302)
     
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
+    def get_redirect_url(self, *args, **kwargs):
+        from django.urls import reverse
         game_id = kwargs.get('game_id')
-        
-        try:
-            # Optimize with select_related
-            game = Game.objects.select_related(
-                'black_player', 'white_player', 'winner', 'ruleset'
-            ).get(id=game_id)
-            
-            # Only allow players to view game
-            if self.request.user not in [game.black_player, game.white_player]:
-                context['error'] = 'Access denied'
-                return context
-                
-            context['game'] = game
-        except Game.DoesNotExist:
-            context['error'] = 'Game not found'
-        except ValueError:
-            context['error'] = 'Invalid game ID'
-            
-        return context
+        if game_id:
+            return f"{reverse('web:dashboard')}?game={game_id}"
+        else:
+            return reverse('web:dashboard')
 
 
 class GameMoveView(LoginRequiredMixin, View):
@@ -230,20 +262,15 @@ class GameMoveView(LoginRequiredMixin, View):
                 logger.info(f"🎮 MOVE: Processing move by {request.user.username} in game {game.id}")
                 
                 if HAS_EVENTSTREAM:
-                    # Determine which player should receive the notification
-                    if request.user == game.black_player:
-                        notify_user = game.white_player
-                        notify_user_id = game.white_player.id
-                        notify_username = game.white_player.username
-                    else:
-                        notify_user = game.black_player
-                        notify_user_id = game.black_player.id  
-                        notify_username = game.black_player.username
+                    # Both players need to receive the updated board state:
+                    # - The player who moved needs to see they can't move anymore
+                    # - The other player needs to see the move and that they can now move
+                    players_to_notify = [game.black_player, game.white_player]
                     
-                    logger.info(f"📡 SSE: Will notify user {notify_username} (ID: {notify_user_id}) about move")
+                    logger.info(f"📡 SSE: Will notify both players about move in game {game.id}")
                     
                     try:
-                        # Send HTML fragment for HTMX SSE
+                        # Send HTML fragment for HTMX SSE to both players
                         from django.middleware.csrf import get_token
                         csrf_token = get_token(request)
                         logger.debug(f"🔐 CSRF: Token generated for SSE: {csrf_token[:10]}..." if csrf_token else "🔐 CSRF: No token generated")
@@ -251,39 +278,113 @@ class GameMoveView(LoginRequiredMixin, View):
                         # Use Django template and prevent all escaping
                         from django.template.loader import render_to_string
                         import json
-                        board_html = render_to_string('web/partials/game_board.html', {
-                            'game': game,
-                            'user': notify_user,
-                            'csrf_token': csrf_token
-                        }, request=request).strip()
                         
-                        # The issue is that send_event() is JSON-encoding the data
-                        # which escapes quotes. Let's avoid that by not using JSON encoding.
-                        
-                        # Fix SSE protocol newline issues while preserving HTML structure
-                        # SSE protocol treats consecutive newlines as end-of-event markers
-                        # Replace only problematic consecutive newlines, preserve HTML integrity
-                        board_html_sse = board_html.replace('\n\n', ' ').replace('\r\n\r\n', ' ').strip()
-                        
-                        # Log HTML snippet for debugging
-                        logger.debug(f"📄 HTML: Generated board HTML ({len(board_html)} chars): {board_html[:100]}...")
-                        logger.debug(f"📄 SSE HTML: Stripped for SSE ({len(board_html_sse)} chars): {board_html_sse[:100]}...")
-                        logger.debug(f"🔍 HTML Check: Contains CSRF token: {'X-CSRFToken' in board_html_sse}")
-                        
-                        channel = f'user-{notify_user_id}'
-                        event_name = 'game_move'
-                        logger.info(f"📤 SSE: Sending event '{event_name}' to channel '{channel}'")
-                        
-                        # Send the newline-stripped HTML content for HTMX to process
-                        # Use json_encode=False to prevent quote escaping
-                        send_event(channel, event_name, board_html_sse, json_encode=False)
-                        logger.success(f"✅ SSE: Event sent successfully to {notify_username}")
+                        # Send to both players with their respective contexts
+                        for notify_user in players_to_notify:
+                            notify_user_id = notify_user.id
+                            notify_username = notify_user.username
+                            
+                            try:
+                                # Always use dashboard context since standalone game page is removed
+                                board_html = render_to_string('web/partials/game_board.html', {
+                                    'game': game,
+                                    'user': notify_user,  # Each player gets their own context
+                                    'csrf_token': csrf_token,
+                                    'wrapper_id': 'dashboard-game-board-content'  # Always use dashboard wrapper
+                                }, request=request).strip()
+                                
+                                # Fix SSE protocol newline issues while preserving HTML structure
+                                board_html_sse = board_html.replace('\n\n', ' ').replace('\r\n\r\n', ' ').strip()
+                                
+                                # Log details for this player
+                                clickable_count = board_html.count('hx-post')
+                                is_current_player = (notify_user == game.get_current_player_user())
+                                logger.debug(f"📄 {notify_username}: Board HTML ({len(board_html)} chars), {clickable_count} clickable, current_player={is_current_player}")
+                                
+                                channel = f'user-{notify_user_id}'
+                                event_name = 'game_move'
+                                
+                                # Send the newline-stripped HTML content for HTMX to process
+                                send_event(channel, event_name, board_html_sse, json_encode=False)
+                                logger.info(f"📤 SSE: Event '{event_name}' sent to {notify_username} (channel: {channel})")
+                                
+                                # Also send dashboard panel updates for this player
+                                try:
+                                    # Generate updated games panel for dashboard
+                                    from django.db.models import Q
+                                    user_games_query = Q(black_player=notify_user) | Q(white_player=notify_user)
+                                    
+                                    # Get updated active games and recent finished games
+                                    active_games = Game.objects.select_related(
+                                        'black_player', 'white_player', 'ruleset'
+                                    ).filter(user_games_query, status=GameStatus.ACTIVE).order_by('-created_at')
+                                    
+                                    recent_finished_games = Game.objects.select_related(
+                                        'black_player', 'white_player', 'winner', 'ruleset'
+                                    ).filter(
+                                        user_games_query, 
+                                        status=GameStatus.FINISHED
+                                    ).order_by('-finished_at')[:5]
+                                    
+                                    # Check if the current game should be selected in games panel
+                                    selected_game_for_panel = None
+                                    if active_games.exists():
+                                        selected_game_for_panel = active_games.first()
+                                        # If the current game is in active games, use it as selected
+                                        if game in active_games:
+                                            selected_game_for_panel = game
+                                    
+                                    # Render updated games panel
+                                    panel_html = render_to_string('web/partials/games_panel.html', {
+                                        'user': notify_user,
+                                        'active_games': active_games,
+                                        'recent_finished_games': recent_finished_games,
+                                        'selected_game': selected_game_for_panel
+                                    }, request=request).strip()
+                                    
+                                    # Send dashboard panel update
+                                    panel_html_sse = panel_html.replace('\n\n', ' ').replace('\r\n\r\n', ' ').strip()
+                                    send_event(channel, 'dashboard_update', panel_html_sse, json_encode=False)
+                                    logger.info(f"📊 SSE: Dashboard panel update sent to {notify_username}")
+                                    
+                                    # Send dashboard embedded game panel update (for embedded game in center panel)
+                                    try:
+                                        # Determine selected game for dashboard embedded panel
+                                        dashboard_selected_game = None
+                                        if active_games.exists():
+                                            dashboard_selected_game = active_games.first()
+                                            # If the current game is in active games, use it as selected
+                                            if game in active_games:
+                                                dashboard_selected_game = game
+                                        
+                                        dashboard_game_html = render_to_string('web/partials/dashboard_game_panel.html', {
+                                            'user': notify_user,
+                                            'selected_game': dashboard_selected_game,
+                                            'active_games': active_games,
+                                            'recent_finished_games': recent_finished_games,
+                                        }, request=request).strip()
+                                        
+                                        dashboard_game_sse = dashboard_game_html.replace('\\n\\n', ' ').replace('\\r\\n\\r\\n', ' ').strip()
+                                        send_event(channel, 'dashboard_game_update', dashboard_game_sse, json_encode=False)
+                                        logger.info(f"🎮 SSE: Dashboard embedded game panel update sent to {notify_username}")
+                                        
+                                    except Exception as dashboard_game_error:
+                                        logger.warning(f"⚠️  SSE: Dashboard embedded game panel update failed for {notify_username}: {dashboard_game_error}")
+                                    
+                                except Exception as panel_error:
+                                    logger.warning(f"⚠️  SSE: Dashboard panel update failed for {notify_username}: {panel_error}")
+                                
+                            except Exception as e:
+                                # Don't fail the request if SSE fails for this player
+                                logger.error(f"❌ SSE: Failed to send event to {notify_username}: {type(e).__name__}: {str(e)}")
+                                import traceback
+                                logger.debug(f"📋 SSE: Full traceback for {notify_username}: {traceback.format_exc()}")
                         
                     except Exception as e:
-                        # Don't fail the request if SSE fails
-                        logger.error(f"❌ SSE: Failed to send event to {notify_username}: {type(e).__name__}: {str(e)}")
+                        # Overall SSE failure
+                        logger.error(f"❌ SSE: Overall SSE processing failed: {type(e).__name__}: {str(e)}")
                         import traceback
-                        logger.debug(f"📋 SSE: Full traceback: {traceback.format_exc()}")
+                        logger.debug(f"📋 SSE: Overall traceback: {traceback.format_exc()}")
                 else:
                     logger.warning(f"⚠️  SSE: django-eventstream not available, skipping real-time update")
                 

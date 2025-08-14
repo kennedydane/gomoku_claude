@@ -1,0 +1,272 @@
+<!-- Dashboard Center Panel - Embedded Game Display -->
+<div class="card dashboard-game-panel" id="center-game-panel">
+    {% if selected_game %}
+        <!-- Game Header -->
+        <div class="card-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="game-title">
+                    <h6 class="mb-0">
+                        <i class="bi bi-grid-3x3-gap me-2"></i>{{ selected_game.ruleset.name }}
+                    </h6>
+                    <small class="text-muted">{{ selected_game.ruleset.board_size }}×{{ selected_game.ruleset.board_size }}</small>
+                </div>
+                
+                <div class="game-status">
+                    <span class="badge bg-{% if selected_game.status == 'ACTIVE' %}success{% elif selected_game.status == 'FINISHED' %}primary{% else %}secondary{% endif %}">
+                        {{ selected_game.get_status_display }}
+                    </span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Players Info -->
+        <div class="card-body p-2 border-bottom">
+            <div class="players-info d-flex justify-content-around align-items-center py-2">
+                <div class="player-info text-center">
+                    <div class="stone-black d-inline-block mb-1"></div>
+                    <div><strong>{{ selected_game.black_player.username }}</strong></div>
+                    <small class="text-muted">Black</small>
+                </div>
+                
+                <div class="vs mx-3">
+                    <h5 class="mb-0">vs</h5>
+                </div>
+                
+                <div class="player-info text-center">
+                    <div class="stone-white d-inline-block mb-1"></div>
+                    <div><strong>{{ selected_game.white_player.username }}</strong></div>
+                    <small class="text-muted">White</small>
+                </div>
+            </div>
+            
+            <!-- Current Turn or Game Result -->
+            <div class="game-status-info text-center">
+                {% if selected_game.status == 'ACTIVE' %}
+                    <div class="current-turn">
+                        {% if selected_game.current_player == 'BLACK' %}
+                            <span class="badge bg-dark me-1">
+                                <i class="bi bi-circle-fill"></i>
+                            </span>
+                            <strong>{{ selected_game.black_player.username }}'s turn</strong>
+                        {% else %}
+                            <span class="badge bg-light text-dark me-1">
+                                <i class="bi bi-circle"></i>
+                            </span>
+                            <strong>{{ selected_game.white_player.username }}'s turn</strong>
+                        {% endif %}
+                    </div>
+                {% elif selected_game.status == 'FINISHED' and selected_game.winner %}
+                    <div class="game-winner">
+                        {% if selected_game.winner == selected_game.black_player %}
+                            <span class="badge bg-dark me-1">
+                                <i class="bi bi-trophy-fill"></i>
+                            </span>
+                        {% else %}
+                            <span class="badge bg-light text-dark me-1">
+                                <i class="bi bi-trophy-fill"></i>
+                            </span>
+                        {% endif %}
+                        <strong>{{ selected_game.winner.username }} wins!</strong>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Game Board -->
+        <div class="card-body p-3">
+            <!-- Loading Indicator -->
+            <div id="board-loading" class="htmx-indicator text-center mb-3">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Making move...</span>
+                </div>
+                <div class="mt-2">Making move...</div>
+            </div>
+            
+            <!-- Error Messages -->
+            <div id="board-errors"></div>
+            
+            <!-- Embedded Game Board -->
+            <div id="dashboard-game-board-wrapper" 
+                 hx-ext="sse" 
+                 sse-connect="/api/v1/events/?channel=user-{{ user.id }}" 
+                 sse-swap="game_move"
+                 hx-target="#dashboard-game-board-content"
+                 hx-swap="innerHTML">
+                <div id="dashboard-game-board-content">
+                    {% include 'web/partials/game_board.html' with game=selected_game user=user wrapper_id='dashboard-game-board-content' %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Game Actions (minimal) -->
+        <div class="card-footer py-2">
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="game-actions">
+                    {% if selected_game.status == 'ACTIVE' %}
+                        <button class="btn btn-outline-danger btn-sm" onclick="resignGame('{{ selected_game.id }}')">
+                            <i class="bi bi-flag"></i> Resign
+                        </button>
+                    {% endif %}
+                </div>
+                
+                <div class="view-actions">
+                    <!-- Full view is no longer needed since dashboard is the primary interface -->
+                    <small class="text-muted">Dashboard View</small>
+                </div>
+            </div>
+        </div>
+        
+    {% else %}
+        <!-- Empty State - No Games -->
+        <div class="card-body text-center py-5">
+            <i class="bi bi-grid-3x3-gap display-1 text-muted mb-4"></i>
+            <h5 class="text-muted mb-3">No Active Games</h5>
+            <p class="text-muted mb-4">
+                Start a new game by challenging a friend, or wait for someone to challenge you!
+            </p>
+            <div class="d-flex justify-content-center gap-3">
+                <a href="{% url 'web:friends' %}" class="btn btn-primary">
+                    <i class="bi bi-people"></i> Find Friends to Challenge
+                </a>
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+<style>
+/* Dashboard Game Panel Styling */
+.dashboard-game-panel {
+    height: fit-content;
+    min-height: 400px;
+}
+
+.dashboard-game-panel .players-info {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-radius: 8px;
+    margin: 0 -0.5rem;
+}
+
+.dashboard-game-panel .stone-black, 
+.dashboard-game-panel .stone-white {
+    width: 20px;
+    height: 20px;
+    min-width: 20px;
+    min-height: 20px;
+}
+
+.dashboard-game-panel .stone-black {
+    background: radial-gradient(circle at 30% 30%, #444, #000);
+    border-radius: 50%;
+    border: 1px solid #333;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.dashboard-game-panel .stone-white {
+    background: radial-gradient(circle at 30% 30%, #fff, #ddd);
+    border-radius: 50%;
+    border: 1px solid #333;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.dashboard-game-panel .vs {
+    color: #6c757d;
+}
+
+.dashboard-game-panel .current-turn,
+.dashboard-game-panel .game-winner {
+    font-size: 0.95rem;
+    padding: 0.5rem;
+    background: rgba(13, 110, 253, 0.1);
+    border-radius: 6px;
+    margin-top: 0.5rem;
+}
+
+.dashboard-game-panel .game-board-container {
+    padding: 10px;
+}
+
+.dashboard-game-panel .game-board-grid {
+    /* Slightly smaller for dashboard embedding */
+    --base-intersection-size: 26px;
+    --base-stone-size: 20px;
+}
+
+/* Responsive adjustments for dashboard panel */
+@media (max-width: 992px) {
+    .dashboard-game-panel .game-board-grid {
+        --base-intersection-size: 22px;
+        --base-stone-size: 18px;
+    }
+}
+
+@media (max-width: 768px) {
+    .dashboard-game-panel {
+        min-height: 300px;
+    }
+    
+    .dashboard-game-panel .players-info {
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .dashboard-game-panel .vs {
+        display: none;
+    }
+    
+    .dashboard-game-panel .game-board-grid {
+        --base-intersection-size: 20px;
+        --base-stone-size: 16px;
+    }
+}
+
+/* Loading states */
+.dashboard-game-panel .htmx-indicator {
+    display: none;
+}
+
+.dashboard-game-panel .htmx-request .htmx-indicator {
+    display: block;
+}
+
+.dashboard-game-panel .htmx-request .game-board-container {
+    opacity: 0.6;
+    pointer-events: none;
+}
+</style>
+
+<script>
+// Dashboard-specific game functionality
+function resignGame(gameId) {
+    if (confirm('Are you sure you want to resign this game?')) {
+        // TODO: Implement resign functionality via HTMX
+        alert("Resign functionality coming soon");
+    }
+}
+
+// Dashboard SSE debug logging
+console.log('🎮 Dashboard Game Panel: Initialized for user {{ user.id }}');
+
+// Handle dashboard-specific SSE events
+document.addEventListener('DOMContentLoaded', function() {
+    const dashboardGameWrapper = document.getElementById('dashboard-game-board-wrapper');
+    
+    if (dashboardGameWrapper) {
+        // Listen for SSE swap events specifically for dashboard
+        dashboardGameWrapper.addEventListener('htmx:afterSwap', function(event) {
+            console.log('🎯 Dashboard SSE: Game board updated via SSE');
+            
+            // Verify embedded board rendered correctly
+            const stones = event.target.querySelectorAll('.stone-black, .stone-white');
+            const intersections = event.target.querySelectorAll('.board-intersection');
+            
+            console.log(`🎮 Dashboard SSE: Found ${intersections.length} intersections, ${stones.length} stones`);
+            
+            if (intersections.length === 0) {
+                console.error('❌ Dashboard SSE: Board failed to render properly');
+            } else {
+                console.log('✅ Dashboard SSE: Board rendered successfully');
+            }
+        });
+    }
+});
+</script>
