@@ -1,0 +1,29 @@
+{
+  "base_url": "http://localhost:8001",
+  "timeout": 30.0,
+  "current_profile": "default",
+  "auto_refresh_token": true,
+  "max_retries": 3,
+  "profiles": {
+    "default": {
+      "user": {
+        "id": 28,
+        "username": "dane",
+        "email": null,
+        "display_name": "",
+        "date_joined": "2025-08-13T20:15:56.460017Z"
+      },
+      "token": {
+        "token": "0cd5e69a7cdf5f225bff693609093c18a29de347",
+        "expires_at": "2025-08-21T11:21:59.466211+00:00",
+        "device_name": "Desktop App",
+        "device_info": {}
+      }
+    }
+  },
+  "default_device_info": {},
+  "log_level": "INFO",
+  "debug_mode": false,
+  "save_credentials": true,
+  "encrypt_credentials": false
+}

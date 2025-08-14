@@ -21,6 +21,9 @@ This frontend provides a clean, intuitive interface for playing Gomoku (Five-in-
 - **Automatic Token Refresh**: Seamless token renewal without user intervention
 - **Profile Management**: Save, load, and switch between multiple user profiles
 - **Credential Persistence**: Secure credential storage with optional encryption
+- **GUI Integration**: Complete authentication interface integrated into main application
+- **Protected Operations**: All game operations require authentication
+- **Session Restoration**: Automatic login restoration on application startup
 
 ## Architecture
 
@@ -68,11 +71,22 @@ This frontend provides a clean, intuitive interface for playing Gomoku (Five-in-
    uv run python manage.py runserver 8001
    ```
 
-4. **Launch the GUI**:
+4. **Run the main Gomoku GUI application**:
    ```bash
-   cd ../frontend
-   uv run python simple_gomoku.py
+   cd frontend
+   uv run python gomoku_gui.py
    ```
+   
+   Optional command line arguments:
+   ```bash
+   # Enable debug logging
+   uv run python gomoku_gui.py --debug
+   
+   # Use different backend URL
+   uv run python gomoku_gui.py --api-url http://localhost:9000
+   
+   # Combine options
+   uv run python gomoku_gui.py --debug --api-url http://localhost:8001
 
 ### Configuration Options
 
@@ -103,10 +117,19 @@ The frontend supports multiple configuration methods:
 
 ## Game Controls
 
-- **Login Button**: Authenticate with backend (username: admin, password: admin123)
-- **New Game Button**: Start a fresh game (requires login)
+### Main Application (gomoku_gui.py)
+- **Login Button**: Open authentication dialog to login with existing credentials
+- **Register Button**: Open registration dialog to create new user account
+- **Logout Button**: Clear authentication state and return to login screen
+- **New Game Button**: Start a fresh game (requires authentication)
 - **Mouse Click**: Place stones on board intersections (requires active game)
-- **Window Close**: Exit the application
+- **Check Backend**: Verify backend connectivity and server status
+
+### Authentication Dialogs
+- **Login Dialog**: Username/password authentication with "Remember Me" option
+- **Registration Dialog**: Complete user registration with email validation
+- **Password Toggle**: Show/hide password visibility in login/registration forms
+- **Form Validation**: Real-time validation with user-friendly error messages
 
 ## Authentication
 

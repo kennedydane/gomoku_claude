@@ -1,22 +1,79 @@
 #!/usr/bin/env python3
-"""Gomoku GUI with comprehensive logging for debugging."""
+"""Gomoku GUI with comprehensive logging and authentication."""
 
 import sys
 import asyncio
 import argparse
 from typing import Optional
+from pathlib import Path
 import httpx
 import dearpygui.dearpygui as dpg
 from loguru import logger
+
+# Add src to path for imports
+sys.path.insert(0, str(Path(__file__).parent / "src"))
+
+from frontend.ui.auth_dialogs import AuthenticationManager
+from frontend.client.api_client import APIClient
 
 # Game board state
 board_state = [[None for _ in range(15)] for _ in range(15)]
 current_player = "black"
 game_id: Optional[str] = None
-black_player_id = 1
-white_player_id = 2
 api_base_url = "http://localhost:8001"
 
+# Authentication and API
+auth_manager: Optional[AuthenticationManager] = None
+api_client: Optional[APIClient] = None
+
+
+def on_login_success():
+    """Handle successful login."""
+    logger.info("User logged in successfully")
+    update_ui_auth_state()
+
+def on_logout():
+    """Handle logout."""
+    logger.info("User logged out")
+    update_ui_auth_state()
+
+def update_ui_auth_state():
+    """Update UI based on authentication state."""
+    if not auth_manager:
+        return
+    
+    is_authenticated = auth_manager.is_authenticated()
+    auth_manager.update_status()
+    status = auth_manager.get_status_text()
+    
+    # Update authentication status display
+    dpg.set_value("auth_status_text", status)
+    
+    # Update button states
+    dpg.configure_item("login_button", enabled=not is_authenticated)
+    dpg.configure_item("register_button", enabled=not is_authenticated)  
+    dpg.configure_item("logout_button", enabled=is_authenticated)
+    
+    # Update game controls
+    dpg.configure_item("new_game_button", enabled=is_authenticated)
+    
+    logger.debug(f"UI auth state updated: authenticated={is_authenticated}")
+
+def show_login():
+    """Show login dialog."""
+    if auth_manager:
+        auth_manager.show_login_dialog(on_success=on_login_success)
+
+def show_register():
+    """Show registration dialog."""
+    if auth_manager:
+        auth_manager.show_register_dialog(on_success=on_login_success)
+
+def logout():
+    """Logout current user."""
+    if auth_manager:
+        auth_manager.logout()
+        on_logout()
 
 def setup_logging(debug: bool = False):
     """Configure loguru logging."""
@@ -68,6 +125,12 @@ def cell_clicked(sender, app_data, user_data):
     logger.info(f"Cell clicked at ({row}, {col})")
     logger.debug(f"Current game_id: {game_id}, current_player: {current_player}")
     
+    if not auth_manager or not auth_manager.is_authenticated():
+        msg = "Please login first to make moves"
+        logger.warning(msg)
+        dpg.set_value("status_text", msg)
+        return
+    
     if board_state[row][col] is not None:
         msg = f"Position ({row}, {col}) is occupied by {board_state[row][col]}!"
         logger.warning(msg)
@@ -80,145 +143,143 @@ def cell_clicked(sender, app_data, user_data):
         dpg.set_value("status_text", msg)
         return
     
-    # Make the move via API
-    player_id = black_player_id if current_player == "black" else white_player_id
+    current_user = auth_manager.get_current_user()
+    if not current_user:
+        msg = "No user information available"
+        logger.error(msg)
+        dpg.set_value("status_text", msg)
+        return
+    
+    # Make the move via authenticated API
+    player_id = current_user.id
     logger.debug(f"Making move for player_id {player_id} ({current_player})")
     
     async def make_move():
         global current_player
         logger.debug(f"Sending move request to API: game_id={game_id}, player_id={player_id}, position=({row},{col})")
         
-        async with httpx.AsyncClient() as client:
-            try:
-                url = f"{api_base_url}/api/v1/games/{game_id}/moves/"
-                payload = {"player_id": player_id, "row": row, "col": col}
-                
-                logger.debug(f"POST {url}")
-                logger.debug(f"Payload: {payload}")
-                
-                response = await client.post(url, json=payload)
-                
-                logger.debug(f"Response status: {response.status_code}")
-                logger.debug(f"Response body: {response.text}")
-                
-                if response.status_code == 201:
-                    move = response.json()
-                    board_state[row][col] = current_player
-                    logger.info(f"Move successful: {current_player} at ({row}, {col})")
-                    
-                    # Switch players
-                    old_player = current_player
-                    current_player = "white" if current_player == "black" else "black"
-                    logger.debug(f"Switched turn from {old_player} to {current_player}")
-                    
-                    if move.get("is_winning_move"):
-                        winner_color = move['player_color'].lower()
-                        msg = f"{winner_color.title()} wins!"
-                        logger.info(f"GAME OVER: {msg}")
-                        dpg.set_value("status_text", msg)
-                    else:
-                        msg = f"Move made at ({row}, {col}). {current_player.title()}'s turn."
-                        dpg.set_value("status_text", msg)
-                    
-                    draw_board()
-                else:
-                    error_detail = response.json().get("detail", "Unknown error")
-                    msg = f"Error: {error_detail}"
-                    logger.error(f"Move failed: {msg}")
-                    logger.error(f"Full response: {response.text}")
-                    dpg.set_value("status_text", msg)
-                    
-            except httpx.ConnectError as e:
-                msg = f"Cannot connect to backend at {api_base_url}"
-                logger.error(f"{msg}: {e}")
+        if not api_client:
+            msg = "API client not initialized"
+            logger.error(msg)
+            dpg.set_value("status_text", msg)
+            return
+        
+        try:
+            payload = {"player_id": player_id, "row": row, "col": col}
+            logger.debug(f"Move payload: {payload}")
+            
+            move = await api_client.post(f"/api/v1/games/{game_id}/moves/", json=payload)
+            
+            board_state[row][col] = current_player
+            logger.info(f"Move successful: {current_player} at ({row}, {col})")
+            
+            # Switch players
+            old_player = current_player
+            current_player = "white" if current_player == "black" else "black"
+            logger.debug(f"Switched turn from {old_player} to {current_player}")
+            
+            if move.get("is_winning_move"):
+                winner_color = move['player_color'].lower()
+                msg = f"{winner_color.title()} wins!"
+                logger.info(f"GAME OVER: {msg}")
                 dpg.set_value("status_text", msg)
-            except Exception as e:
-                msg = f"Error: {e}"
-                logger.error(f"Unexpected error making move: {e}", exc_info=True)
+            else:
+                msg = f"Move made at ({row}, {col}). {current_player.title()}'s turn."
                 dpg.set_value("status_text", msg)
+            
+            draw_board()
+            
+        except Exception as e:
+            msg = f"Error making move: {e}"
+            logger.error(f"Unexpected error making move: {e}", exc_info=True)
+            dpg.set_value("status_text", msg)
     
-    asyncio.run(make_move())
+    # Use the threading approach like in the auth dialogs
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(make_move())
+    except RuntimeError:
+        import threading
+        def run_move():
+            try:
+                asyncio.run(make_move())
+            except Exception as e:
+                logger.error(f"Error in make move thread: {e}")
+        threading.Thread(target=run_move, daemon=True).start()
 
 
 def create_new_game():
     """Create a new game."""
     global game_id, board_state, current_player
     
-    logger.info("Creating new game...")
+    if not auth_manager or not auth_manager.is_authenticated():
+        msg = "Please login first to create a game"
+        logger.warning(msg)
+        dpg.set_value("status_text", msg)
+        return
+    
+    current_user = auth_manager.get_current_user()
+    if not current_user:
+        msg = "No user information available"
+        logger.error(msg)
+        dpg.set_value("status_text", msg)
+        return
+    
+    logger.info(f"Creating new game for user: {current_user.username}")
     
     async def create():
         global game_id, board_state, current_player
         
-        async with httpx.AsyncClient() as client:
-            try:
-                # First, check if backend is accessible
-                logger.debug(f"Checking backend health at {api_base_url}")
-                try:
-                    health_response = await client.get(f"{api_base_url}/health")
-                    logger.debug(f"Health check: {health_response.status_code}")
-                except Exception as e:
-                    logger.error(f"Backend health check failed: {e}")
-                
-                # Create game
-                url = f"{api_base_url}/api/v1/games/"
-                payload = {
-                    "black_player_id": black_player_id,
-                    "white_player_id": white_player_id,
-                    "ruleset_id": 1
-                }
-                
-                logger.debug(f"POST {url}")
-                logger.debug(f"Payload: {payload}")
-                
-                response = await client.post(url, json=payload)
-                
-                logger.debug(f"Create game response status: {response.status_code}")
-                logger.debug(f"Create game response body: {response.text}")
-                
-                if response.status_code == 201:
-                    game_data = response.json()
-                    game_id = game_data["id"]
-                    logger.info(f"Game created successfully with ID: {game_id}")
-                    
-                    # Start the game
-                    start_url = f"{api_base_url}/api/v1/games/{game_id}/start"
-                    logger.debug(f"PUT {start_url}")
-                    
-                    response = await client.put(start_url)
-                    
-                    logger.debug(f"Start game response status: {response.status_code}")
-                    logger.debug(f"Start game response body: {response.text}")
-                    
-                    if response.status_code == 200:
-                        board_state = [[None for _ in range(15)] for _ in range(15)]
-                        current_player = "black"
-                        draw_board()
-                        msg = f"New game started! Game ID: {game_id[:8]}... Black's turn."
-                        logger.info(msg)
-                        dpg.set_value("status_text", msg)
-                    else:
-                        error_detail = response.json().get("detail", "Unknown error")
-                        msg = f"Failed to start game: {error_detail}"
-                        logger.error(msg)
-                        logger.error(f"Full response: {response.text}")
-                        dpg.set_value("status_text", msg)
-                else:
-                    error_detail = response.json().get("detail", response.text)
-                    msg = f"Failed to create game: {error_detail}"
-                    logger.error(msg)
-                    logger.error(f"Full response: {response.text}")
-                    dpg.set_value("status_text", msg)
-                    
-            except httpx.ConnectError as e:
-                msg = f"Cannot connect to backend at {api_base_url}"
-                logger.error(f"{msg}: {e}")
-                dpg.set_value("status_text", msg)
-            except Exception as e:
-                msg = f"Error creating game: {e}"
-                logger.error(f"Unexpected error: {e}", exc_info=True)
-                dpg.set_value("status_text", msg)
+        if not api_client:
+            msg = "API client not initialized"
+            logger.error(msg)
+            dpg.set_value("status_text", msg)
+            return
+        
+        try:
+            # Create game using authenticated API client
+            payload = {
+                "black_player_id": current_user.id,
+                "white_player_id": current_user.id,  # For now, single player against self
+                "ruleset_id": 1
+            }
+            
+            logger.debug(f"Creating game with payload: {payload}")
+            
+            game_data = await api_client.post("/api/v1/games/", json=payload)
+            game_id = game_data["id"]
+            logger.info(f"Game created successfully with ID: {game_id}")
+            
+            # Start the game
+            start_response = await api_client.put(f"/api/v1/games/{game_id}/start")
+            logger.debug(f"Game started: {start_response}")
+            
+            # Reset board state
+            board_state = [[None for _ in range(15)] for _ in range(15)]
+            current_player = "black"
+            draw_board()
+            
+            msg = f"New game started! Game ID: {game_id[:8]}... Black's turn."
+            logger.info(msg)
+            dpg.set_value("status_text", msg)
+            
+        except Exception as e:
+            msg = f"Error creating game: {e}"
+            logger.error(f"Unexpected error: {e}", exc_info=True)
+            dpg.set_value("status_text", msg)
     
-    asyncio.run(create())
+    # Use the threading approach like in the auth dialogs
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(create())
+    except RuntimeError:
+        import threading
+        def run_create():
+            try:
+                asyncio.run(create())
+            except Exception as e:
+                logger.error(f"Error in create game thread: {e}")
+        threading.Thread(target=run_create, daemon=True).start()
 
 
 def check_backend():
@@ -302,27 +363,60 @@ def main():
     parser.add_argument("--api-url", default="http://localhost:8001", help="Backend API URL")
     args = parser.parse_args()
     
-    global api_base_url
+    global api_base_url, auth_manager, api_client
     api_base_url = args.api_url
     
     # Setup logging
     setup_logging(args.debug)
-    logger.info("Starting Gomoku GUI")
+    logger.info("Starting Gomoku GUI with Authentication")
     logger.info(f"Backend API URL: {api_base_url}")
     
-    # Create GUI
+    # Create GUI first (required for authentication dialogs)
+    logger.debug("Creating DearPyGUI context...")
     dpg.create_context()
+    logger.debug("DearPyGUI context created successfully")
+    
+    # Initialize authentication system after DearPyGUI context is created
+    try:
+        logger.debug("Initializing AuthenticationManager...")
+        auth_manager = AuthenticationManager(
+            config_file=str(Path(__file__).parent / "gomoku_config.json"),
+            env_file=str(Path(__file__).parent / ".env")
+        )
+        logger.debug("AuthenticationManager created, initializing APIClient...")
+        api_client = APIClient(
+            base_url=api_base_url,
+            auth_manager=auth_manager.auth_manager
+        )
+        logger.info("Authentication system initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize authentication: {e}", exc_info=True)
+        auth_manager = None
+        api_client = None
     
     with dpg.window(label="Gomoku Game", tag="main_window"):
-        dpg.add_text("Gomoku Game with Logging")
+        dpg.add_text("Gomoku Game with Authentication", color=(100, 150, 255))
         dpg.add_separator()
         
+        # Authentication section
+        dpg.add_text("Authentication:")
+        dpg.add_text("Not logged in", tag="auth_status_text", color=(255, 100, 100))
+        
         with dpg.group(horizontal=True):
-            dpg.add_button(label="New Game", callback=create_new_game)
+            dpg.add_button(label="Login", tag="login_button", callback=show_login, width=80)
+            dpg.add_button(label="Register", tag="register_button", callback=show_register, width=80)
+            dpg.add_button(label="Logout", tag="logout_button", callback=logout, width=80, enabled=False)
+        
+        dpg.add_separator()
+        
+        # Game controls
+        dpg.add_text("Game Controls:")
+        with dpg.group(horizontal=True):
+            dpg.add_button(label="New Game", tag="new_game_button", callback=create_new_game, enabled=False)
             dpg.add_button(label="Check Backend", callback=check_backend)
         
         dpg.add_text("Click on the board to make moves", color=(150, 150, 150))
-        dpg.add_text("Status: Ready", tag="status_text")
+        dpg.add_text("Status: Please login to play", tag="status_text")
         dpg.add_separator()
         
         # Game board
@@ -336,22 +430,42 @@ def main():
     # Initial board draw
     draw_board()
     
+    # Update UI to reflect initial auth state
+    update_ui_auth_state()
+    
     # Check backend on startup
     check_backend()
     
-    dpg.create_viewport(title="Gomoku Game", width=500, height=600)
+    logger.debug("Creating viewport...")
+    dpg.create_viewport(title="Gomoku Game with Authentication", width=500, height=700)
+    logger.debug("Setting up DearPyGUI...")
     dpg.setup_dearpygui()
+    logger.debug("Showing viewport...")
     dpg.show_viewport()
+    logger.debug("Setting primary window...")
     dpg.set_primary_window("main_window", True)
     
     logger.info("GUI initialized, entering main loop")
     
     # Main loop
-    while dpg.is_dearpygui_running():
-        dpg.render_dearpygui_frame()
-    
-    logger.info("GUI shutting down")
-    dpg.destroy_context()
+    try:
+        while dpg.is_dearpygui_running():
+            dpg.render_dearpygui_frame()
+    finally:
+        # Cleanup authentication system
+        if auth_manager:
+            try:
+                asyncio.run(auth_manager.close())
+            except RuntimeError as e:
+                if "event loop" in str(e).lower():
+                    logger.debug("Skipping auth manager cleanup - event loop already closed")
+                else:
+                    logger.error(f"Error closing auth manager: {e}")
+            except Exception as e:
+                logger.error(f"Error closing auth manager: {e}")
+        
+        logger.info("GUI shutting down")
+        dpg.destroy_context()
 
 
 if __name__ == "__main__":

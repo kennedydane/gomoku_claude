@@ -304,6 +304,148 @@ class Meta:
 
 ---
 
+## Frontend GUI Authentication System
+
+### Overview
+
+The frontend includes a comprehensive GUI authentication system built with DearPyGUI, providing desktop application authentication capabilities with the same enhanced token system used by the backend API.
+
+### Architecture
+
+**Core Components:**
+- **AuthManager**: Backend integration for token management and API calls
+- **AuthenticationManager**: GUI coordinator managing authentication dialogs
+- **LoginDialog/RegisterDialog**: Modal dialogs with form validation
+- **APIClient**: Authenticated HTTP client with auto-refresh capabilities
+
+**Key Features:**
+- **GUI Authentication Dialogs**: Native desktop login/registration forms
+- **Form Validation**: Real-time validation with user-friendly error messages
+- **Token Management**: Automatic token refresh and session restoration
+- **Profile Persistence**: Save and switch between multiple user accounts
+- **Async Integration**: Proper threading for GUI compatibility with async operations
+
+### Implementation Pattern
+
+**Main Application Integration:**
+```python
+# Initialize authentication after DearPyGUI context
+dpg.create_context()
+
+auth_manager = AuthenticationManager(
+    config_file="gomoku_config.json",
+    env_file=".env"
+)
+
+api_client = APIClient(
+    base_url="http://localhost:8001",
+    auth_manager=auth_manager.auth_manager
+)
+
+# Protected operations check authentication
+def create_new_game():
+    if not auth_manager.is_authenticated():
+        show_login_required_message()
+        return
+    # ... proceed with game creation
+```
+
+**Threading Pattern for GUI Compatibility:**
+```python
+def _on_login_clicked(self):
+    async def login_task():
+        success = await self.perform_login()
+        if success:
+            self.hide()
+            if self._on_success_callback:
+                self._on_success_callback()
+    
+    # Handle event loop compatibility
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(login_task())
+    except RuntimeError:
+        # No event loop running, create new thread
+        def run_login():
+            try:
+                asyncio.run(login_task())
+            except Exception as e:
+                logger.error(f"Error in login thread: {e}")
+        threading.Thread(target=run_login, daemon=True).start()
+```
+
+### Configuration System
+
+**Multi-layer Configuration:**
+```python
+# Environment variables (highest priority)
+GOMOKU_BASE_URL=http://localhost:8001
+GOMOKU_AUTO_REFRESH_TOKEN=true
+GOMOKU_LOG_LEVEL=DEBUG
+
+# JSON configuration (medium priority)
+{
+  "base_url": "http://localhost:8001",
+  "timeout": 30.0,
+  "profiles": {
+    "default": {
+      "username": "user",
+      "last_login": "2025-08-14T10:30:00Z"
+    }
+  }
+}
+```
+
+### Error Handling Patterns
+
+**HTTP Client Error Handling:**
+```python
+async def _make_request(self, method, endpoint, **kwargs):
+    try:
+        # Try existing client
+        response = await self.client.request(method, endpoint, **kwargs)
+    except RuntimeError as e:
+        if "event loop" in str(e).lower():
+            # Create new client for this thread's event loop
+            async with httpx.AsyncClient(base_url=self.base_url) as new_client:
+                response = await new_client.request(method, endpoint, **kwargs)
+        else:
+            raise
+    
+    response.raise_for_status()
+    return response.json()
+```
+
+### Testing Strategy
+
+**Manual Testing Application:**
+- Complete test GUI (`test_auth_gui_manual.py`) for manual validation
+- Comprehensive test scenarios covering all authentication flows
+- Error simulation and edge case testing
+- User experience validation
+
+**Unit Tests:**
+- Authentication manager logic tests
+- Form validation tests
+- Configuration management tests
+- API client integration tests
+
+### Best Practices
+
+**GUI Development:**
+1. **Initialization Order**: Create DearPyGUI context before authentication dialogs
+2. **Thread Safety**: Use threading for async operations in GUI callbacks
+3. **Error Handling**: Graceful degradation with user-friendly error messages
+4. **Resource Cleanup**: Proper cleanup of HTTP clients and authentication resources
+
+**Authentication Flow:**
+1. **Session Restoration**: Automatically restore saved authentication on startup
+2. **Protected Operations**: Guard all API calls with authentication checks
+3. **Token Refresh**: Transparent token refresh without user intervention
+4. **Profile Management**: Support multiple user profiles with easy switching
+
+---
+
 ## Frontend Development
 
 ### CSS Grid for Game Board
@@ -654,6 +796,74 @@ LOGGING = {
 
 **Problem**: Static files not served properly with ASGI server
 **Solution**: Configure static file serving in ASGI application
+
+### 7. GUI Event Loop Conflicts (DearPyGUI + AsyncIO)
+
+**Problem**: "RuntimeError: no running event loop" or "Event loop is closed" errors when integrating async operations with DearPyGUI callbacks.
+
+**Root Cause**: DearPyGUI runs in its own event loop, but async operations try to use asyncio event loops. When GUI callbacks try to use `asyncio.create_task()` or `asyncio.run()`, they conflict with the GUI's event loop.
+
+**Solutions**:
+
+**Threading Pattern for GUI Callbacks:**
+```python
+def _on_button_clicked(self):
+    async def async_task():
+        result = await some_async_operation()
+        # Update GUI with result
+    
+    # Handle event loop compatibility
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(async_task())
+    except RuntimeError:
+        # No event loop running, create new thread
+        import threading
+        def run_task():
+            try:
+                asyncio.run(async_task())
+            except Exception as e:
+                logger.error(f"Error in async thread: {e}")
+        threading.Thread(target=run_task, daemon=True).start()
+```
+
+**HTTP Client Across Event Loops:**
+```python
+async def _make_request(self, method, endpoint, **kwargs):
+    try:
+        # Try existing client first
+        response = await self.client.request(method, endpoint, **kwargs)
+    except RuntimeError as e:
+        if "event loop" in str(e).lower():
+            # Create new client for this thread's event loop
+            async with httpx.AsyncClient(base_url=self.base_url) as new_client:
+                response = await new_client.request(method, endpoint, **kwargs)
+        else:
+            raise
+    return response.json()
+```
+
+**Clean Shutdown Pattern:**
+```python
+finally:
+    # Cleanup authentication system
+    if auth_manager:
+        try:
+            asyncio.run(auth_manager.close())
+        except RuntimeError as e:
+            if "event loop" in str(e).lower():
+                logger.debug("Skipping cleanup - event loop already closed")
+            else:
+                logger.error(f"Error during cleanup: {e}")
+        except Exception as e:
+            logger.error(f"Error closing auth manager: {e}")
+```
+
+**Key Insights**:
+- DearPyGUI initialization must happen before creating authentication dialogs
+- HTTP clients are bound to specific event loops and can't be shared across threads
+- Use daemon threads for background async operations to prevent hanging on exit
+- Always handle both "no event loop" and "event loop closed" scenarios
 
 ---
 
