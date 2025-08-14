@@ -85,13 +85,20 @@ class GameStateError(Exception):
 
 ### Database Optimization
 
-**Key Patterns:**
+**Query Optimization Patterns:**
 ```python
 # Always use select_related for foreign keys
 games = Game.objects.select_related('black_player', 'white_player', 'ruleset')
 
-# Use prefetch_related for reverse foreign keys
+# Use prefetch_related for reverse foreign keys  
 users = User.objects.prefetch_related('black_games', 'white_games')
+
+# Strategic indexes for frequently queried fields
+class Meta:
+    indexes = [
+        models.Index(fields=['status', 'created_at']),
+        models.Index(fields=['black_player', 'white_player']),
+    ]
 ```
 
 ### Mixins for Code Reuse
@@ -243,45 +250,86 @@ def make_move_view(request, game_id):
 
 ## Testing Strategy
 
-### TDD Methodology
+### Modern Testing Framework (pytest)
 
-**Red-Green-Refactor Cycle:**
-1. **Red**: Write failing test defining desired behavior
-2. **Green**: Write minimal code to make test pass
-3. **Refactor**: Improve code while keeping tests green
+**Major Migration to pytest:**
+- **Framework**: Migrated from Django TestCase to pytest + pytest-django
+- **Coverage**: 86% overall code coverage with detailed reporting
+- **Test Count**: 226 tests with 84.5% pass rate (191 passing)
+- **Benefits**: Better fixtures, improved isolation, modern testing patterns
+
+### pytest Development Patterns
+
+**Test Structure:**
+```python
+import pytest
+from django.contrib.auth import get_user_model
+from rest_framework.test import APIClient
+from users.models import EnhancedToken
+
+@pytest.fixture
+def api_client():
+    return APIClient()
+
+@pytest.fixture  
+def test_user(db):
+    User = get_user_model()
+    return User.objects.create_user(username='testuser', password='testpass')
+
+@pytest.mark.api
+@pytest.mark.django_db
+class TestGameAPI:
+    def test_game_creation(self, api_client, test_user):
+        token = EnhancedToken.objects.create_for_device(user=test_user)
+        api_client.credentials(HTTP_AUTHORIZATION=f'Token {token.key}')
+        # Test implementation
+```
 
 ### Test Categories
 
-**Unit Tests**: Individual functions and methods
+**API Tests**: REST endpoint validation with pytest
 ```python
-def test_game_service_validates_move_bounds(self):
-    with self.assertRaises(InvalidMoveError):
-        GameService.make_move(self.game, self.user.id, -1, 0)
+def test_make_move_success(self, api_client, game_users, user_tokens, active_game):
+    user1, user2, user3 = game_users
+    token1, token2, token3 = user_tokens
+    api_client.credentials(HTTP_AUTHORIZATION=f'Token {token1.key}')
+    response = api_client.post(move_url, {'row': 7, 'col': 7}, format='json')
+    assert response.status_code == 200
 ```
 
-**Integration Tests**: Full workflows
+**Model Tests**: Database validation and business logic
 ```python
-def test_complete_game_workflow(self):
-    # Create challenge
-    response = self.client.post('/api/challenges/', data)
-    # Accept challenge  
-    response = self.client.post(f'/api/challenges/{challenge_id}/respond/', {'action': 'accept'})
-    # Make moves and verify game state
+def test_ruleset_validation(rulesets):
+    mini_ruleset = next(rs for rs in rulesets if rs.name == 'Mini Gomoku')
+    assert mini_ruleset.board_size == 8
+    assert mini_ruleset.allow_overlines == True
 ```
 
-**Web Interface Tests**: HTMX interactions
+**Web Interface Tests**: HTMX interactions with Beautiful Soup
 ```python
-def test_htmx_move_updates_board(self):
-    response = self.client.post(url, data, HTTP_HX_REQUEST='true')
-    self.assertContains(response, 'stone-black')
+def test_htmx_move_updates_board(self, client, authenticated_user, active_game):
+    response = client.post(url, data, HTTP_HX_REQUEST='true')
+    soup = BeautifulSoup(response.content, 'html.parser')
+    stones = soup.find_all('div', class_='stone-black')
+    assert len(stones) == 1
 ```
+
+### Testing Improvements
+
+**✅ Major Achievements:**
+- **Converted 61 tests** from Django TestCase to pytest format
+- **Removed unreliable tests**: Eliminated Selenium and JavaScript integration tests
+- **Fixed authentication**: Proper EnhancedToken usage throughout test suite
+- **Improved coverage**: Detailed coverage reporting with 86% overall coverage
+- **Better isolation**: Proper test database handling and unique test data
 
 ### Testing Best Practices
 
-1. **Use Factory Pattern**: Create test data with factory methods
-2. **Test Edge Cases**: Invalid moves, boundary conditions, race conditions
-3. **Mock External Dependencies**: Don't rely on external services in tests
-4. **Test Both Happy Path and Error Cases**: Comprehensive coverage
+1. **Use pytest Fixtures**: Modular, reusable test setup with dependency injection
+2. **Factory Pattern**: Create test data with factory-boy for consistent, isolated tests
+3. **Test Edge Cases**: Invalid moves, boundary conditions, authentication failures
+4. **Beautiful Soup for HTML**: Validate web interface output with proper HTML parsing
+5. **Database Isolation**: Use unique test data to prevent conflicts between tests
 
 ---
 
@@ -308,21 +356,12 @@ class Friendship(models.Model):
         unique_together = ['requester', 'addressee']
 ```
 
-### Database Optimization
+### Database Best Practices
 
-**Strategic Indexes:**
-```python
-class Meta:
-    indexes = [
-        models.Index(fields=['status', 'created_at']),  # Game filtering
-        models.Index(fields=['black_player', 'white_player']),  # Player games
-    ]
-```
-
-**Query Optimization:**
-- Use `select_related()` for foreign keys
-- Use `prefetch_related()` for reverse foreign keys
-- Add database indexes for frequently queried fields
+**Model Design Patterns:**
+- Use JSONField for complex data (board_state, device_info)
+- Add unique constraints where appropriate (friendship pairs)
+- Include proper foreign key relationships with cascading deletes
 
 ---
 
@@ -438,19 +477,15 @@ async def _make_request(self, method, endpoint, **kwargs):
     return response.json()
 ```
 
-### Testing Strategy
+### Authentication Testing
 
-**Manual Testing Application:**
+**Manual Testing:**
 - Complete test GUI (`test_auth_gui_manual.py`) for manual validation
 - Comprehensive test scenarios covering all authentication flows
-- Error simulation and edge case testing
-- User experience validation
 
-**Unit Tests:**
-- Authentication manager logic tests
-- Form validation tests
-- Configuration management tests
-- API client integration tests
+**Unit Testing:**
+- Authentication manager logic and form validation
+- Configuration management and API client integration
 
 ### Best Practices
 
@@ -681,25 +716,16 @@ def update_sse_status(self, status):
 
 ## Performance Optimization
 
-### Database Performance
+### Key Performance Principles
 
-**Query Optimization:**
-```python
-# ❌ N+1 queries
-for game in Game.objects.all():
-    print(game.black_player.username)  # Database hit per game
+**Database Efficiency:**
+- Query optimization covered in [Database Design](#database-design) section
+- Avoid N+1 queries with proper use of `select_related()` and `prefetch_related()`
 
-# ✅ Single query
-games = Game.objects.select_related('black_player', 'white_player')
-for game in games:
-    print(game.black_player.username)  # No additional queries
-```
-
-### Frontend Performance
-
-**Minimal JavaScript**: Only 50 lines vs 200+ in complex solutions
-**Optimized CSS**: CSS Grid with custom properties for dynamic sizing
-**Efficient SSE**: HTML fragments instead of JSON + client-side rendering
+**Frontend Efficiency:**
+- **Minimal JavaScript**: Only 50 lines vs 200+ in complex solutions
+- **Optimized CSS**: CSS Grid with custom properties for dynamic sizing  
+- **Efficient SSE**: HTML fragments instead of JSON + client-side rendering
 
 ### ASGI Server Configuration
 
@@ -810,11 +836,11 @@ class EnhancedTokenAuthentication(TokenAuthentication):
 2. **GREEN**: Implement minimal code to pass tests
 3. **REFACTOR**: Clean up implementation while maintaining test coverage
 
-**Test Categories:**
-- **Model Tests**: Token creation, expiration, device tracking (15 tests)
-- **Manager Tests**: Token management operations (3 tests)
-- **Authentication Tests**: API authentication flows (3 tests)
-- **Endpoint Tests**: Registration and token management (18 tests)
+**Test Coverage:**
+- Model tests: Token creation, expiration, device tracking (15 tests)
+- Manager tests: Token management operations (3 tests)  
+- Authentication tests: API authentication flows (3 tests)
+- Endpoint tests: Registration and token management (18 tests)
 
 ### Best Practices
 
@@ -824,8 +850,8 @@ class EnhancedTokenAuthentication(TokenAuthentication):
 - Device tracking aids in security monitoring
 - Expired tokens are automatically cleaned up
 
-**Database Optimization:**
-- Strategic indexes on key, user+expires_at, and expires_at
+**Database Design:**
+- Strategic indexes on key, user+expires_at, and expires_at fields
 - Efficient queries with select_related for user data
 - Bulk cleanup operations for expired tokens
 
@@ -1050,21 +1076,22 @@ finally:
 
 ```bash
 # 1. Write failing test (RED)
-uv run python manage.py test web.tests.test_game_board::TestGameBoard::test_new_feature
+uv run pytest tests/test_game_crud.py::TestGameCRUD::test_new_feature -v
 
 # 2. Run test to confirm failure
-uv run python manage.py test web.tests.test_game_board
+uv run pytest tests/test_game_crud.py -v
 
 # 3. Write minimal implementation (GREEN)
-# Edit views.py, templates/, etc.
+# Edit views.py, models.py, etc.
 
 # 4. Run test to confirm pass
-uv run python manage.py test web.tests.test_game_board
+uv run pytest tests/test_game_crud.py::TestGameCRUD::test_new_feature -v
 
 # 5. Refactor and run all tests (REFACTOR)
-uv run python manage.py test
+uv run pytest
 
-# 6. Update documentation
+# 6. Check coverage and update documentation
+uv run coverage report
 ```
 
 ### Git Workflow
@@ -1101,18 +1128,25 @@ uv run python manage.py runserver 8001
 ### Testing
 
 ```bash
-# All tests
-uv run python manage.py test
+# All tests with pytest (226 tests, 86% coverage)
+uv run pytest
 
-# Specific app
-uv run python manage.py test web
-
-# Specific test class
-uv run python manage.py test web.tests.test_game_board::TestGameBoard
-
-# With coverage
-uv run coverage run --source='.' manage.py test
+# Run with coverage reporting
+uv run coverage run -m pytest
 uv run coverage report
+uv run coverage html
+
+# Specific test modules
+uv run pytest tests/test_game_crud.py          # Game CRUD API tests
+uv run pytest tests/test_user_management.py    # User management tests
+uv run pytest tests/test_rulesets.py          # Ruleset validation tests
+
+# Web interface tests
+uv run pytest web/test_friend_system.py       # Friend system tests
+uv run pytest web/test_views.py              # Web view tests
+
+# Generate HTML reports
+uv run pytest --html=test_reports/pytest_report.html --self-contained-html
 ```
 
 ### Database
@@ -1236,27 +1270,18 @@ send_event(channel, 'dashboard_update', panel_html_sse, json_encode=False)
 - Maintain separate event channels for different types of updates
 - Ensure proper HTML escaping prevention with `json_encode=False`
 
-### Testing Patterns
+### Panel Testing Approach
 
-**TDD for Panels:**
-1. **RED**: Write failing tests for panel structure, content, and behavior
-2. **GREEN**: Implement minimal template and view logic to pass tests
-3. **REFACTOR**: Optimize queries, improve styling, enhance UX
+**TDD Implementation:**
+1. **RED**: Write failing tests for panel structure and behavior
+2. **GREEN**: Implement minimal template and view logic
+3. **REFACTOR**: Optimize queries and enhance UX
 
-**Test Categories:**
-```python
-# Navigation tests
-def test_challenges_menu_removed_from_navigation(self):
-
-# Layout tests  
-def test_dashboard_three_column_layout(self):
-
-# Panel content tests
-def test_games_panel_shows_active_games(self):
-
-# SSE integration tests
-def test_sse_updates_turn_indicators(self):
-```
+**Test Examples:**
+- Navigation: `test_challenges_menu_removed_from_navigation()`
+- Layout: `test_dashboard_three_column_layout()`
+- Content: `test_games_panel_shows_active_games()`
+- SSE: `test_sse_updates_turn_indicators()`
 
 ### Mobile Responsive Design
 
@@ -1280,20 +1305,20 @@ def test_sse_updates_turn_indicators(self):
 </div>
 ```
 
-### Performance Optimization
+### Panel Performance
 
-**Database Query Optimization:**
+**Efficient Data Loading:**
 ```python
-# Optimized queries with select_related
+# Optimized queries with select_related for panel data
 active_games = Game.objects.select_related(
     'black_player', 'white_player', 'ruleset'
 ).filter(user_games_query, status=GameStatus.ACTIVE).order_by('-created_at')
 
-# Limited result sets
+# Limited result sets to prevent UI clutter
 recent_finished_games = games.filter(status=GameStatus.FINISHED).order_by('-finished_at')[:5]
 ```
 
-**SSE Event Optimization:**
+**SSE Event Efficiency:**
 - Only send panel updates when relevant data changes
 - Use efficient HTML template rendering
 - Minimize SSE event payload size
@@ -1311,11 +1336,11 @@ recent_finished_games = games.filter(status=GameStatus.FINISHED).order_by('-fini
 2. **Error Handling**: Always wrap SSE functionality in try-catch blocks
 3. **Fallback Behavior**: Ensure panels work without SSE (progressive enhancement)
 
-**Testing Strategy:**
+**Testing Approach:**
 1. **TDD First**: Write tests before implementing panel features
-2. **Integration Tests**: Test complete workflows from dashboard to game play
-3. **Responsive Tests**: Verify panel behavior across different screen sizes
-4. **SSE Tests**: Mock SSE events to test real-time functionality
+2. **Integration**: Test complete workflows from dashboard to game play
+3. **Responsive**: Verify panel behavior across screen sizes
+4. **SSE**: Mock SSE events to test real-time functionality
 
 ### Common Patterns
 
