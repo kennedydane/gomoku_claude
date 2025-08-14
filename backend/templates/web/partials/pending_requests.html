@@ -1,0 +1,36 @@
+<!-- Pending Requests Card Content -->
+<div class="card" id="pending-requests">
+    <div class="card-body">
+        <h5 class="card-title">Pending Requests ({{ pending_requests.count }})</h5>
+        {% if pending_requests %}
+            <div class="list-group list-group-flush">
+                {% for request in pending_requests %}
+                    <div class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span>{{ request.requester.username }}</span>
+                            <div>
+                                <button class="btn btn-sm btn-success me-2" 
+                                        hx-post="{% url 'web:respond_friend_request' friendship_id=request.id %}"
+                                        hx-vals='{"action": "accept"}'
+                                        hx-target="#pending-requests"
+                                        hx-swap="outerHTML">
+                                    Accept
+                                </button>
+                                <button class="btn btn-sm btn-danger" 
+                                        hx-post="{% url 'web:respond_friend_request' friendship_id=request.id %}"
+                                        hx-vals='{"action": "reject"}'
+                                        hx-target="#pending-requests"
+                                        hx-swap="outerHTML">
+                                    Reject
+                                </button>
+                            </div>
+                        </div>
+                        <small class="text-muted">Sent {{ request.created_at|timesince }} ago</small>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="text-muted">No pending requests.</p>
+        {% endif %}
+    </div>
+</div>

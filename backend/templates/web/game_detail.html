@@ -138,7 +138,11 @@
                     </div>
                     <div class="card-body">
                         {% if game.status == 'ACTIVE' %}
-                            <button class="btn btn-outline-danger btn-sm" onclick="resignGame()">
+                            <button class="btn btn-outline-danger btn-sm" 
+                                    hx-post="/api/v1/games/{{ game.id }}/resign/"
+                                    hx-confirm="Are you sure you want to resign this game?"
+                                    hx-target="#game-container"
+                                    hx-swap="outerHTML">
                                 Resign Game
                             </button>
                         {% endif %}
@@ -270,106 +274,6 @@
     }
 </style>
 
-<!-- Minimal JavaScript for non-HTMX functionality -->
-<script>
-    // Resign game functionality (TODO: Convert to HTMX in future)
-    function resignGame() {
-        if (confirm('Are you sure you want to resign this game?')) {
-            // TODO: Implement resign functionality
-            alert("Resign functionality coming soon");
-        }
-    }
-    
-    // SSE Debug Logging
-    console.log('🎮 Game Detail: Initializing SSE debug logging for user {{ user.id }}');
-    
-    // HTMX event listeners for enhanced UX
-    document.addEventListener('DOMContentLoaded', function() {
-        // SSE Connection Debug
-        console.log('📡 SSE: Setting up connection debugging');
-        
-        // Listen for SSE connection events
-        document.body.addEventListener('htmx:sseConnect', function(event) {
-            console.log('🔌 SSE: Connection established:', event.detail);
-            const statusEl = document.getElementById('connection-status');
-            if (statusEl) {
-                statusEl.innerHTML = '<i class="bi bi-wifi"></i> Connected (SSE)';
-                statusEl.className = 'badge bg-success';
-            }
-        });
-        
-        document.body.addEventListener('htmx:sseError', function(event) {
-            console.error('❌ SSE: Connection error:', event.detail);
-            const statusEl = document.getElementById('connection-status');
-            if (statusEl) {
-                statusEl.innerHTML = '<i class="bi bi-wifi-off"></i> SSE Error';
-                statusEl.className = 'badge bg-danger';
-            }
-        });
-        
-        document.body.addEventListener('htmx:sseClose', function(event) {
-            console.warn('⚠️  SSE: Connection closed:', event.detail);
-            const statusEl = document.getElementById('connection-status');
-            if (statusEl) {
-                statusEl.innerHTML = '<i class="bi bi-wifi-off"></i> Disconnected';
-                statusEl.className = 'badge bg-warning';
-            }
-        });
-        
-        // HTMX SSE debug logging (simplified)
-        console.log('🔌 SSE: HTMX SSE extension will handle connection to user-{{ user.id }}');
-        // Handle HTMX errors
-        document.body.addEventListener('htmx:responseError', function(event) {
-            console.error('HTMX Error:', event.detail);
-            const errorDiv = document.createElement('div');
-            errorDiv.className = 'alert alert-danger alert-dismissible fade show';
-            errorDiv.innerHTML = `
-                <i class="bi bi-exclamation-triangle me-2"></i>Connection error. Please try again.
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            `;
-            const container = document.querySelector('.container');
-            container.insertBefore(errorDiv, container.firstChild);
-        });
-        
-        // Enhanced logging for HTMX swap events
-        document.body.addEventListener('htmx:afterSwap', function(event) {
-            console.log('🔄 HTMX: Swap occurred on element:', event.target.id || event.target.tagName);
-            
-            // Check if this is our game board wrapper being swapped
-            if (event.target && event.target.id === 'game-board-wrapper') {
-                console.log('🎯 HTMX: Game board wrapper swapped');
-                console.log('📄 HTMX: Target innerHTML length:', event.target.innerHTML.length);
-                console.log('📝 HTMX: Target innerHTML preview:', event.target.innerHTML.substring(0, 200));
-                
-                // Verify the board has proper HTML elements
-                const stones = event.target.querySelectorAll('.stone-black, .stone-white');
-                const intersections = event.target.querySelectorAll('.board-intersection');
-                const gameBoards = event.target.querySelectorAll('.game-board-grid');
-                
-                console.log(`🎮 HTMX: Found ${gameBoards.length} game boards, ${intersections.length} intersections, ${stones.length} stones`);
-                
-                // Check if we're getting plain text instead of HTML elements
-                const textContent = event.target.textContent.trim();
-                if (textContent.length > 50 && intersections.length === 0) {
-                    console.error('❌ HTMX: Board rendered as plain text!');
-                    console.log('📝 HTMX: Text content:', textContent.substring(0, 200));
-                } else if (intersections.length > 0) {
-                    console.log('✅ HTMX: Board rendered as HTML elements correctly');
-                }
-            }
-            
-            // Auto-dismiss alerts after 5 seconds  
-            setTimeout(() => {
-                document.querySelectorAll('.alert').forEach(alert => {
-                    if (alert.parentNode) {
-                        const bsAlert = bootstrap.Alert.getOrCreateInstance(alert);
-                        bsAlert.close();
-                    }
-                });
-            }, 5000);
-        });
-    });
-</script>
 
 {% csrf_token %}
 {% endblock %}

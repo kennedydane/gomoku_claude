@@ -1,0 +1,100 @@
+<!-- Challenge Modal Content for HTMX -->
+<div class="modal-header">
+    <h5 class="modal-title">
+        <i class="bi bi-trophy me-2"></i>Challenge Friend
+    </h5>
+    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+</div>
+
+<form hx-post="{% url 'web:challenge_friend' %}" 
+      hx-target="#challenge-modal-container"
+      hx-swap="innerHTML">
+    {% csrf_token %}
+    
+    <div class="modal-body">
+        {% if quick %}
+            <!-- Quick Challenge Mode -->
+            <div class="alert alert-info">
+                <i class="bi bi-lightning-charge me-2"></i>
+                Quick Challenge: {{ quick|capfirst }}
+            </div>
+            
+            {% if username %}
+                <div class="mb-3">
+                    <label class="form-label">Challenging:</label>
+                    <div class="d-flex align-items-center">
+                        <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center me-2" 
+                             style="width: 24px; height: 24px; font-size: 0.7rem;">
+                            {{ username|first|upper }}
+                        </div>
+                        <strong>{{ username }}</strong>
+                    </div>
+                    <input type="hidden" name="username" value="{{ username }}">
+                </div>
+            {% else %}
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    You need friends to send quick challenges.
+                </div>
+            {% endif %}
+        {% else %}
+            <!-- Regular Challenge Mode -->
+            <div class="mb-3">
+                <label for="challenge-username" class="form-label">Friend to Challenge:</label>
+                {% if username %}
+                    <div class="d-flex align-items-center">
+                        <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center me-2" 
+                             style="width: 24px; height: 24px; font-size: 0.7rem;">
+                            {{ username|first|upper }}
+                        </div>
+                        <strong>{{ username }}</strong>
+                    </div>
+                    <input type="hidden" name="username" value="{{ username }}">
+                {% else %}
+                    <input type="text" 
+                           class="form-control" 
+                           id="challenge-username" 
+                           name="username" 
+                           placeholder="Enter friend's username"
+                           required>
+                {% endif %}
+            </div>
+        {% endif %}
+        
+        <div class="mb-3">
+            <label for="challenge-ruleset" class="form-label">Game Rules:</label>
+            <select class="form-select" id="challenge-ruleset" name="ruleset_id" required>
+                <option value="">Choose game rules...</option>
+                {% for ruleset in rulesets %}
+                    <option value="{{ ruleset.id }}" 
+                            {% if quick == "mini" and "Mini" in ruleset.name %}selected{% endif %}
+                            {% if quick == "standard" and "Standard" in ruleset.name %}selected{% endif %}>
+                        {{ ruleset.name }} ({{ ruleset.board_size }}×{{ ruleset.board_size }})
+                        {% if ruleset.description %} - {{ ruleset.description }}{% endif %}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        {% if quick %}
+            <!-- Auto-select ruleset for quick challenges -->
+            {% for ruleset in rulesets %}
+                {% if quick == "mini" and "Mini" in ruleset.name %}
+                    <input type="hidden" name="ruleset_id" value="{{ ruleset.id }}">
+                {% elif quick == "standard" and "Standard" in ruleset.name %}
+                    <input type="hidden" name="ruleset_id" value="{{ ruleset.id }}">
+                {% endif %}
+            {% endfor %}
+        {% endif %}
+    </div>
+    
+    <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+            <i class="bi bi-x-lg me-1"></i>Cancel
+        </button>
+        <button type="submit" class="btn btn-primary" 
+                {% if quick and not username %}disabled{% endif %}>
+            <i class="bi bi-send me-1"></i>Send Challenge
+        </button>
+    </div>
+</form>

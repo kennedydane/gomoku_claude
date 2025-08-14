@@ -103,7 +103,11 @@
             <div class="d-flex justify-content-between align-items-center">
                 <div class="game-actions">
                     {% if selected_game.status == 'ACTIVE' %}
-                        <button class="btn btn-outline-danger btn-sm" onclick="resignGame('{{ selected_game.id }}')">
+                        <button class="btn btn-outline-danger btn-sm" 
+                                hx-post="/api/v1/games/{{ selected_game.id }}/resign/"
+                                hx-confirm="Are you sure you want to resign this game?"
+                                hx-target="#dashboard-game-board-wrapper"
+                                hx-swap="outerHTML">
                             <i class="bi bi-flag"></i> Resign
                         </button>
                     {% endif %}
@@ -234,39 +238,3 @@
 }
 </style>
 
-<script>
-// Dashboard-specific game functionality
-function resignGame(gameId) {
-    if (confirm('Are you sure you want to resign this game?')) {
-        // TODO: Implement resign functionality via HTMX
-        alert("Resign functionality coming soon");
-    }
-}
-
-// Dashboard SSE debug logging
-console.log('🎮 Dashboard Game Panel: Initialized for user {{ user.id }}');
-
-// Handle dashboard-specific SSE events
-document.addEventListener('DOMContentLoaded', function() {
-    const dashboardGameWrapper = document.getElementById('dashboard-game-board-wrapper');
-    
-    if (dashboardGameWrapper) {
-        // Listen for SSE swap events specifically for dashboard
-        dashboardGameWrapper.addEventListener('htmx:afterSwap', function(event) {
-            console.log('🎯 Dashboard SSE: Game board updated via SSE');
-            
-            // Verify embedded board rendered correctly
-            const stones = event.target.querySelectorAll('.stone-black, .stone-white');
-            const intersections = event.target.querySelectorAll('.board-intersection');
-            
-            console.log(`🎮 Dashboard SSE: Found ${intersections.length} intersections, ${stones.length} stones`);
-            
-            if (intersections.length === 0) {
-                console.error('❌ Dashboard SSE: Board failed to render properly');
-            } else {
-                console.log('✅ Dashboard SSE: Board rendered successfully');
-            }
-        });
-    }
-});
-</script>

@@ -1,0 +1,19 @@
+<!-- Search Results for User Search -->
+{% if users %}
+    {% for user in users %}
+        <div class="list-group-item d-flex justify-content-between align-items-center">
+            <span>{{ user.username }}</span>
+            <button class="btn btn-sm btn-primary" 
+                    hx-post="{% url 'web:send_friend_request' %}"
+                    hx-vals='{"username": "{{ user.username }}"}'
+                    hx-target="#friend-request-result"
+                    hx-swap="innerHTML">
+                Add Friend
+            </button>
+        </div>
+    {% endfor %}
+{% elif request.GET.q %}
+    <div class="list-group-item text-muted text-center">
+        No users found matching "{{ request.GET.q }}"
+    </div>
+{% endif %}

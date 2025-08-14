@@ -163,6 +163,23 @@
     </div>
 </div>
 
+<!-- HTMX Challenge Modal -->
+<div class="modal fade" id="challenge-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div id="challenge-modal-container">
+                <!-- Content loaded via HTMX -->
+                <div class="modal-body text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <div class="mt-2">Loading challenge form...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Additional CSS for dashboard -->
 <style>
 .pulse {
@@ -206,7 +223,17 @@
         padding-right: 15px;
     }
 }
+
+/* Modal z-index fix */
+.modal {
+    z-index: 1060 !important;
+}
+
+.modal-backdrop {
+    z-index: 1055 !important;
+}
 </style>
+
 
 {% csrf_token %}
 {% endblock %}

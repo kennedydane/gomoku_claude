@@ -487,19 +487,27 @@ class SendFriendRequestView(FriendAPIViewMixin, LoginRequiredMixin, View):
     """Send a friend request to another user."""
     login_url = 'web:login'
     
+    def handle_error_response(self, request, message, status=400):
+        """Handle error response for both HTMX and JSON requests."""
+        if request.headers.get('HX-Request'):
+            return render(request, 'web/partials/friend_request_result.html', {
+                'error': message
+            }, status=status)
+        return self.json_error(message, status)
+
     def post(self, request):
         username = request.POST.get('username')
         if not username:
-            return self.json_error('Username is required', 400)
+            return self.handle_error_response(request, 'Username is required', 400)
         
         # Check if trying to befriend self
         if username == request.user.username:
-            return self.json_error('Cannot send friend request to yourself', 400)
+            return self.handle_error_response(request, 'Cannot send friend request to yourself', 400)
         
         # Check if user exists
         addressee = self.get_user_or_404(username)
         if not addressee:
-            return self.json_error('User not found', 404)
+            return self.handle_error_response(request, 'User not found', 404)
         
         # Check if friendship already exists
         existing = Friendship.objects.filter(
@@ -508,7 +516,7 @@ class SendFriendRequestView(FriendAPIViewMixin, LoginRequiredMixin, View):
         ).first()
         
         if existing:
-            return self.json_error('Friend request already exists', 400)
+            return self.handle_error_response(request, 'Friend request already exists', 400)
         
         # Create friendship
         try:
@@ -516,35 +524,53 @@ class SendFriendRequestView(FriendAPIViewMixin, LoginRequiredMixin, View):
                 requester=request.user,
                 addressee=addressee
             )
+            
+            # Handle HTMX requests
+            if request.headers.get('HX-Request'):
+                return render(request, 'web/partials/friend_request_result.html', {
+                    'success': True,
+                    'message': f'Friend request sent to {username}!',
+                    'username': username
+                })
+            
+            # Handle JSON API requests
             return self.json_response({
                 'message': 'Friend request sent',
                 'friendship_id': friendship.id
             }, 201)
         except ValidationError as e:
-            return self.json_error(str(e), 400)
+            return self.handle_error_response(request, str(e), 400)
 
 
 class RespondFriendRequestView(FriendAPIViewMixin, LoginRequiredMixin, View):
     """Respond to a friend request (accept/reject)."""
     login_url = 'web:login'
     
+    def handle_error_response(self, request, message, status=400):
+        """Handle error response for both HTMX and JSON requests."""
+        if request.headers.get('HX-Request'):
+            return render(request, 'web/partials/friend_request_error.html', {
+                'error': message
+            }, status=status)
+        return self.json_error(message, status)
+    
     def post(self, request, friendship_id):
         action = request.POST.get('action')
         if action not in ['accept', 'reject']:
-            return self.json_error('Invalid action', 400)
+            return self.handle_error_response(request, 'Invalid action', 400)
         
         try:
             friendship = Friendship.objects.get(id=friendship_id)
         except Friendship.DoesNotExist:
-            return self.json_error('Friend request not found', 404)
+            return self.handle_error_response(request, 'Friend request not found', 404)
         
         # Check if user is the addressee
         if friendship.addressee != request.user:
-            return self.json_error('Access denied', 403)
+            return self.handle_error_response(request, 'Access denied', 403)
         
         # Check if status is pending
         if friendship.status != FriendshipStatus.PENDING:
-            return self.json_error('Friend request is no longer pending', 400)
+            return self.handle_error_response(request, 'Friend request is no longer pending', 400)
         
         # Update status
         if action == 'accept':
@@ -554,6 +580,15 @@ class RespondFriendRequestView(FriendAPIViewMixin, LoginRequiredMixin, View):
         
         friendship.save()
         
+        # Handle HTMX requests - return updated pending requests section
+        if request.headers.get('HX-Request'):
+            # Get updated pending requests for current user
+            pending_requests = Friendship.objects.get_pending_requests(request.user)
+            return render(request, 'web/partials/pending_requests.html', {
+                'pending_requests': pending_requests
+            })
+        
+        # Handle JSON API requests
         return self.json_response({
             'message': f'Friend request {action}ed',
             'status': friendship.status
@@ -591,6 +626,8 @@ class SearchUsersView(FriendAPIViewMixin, LoginRequiredMixin, View):
     def get(self, request):
         query = request.GET.get('q', '').strip()
         if not query:
+            if request.headers.get('HX-Request'):
+                return render(request, 'web/partials/search_results.html', {'users': []})
             return self.json_response([])
         
         # Search users by username (excluding self)
@@ -598,6 +635,11 @@ class SearchUsersView(FriendAPIViewMixin, LoginRequiredMixin, View):
             username__icontains=query
         ).exclude(id=request.user.id)[:10]
         
+        # Return HTMX template for HTMX requests
+        if request.headers.get('HX-Request'):
+            return render(request, 'web/partials/search_results.html', {'users': users})
+        
+        # Return JSON for API requests
         users_data = [{'username': user.username} for user in users]
         return self.json_response(users_data)
 
@@ -628,21 +670,53 @@ class ChallengeFriendView(FriendAPIViewMixin, LoginRequiredMixin, View):
     """Send a game challenge to a friend."""
     login_url = 'web:login'
     
+    def get_friends(self, user):
+        """Get user's friends list."""
+        return Friendship.objects.get_friends(user)
+    
+    def handle_error_response(self, request, message, status=400):
+        """Handle error response for both HTMX and JSON requests."""
+        if request.headers.get('HX-Request'):
+            return render(request, 'web/partials/challenge_error.html', {
+                'error': message
+            }, status=status)
+        return self.json_error(message, status)
+    
+    def get(self, request):
+        """Return challenge modal content for HTMX."""
+        username = request.GET.get('username', '')
+        quick = request.GET.get('quick', '')
+        
+        # Get available rulesets
+        rulesets = RuleSet.objects.all().order_by('board_size', 'name')
+        
+        # For quick challenges, determine the target username
+        if quick and not username:
+            # Find first friend for quick challenge
+            friends = self.get_friends(request.user)
+            username = friends[0].username if friends else ''
+        
+        return render(request, 'web/partials/challenge_modal.html', {
+            'username': username,
+            'rulesets': rulesets,
+            'quick': quick
+        })
+    
     def post(self, request):
         username = request.POST.get('username')
         ruleset_id = request.POST.get('ruleset_id')
         
         if not username or not ruleset_id:
-            return self.json_error('Username and ruleset are required', 400)
+            return self.handle_error_response(request, 'Username and ruleset are required', 400)
         
         # Check if trying to challenge self
         if username == request.user.username:
-            return self.json_error('Cannot challenge yourself', 400)
+            return self.handle_error_response(request, 'Cannot challenge yourself', 400)
         
         # Check if user exists
         challenged_user = self.get_user_or_404(username)
         if not challenged_user:
-            return self.json_error('User not found', 404)
+            return self.handle_error_response(request, 'User not found', 404)
         
         # Check if they are friends
         is_friend = Friendship.objects.filter(
@@ -651,13 +725,13 @@ class ChallengeFriendView(FriendAPIViewMixin, LoginRequiredMixin, View):
         ).exists()
         
         if not is_friend:
-            return self.json_error('You can only challenge friends', 400)
+            return self.handle_error_response(request, 'You can only challenge friends', 400)
         
         # Check if ruleset exists
         try:
             ruleset = RuleSet.objects.get(id=ruleset_id)
         except RuleSet.DoesNotExist:
-            return self.json_error('Invalid ruleset', 400)
+            return self.handle_error_response(request, 'Invalid ruleset', 400)
         
         # Check for existing pending challenge
         existing = Challenge.objects.filter(
@@ -667,7 +741,7 @@ class ChallengeFriendView(FriendAPIViewMixin, LoginRequiredMixin, View):
         ).first()
         
         if existing:
-            return self.json_error('You already have a pending challenge with this user', 400)
+            return self.handle_error_response(request, 'You already have a pending challenge with this user', 400)
         
         # Create challenge
         try:
@@ -681,6 +755,16 @@ class ChallengeFriendView(FriendAPIViewMixin, LoginRequiredMixin, View):
                 expires_at=timezone.now() + timedelta(minutes=5)  # 5 minute expiry
             )
             
+            # Handle HTMX requests
+            if request.headers.get('HX-Request'):
+                return render(request, 'web/partials/challenge_success.html', {
+                    'success': True,
+                    'message': f'Challenge sent to {username}!',
+                    'challenged_user': username,
+                    'ruleset': ruleset
+                })
+            
+            # Handle regular requests (JSON API)
             return self.json_response({
                 'success': True,
                 'message': f'Challenge sent to {username}',
@@ -688,6 +772,12 @@ class ChallengeFriendView(FriendAPIViewMixin, LoginRequiredMixin, View):
             }, 200)
             
         except Exception as e:
+            # Handle HTMX error responses
+            if request.headers.get('HX-Request'):
+                return render(request, 'web/partials/challenge_error.html', {
+                    'error': f'Failed to create challenge: {str(e)}'
+                }, status=500)
+            
             return self.json_error(f'Failed to create challenge: {str(e)}', 500)
 
 

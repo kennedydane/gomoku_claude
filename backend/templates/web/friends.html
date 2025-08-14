@@ -12,12 +12,15 @@
             <div class="card mb-4">
                 <div class="card-body">
                     <h5 class="card-title">Send Request</h5>
-                    <form id="send-friend-request-form">
+                    <form hx-post="{% url 'web:send_friend_request' %}" 
+                          hx-target="#friend-request-result" 
+                          hx-swap="innerHTML">
                         {% csrf_token %}
                         <div class="input-group">
                             <input type="text" name="username" class="form-control" placeholder="Username" required>
                             <button type="submit" class="btn btn-primary">Send Request</button>
                         </div>
+                        <div id="friend-request-result" class="mt-2"></div>
                     </form>
                 </div>
             </div>
@@ -28,7 +31,14 @@
             <div class="card mb-4">
                 <div class="card-body">
                     <h5 class="card-title">Search Users</h5>
-                    <input type="text" id="search-users" class="form-control" placeholder="Search by username...">
+                    <input type="text" 
+                           class="form-control" 
+                           placeholder="Search by username..."
+                           hx-get="{% url 'web:search_users' %}"
+                           hx-trigger="keyup changed delay:300ms"
+                           hx-target="#search-results"
+                           hx-swap="innerHTML"
+                           name="q">
                     <div id="search-results" class="mt-2"></div>
                 </div>
             </div>
@@ -46,7 +56,12 @@
                             {% for friend in friends %}
                                 <div class="list-group-item d-flex justify-content-between align-items-center">
                                     <span>{{ friend.username }}</span>
-                                    <button class="btn btn-sm btn-outline-primary" onclick="challengeUser('{{ friend.username }}')">
+                                    <button class="btn btn-sm btn-outline-primary" 
+                                            hx-get="{% url 'web:challenge_friend' %}?username={{ friend.username }}"
+                                            hx-target="#challenge-modal-container"
+                                            hx-swap="innerHTML"
+                                            data-bs-toggle="modal" 
+                                            data-bs-target="#challenge-modal">
                                         Challenge
                                     </button>
                                 </div>
@@ -61,7 +76,7 @@
         
         <!-- Pending Requests -->
         <div class="col-md-6">
-            <div class="card">
+            <div class="card" id="pending-requests">
                 <div class="card-body">
                     <h5 class="card-title">Pending Requests ({{ pending_requests.count }})</h5>
                     {% if pending_requests %}
@@ -71,10 +86,18 @@
                                     <div class="d-flex justify-content-between align-items-center">
                                         <span>{{ request.requester.username }}</span>
                                         <div>
-                                            <button class="btn btn-sm btn-success me-2" onclick="respondToRequest({{ request.id }}, 'accept')">
+                                            <button class="btn btn-sm btn-success me-2" 
+                                                    hx-post="{% url 'web:respond_friend_request' friendship_id=request.id %}"
+                                                    hx-vals='{"action": "accept"}'
+                                                    hx-target="#pending-requests"
+                                                    hx-swap="outerHTML">
                                                 Accept
                                             </button>
-                                            <button class="btn btn-sm btn-danger" onclick="respondToRequest({{ request.id }}, 'reject')">
+                                            <button class="btn btn-sm btn-danger" 
+                                                    hx-post="{% url 'web:respond_friend_request' friendship_id=request.id %}"
+                                                    hx-vals='{"action": "reject"}'
+                                                    hx-target="#pending-requests"
+                                                    hx-swap="outerHTML">
                                                 Reject
                                             </button>
                                         </div>
@@ -92,213 +115,21 @@
     </div>
 </div>
 
-<!-- Challenge Modal -->
-<div class="modal fade" id="challenge-modal" tabindex="-1" aria-labelledby="challenge-modal-label" aria-hidden="true">
-    <div class="modal-dialog">
+<!-- HTMX Challenge Modal -->
+<div class="modal fade" id="challenge-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-sm">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="challenge-modal-label">
-                    Challenge <span id="challenge-username"></span>
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <form id="challenge-form">
-                    <input type="hidden" id="challenge-username-input">
-                    
-                    <div class="mb-3">
-                        <label for="ruleset-select" class="form-label">Game Type</label>
-                        <select class="form-select" id="ruleset-select" required>
-                            <option value="">Loading game types...</option>
-                        </select>
-                        <div class="form-text">Choose the board size and rules for your game.</div>
+            <div id="challenge-modal-container">
+                <!-- Content loaded via HTMX -->
+                <div class="modal-body text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
                     </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" onclick="sendChallenge()">
-                    <i class="bi bi-trophy"></i> Send Challenge
-                </button>
+                    <div class="mt-2">Loading challenge form...</div>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
-<script>
-// Send friend request
-document.getElementById('send-friend-request-form').onsubmit = function(e) {
-    e.preventDefault();
-    const formData = new FormData(this);
-    
-    fetch('{% url "web:send_friend_request" %}', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.error) {
-            alert('Error: ' + data.error);
-        } else {
-            alert('Friend request sent!');
-            this.reset();
-        }
-    })
-    .catch(error => console.error('Error:', error));
-};
-
-// Search users
-let searchTimeout;
-document.getElementById('search-users').oninput = function() {
-    clearTimeout(searchTimeout);
-    const query = this.value;
-    
-    if (!query) {
-        document.getElementById('search-results').innerHTML = '';
-        return;
-    }
-    
-    searchTimeout = setTimeout(() => {
-        fetch(`{% url "web:search_users" %}?q=${encodeURIComponent(query)}`)
-        .then(response => response.json())
-        .then(users => {
-            const results = document.getElementById('search-results');
-            results.innerHTML = '';
-            
-            users.forEach(user => {
-                const div = document.createElement('div');
-                div.className = 'list-group-item d-flex justify-content-between align-items-center';
-                div.innerHTML = `
-                    <span>${user.username}</span>
-                    <button class="btn btn-sm btn-primary" onclick="sendFriendRequest('${user.username}')">
-                        Add Friend
-                    </button>
-                `;
-                results.appendChild(div);
-            });
-        });
-    }, 300);
-};
-
-// Send friend request to specific user
-function sendFriendRequest(username) {
-    const formData = new FormData();
-    formData.append('username', username);
-    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
-    
-    fetch('{% url "web:send_friend_request" %}', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.error) {
-            alert('Error: ' + data.error);
-        } else {
-            alert('Friend request sent to ' + username + '!');
-            document.getElementById('search-users').value = '';
-            document.getElementById('search-results').innerHTML = '';
-        }
-    });
-}
-
-// Respond to friend request
-function respondToRequest(requestId, action) {
-    const formData = new FormData();
-    formData.append('action', action);
-    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
-    
-    fetch(`/api/respond-friend-request/${requestId}/`, {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.error) {
-            alert('Error: ' + data.error);
-        } else {
-            alert('Request ' + action + 'ed!');
-            location.reload();
-        }
-    });
-}
-
-// Challenge user - show modal with ruleset options
-function challengeUser(username) {
-    document.getElementById('challenge-username').textContent = username;
-    document.getElementById('challenge-username-input').value = username;
-    
-    // Load available rulesets
-    loadRulesets();
-    
-    // Show modal
-    const modal = new bootstrap.Modal(document.getElementById('challenge-modal'));
-    modal.show();
-}
-
-// Load available rulesets
-function loadRulesets() {
-    fetch('{% url "web:rulesets_list" %}', {
-        headers: {
-            'X-Requested-With': 'XMLHttpRequest'
-        }
-    })
-        .then(response => response.json())
-        .then(data => {
-            const select = document.getElementById('ruleset-select');
-            select.innerHTML = '<option value="">Select a game type...</option>';
-            
-            data.forEach(ruleset => {
-                const option = document.createElement('option');
-                option.value = ruleset.id;
-                option.textContent = `${ruleset.name} (${ruleset.board_size}x${ruleset.board_size})`;
-                select.appendChild(option);
-            });
-        })
-        .catch(error => {
-            console.error('Error loading rulesets:', error);
-            const select = document.getElementById('ruleset-select');
-            select.innerHTML = '<option value="">Error loading game types</option>';
-        });
-}
-
-// Send challenge
-function sendChallenge() {
-    const username = document.getElementById('challenge-username-input').value;
-    const rulesetId = document.getElementById('ruleset-select').value;
-    
-    if (!rulesetId) {
-        alert('Please select a game type');
-        return;
-    }
-    
-    const formData = new FormData();
-    formData.append('username', username);
-    formData.append('ruleset_id', rulesetId);
-    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
-    
-    fetch('{% url "web:challenge_friend" %}', {
-        method: 'POST',
-        body: formData,
-        headers: {
-            'X-Requested-With': 'XMLHttpRequest'
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.error) {
-            alert('Error: ' + data.error);
-        } else {
-            alert('Challenge sent to ' + username + '!');
-            // Close modal
-            const modal = bootstrap.Modal.getInstance(document.getElementById('challenge-modal'));
-            modal.hide();
-        }
-    })
-    .catch(error => {
-        console.error('Error sending challenge:', error);
-        alert('Error sending challenge');
-    });
-}
-</script>
 {% endblock %}

@@ -1,0 +1,38 @@
+<!-- Challenge Success Response -->
+<div class="modal-header">
+    <h5 class="modal-title text-success">
+        <i class="bi bi-check-circle me-2"></i>Challenge Sent!
+    </h5>
+    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+</div>
+
+<div class="modal-body text-center py-4">
+    <div class="mb-3">
+        <i class="bi bi-trophy display-4 text-success"></i>
+    </div>
+    
+    <h6 class="mb-3">{{ message }}</h6>
+    
+    <div class="alert alert-success">
+        <div class="d-flex align-items-center justify-content-center">
+            <div class="rounded-circle bg-success text-white d-flex align-items-center justify-content-center me-2" 
+                 style="width: 24px; height: 24px; font-size: 0.7rem;">
+                {{ challenged_user|first|upper }}
+            </div>
+            <span><strong>{{ challenged_user }}</strong> will receive your challenge</span>
+        </div>
+        <div class="text-muted small mt-2">
+            Game: {{ ruleset.name }} ({{ ruleset.board_size }}×{{ ruleset.board_size }})
+        </div>
+    </div>
+    
+    <p class="text-muted small">
+        <i class="bi bi-clock me-1"></i>Challenges expire in 5 minutes
+    </p>
+</div>
+
+<div class="modal-footer">
+    <button type="button" class="btn btn-success" data-bs-dismiss="modal">
+        <i class="bi bi-check-lg me-1"></i>Done
+    </button>
+</div>

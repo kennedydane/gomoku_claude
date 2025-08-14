@@ -36,6 +36,6 @@
 </div>
 {% else %}
 <div class="alert alert-warning">
-    Board state not initialized. <button onclick="location.reload()" class="btn btn-sm btn-primary">Reload Page</button>
+    Board state not initialized. <button hx-get="{{ request.path }}" hx-target="body" hx-swap="outerHTML" class="btn btn-sm btn-primary">Reload Page</button>
 </div>
 {% endif %}

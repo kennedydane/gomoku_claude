@@ -144,19 +144,6 @@
     <!-- Custom JavaScript -->
     <script src="{% static 'js/app.js' %}"></script>
     
-    <!-- Real-time Connection Status (no JavaScript SSE needed - HTMX handles it) -->
-    {% if user.is_authenticated %}
-        <script>
-            // Simple connection status indicator
-            document.addEventListener('DOMContentLoaded', function() {
-                const connectionStatus = document.getElementById('connection-status');
-                if (connectionStatus) {
-                    connectionStatus.innerHTML = '<i class="bi bi-wifi"></i> Connected';
-                    connectionStatus.className = 'badge bg-success';
-                }
-            });
-        </script>
-    {% endif %}
     
     {% block extra_js %}{% endblock %}
 </body>

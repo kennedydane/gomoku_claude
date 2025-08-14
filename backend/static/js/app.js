@@ -1,6 +1,7 @@
-// Custom JavaScript for Gomoku Game
+// Minimal HTMX-first JavaScript for Gomoku Game
+// Only includes essential functionality that cannot be handled by HTMX
 
-// Utility Functions
+// Toast notification system (for user feedback)
 function showToast(message, type = 'info', duration = 5000) {
     const toastContainer = document.querySelector('.toast-container') || createToastContainer();
     const toastId = 'toast-' + Date.now();
@@ -31,7 +32,8 @@ function showToast(message, type = 'info', duration = 5000) {
 
 function createToastContainer() {
     const container = document.createElement('div');
-    container.className = 'toast-container';
+    container.className = 'toast-container position-fixed top-0 end-0 p-3';
+    container.style.zIndex = '1100';
     document.body.appendChild(container);
     return container;
 }
@@ -58,134 +60,31 @@ function getToastIcon(type) {
     return icons[type] || 'info-circle';
 }
 
-// Game Board Functions
-function makeMove(gameId, row, col) {
-    const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
-    if (cell && !cell.classList.contains('occupied')) {
-        // Show loading state
-        cell.innerHTML = '<div class="loading-spinner"></div>';
-        
-        // Make the move via htmx
-        htmx.ajax('POST', `/web/games/${gameId}/move/`, {
-            values: { row: row, col: col },
-            target: '#game-container',
-            swap: 'innerHTML'
-        });
-    }
-}
-
-function updateGameBoard(boardData) {
-    const board = document.querySelector('.game-board');
-    if (!board) return;
-    
-    const cells = board.querySelectorAll('.board-cell');
-    cells.forEach((cell, index) => {
-        const row = Math.floor(index / boardData.size);
-        const col = index % boardData.size;
-        const cellValue = boardData.board[row][col];
-        
-        cell.className = 'board-cell';
-        cell.innerHTML = '';
-        
-        if (cellValue === 'BLACK') {
-            cell.classList.add('occupied', 'black-stone');
-            cell.innerHTML = '●';
-        } else if (cellValue === 'WHITE') {
-            cell.classList.add('occupied', 'white-stone');
-            cell.innerHTML = '●';
-        }
-    });
-}
-
-// Friend System Functions
-function sendFriendRequest(username) {
-    htmx.ajax('POST', '/web/friends/request/', {
-        values: { username: username },
-        target: '#friend-request-result',
-        swap: 'innerHTML'
-    });
-}
-
-function respondToFriendRequest(requestId, accept) {
-    htmx.ajax('POST', `/web/friends/respond/${requestId}/`, {
-        values: { accept: accept },
-        target: '#friend-requests',
-        swap: 'outerHTML'
-    });
-}
-
-// Challenge System Functions
-function createChallenge(userId) {
-    htmx.ajax('POST', '/web/challenges/create/', {
-        values: { challenged_user: userId },
-        target: '#challenge-result',
-        swap: 'innerHTML'
-    });
-}
-
-// Challenge response now handled by HTMX - no JavaScript function needed
-
-// Real-time Updates
-function handleGameUpdate(eventData) {
-    if (eventData.type === 'move') {
-        // Update the game board
-        const gameId = eventData.game_id;
-        if (window.location.pathname.includes(`/game/${gameId}`)) {
-            htmx.trigger('#game-container', 'refresh');
-        }
-        
-        // Show notification if it's not your move
-        if (eventData.player_id !== getCurrentUserId()) {
-            showToast(`${eventData.player_name} made a move`, 'info');
-        }
-    } else if (eventData.type === 'game_end') {
-        const winner = eventData.winner_name;
-        showToast(`Game ended! ${winner ? winner + ' wins!' : 'Draw!'}`, 'success');
-        
-        // Refresh the page after a short delay
-        setTimeout(() => {
-            window.location.reload();
-        }, 3000);
-    }
-}
-
-// Utility function to get current user ID (set by Django template)
-function getCurrentUserId() {
-    return document.body.dataset.userId || null;
-}
-
-// HTMX Event Handlers
+// HTMX Global Event Handlers (minimal essential functionality)
 document.addEventListener('DOMContentLoaded', function() {
-    // Add loading indicators to forms
-    document.addEventListener('htmx:beforeRequest', function(event) {
-        const element = event.target;
-        if (element.tagName === 'FORM') {
-            const submitBtn = element.querySelector('[type="submit"]');
-            if (submitBtn) {
-                submitBtn.disabled = true;
-                const originalText = submitBtn.innerHTML;
-                submitBtn.innerHTML = '<div class="loading-spinner"></div> Loading...';
-                
-                // Reset on completion
-                document.addEventListener('htmx:afterRequest', function resetBtn() {
-                    submitBtn.disabled = false;
-                    submitBtn.innerHTML = originalText;
-                    document.removeEventListener('htmx:afterRequest', resetBtn);
-                }, { once: true });
-            }
-        }
-    });
-    
-    // Handle HTMX errors
+    // Enhanced HTMX error handling with user-friendly messages
     document.addEventListener('htmx:responseError', function(event) {
         console.error('HTMX Error:', event.detail);
-        showToast('Something went wrong. Please try again.', 'error');
+        
+        // Show user-friendly error message
+        const status = event.detail.xhr.status;
+        let message = 'Something went wrong. Please try again.';
+        
+        if (status === 403) {
+            message = 'Access denied. Please check your permissions.';
+        } else if (status === 404) {
+            message = 'Resource not found.';
+        } else if (status >= 500) {
+            message = 'Server error. Please try again later.';
+        }
+        
+        showToast(message, 'error');
     });
     
-    // Handle successful HTMX responses
+    // Auto-initialize Bootstrap tooltips after HTMX swaps
     document.addEventListener('htmx:afterSwap', function(event) {
-        // Re-initialize any tooltips or popovers
-        const tooltips = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+        // Re-initialize any tooltips in the swapped content
+        const tooltips = event.target.querySelectorAll('[data-bs-toggle="tooltip"]');
         tooltips.forEach(tooltip => {
             new bootstrap.Tooltip(tooltip);
         });
@@ -196,112 +95,41 @@ document.addEventListener('DOMContentLoaded', function() {
             showToast(target.dataset.successMessage, 'success');
         }
     });
-});
-
-// Game Board Click Handler
-document.addEventListener('click', function(event) {
-    if (event.target.classList.contains('board-cell') && !event.target.classList.contains('occupied')) {
-        const row = parseInt(event.target.dataset.row);
-        const col = parseInt(event.target.dataset.col);
-        const gameId = document.querySelector('.game-board').dataset.gameId;
-        
-        if (gameId && !isNaN(row) && !isNaN(col)) {
-            makeMove(gameId, row, col);
-        }
-    }
-});
-
-// Keyboard Shortcuts
-document.addEventListener('keydown', function(event) {
-    // Press 'r' to refresh current game
-    if (event.key === 'r' && event.ctrlKey && window.location.pathname.includes('/game/')) {
-        event.preventDefault();
-        htmx.trigger('#game-container', 'refresh');
-    }
     
+    // Loading indicators for form submissions
+    document.addEventListener('htmx:beforeRequest', function(event) {
+        const element = event.target;
+        if (element.tagName === 'FORM' || element.tagName === 'BUTTON') {
+            const submitBtn = element.tagName === 'BUTTON' ? element : element.querySelector('[type="submit"]');
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                const originalText = submitBtn.innerHTML;
+                submitBtn.innerHTML = '<div class="spinner-border spinner-border-sm me-1" role="status"><span class="visually-hidden">Loading...</span></div> Loading...';
+                
+                // Reset on completion
+                document.addEventListener('htmx:afterRequest', function resetBtn(resetEvent) {
+                    if (resetEvent.target === element) {
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = originalText;
+                        document.removeEventListener('htmx:afterRequest', resetBtn);
+                    }
+                }, { once: false });
+            }
+        }
+    });
+});
+
+// Keyboard shortcuts (optional enhancement)
+document.addEventListener('keydown', function(event) {
     // Press 'Escape' to close modals
     if (event.key === 'Escape') {
         const modals = document.querySelectorAll('.modal.show');
         modals.forEach(modal => {
-            bootstrap.Modal.getInstance(modal)?.hide();
+            const modalInstance = bootstrap.Modal.getInstance(modal);
+            if (modalInstance) modalInstance.hide();
         });
     }
 });
 
-// Auto-refresh for dashboard and game list pages
-function startAutoRefresh() {
-    const refreshInterval = 30000; // 30 seconds
-    const refreshablePages = ['/web/dashboard/', '/web/games/', '/web/challenges/'];
-    
-    if (refreshablePages.some(page => window.location.pathname.includes(page))) {
-        setInterval(() => {
-            // Only refresh if page is visible
-            if (!document.hidden) {
-                const refreshTarget = document.querySelector('[data-auto-refresh]');
-                if (refreshTarget) {
-                    htmx.trigger(refreshTarget, 'refresh');
-                }
-            }
-        }, refreshInterval);
-    }
-}
-
-// Initialize auto-refresh on page load
-document.addEventListener('DOMContentLoaded', startAutoRefresh);
-
-// Handle visibility changes (pause refresh when tab is hidden)
-document.addEventListener('visibilitychange', function() {
-    if (document.hidden) {
-        console.log('Page hidden - pausing auto-refresh');
-    } else {
-        console.log('Page visible - resuming auto-refresh');
-    }
-});
-
-// Sound effects (optional)
-const GameSounds = {
-    move: () => {
-        // Simple click sound using Web Audio API
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
-        
-        oscillator.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-        
-        oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
-        gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
-        
-        oscillator.start(audioContext.currentTime);
-        oscillator.stop(audioContext.currentTime + 0.1);
-    },
-    
-    win: () => {
-        // Victory sound
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const frequencies = [523, 659, 784]; // C, E, G
-        
-        frequencies.forEach((freq, index) => {
-            const oscillator = audioContext.createOscillator();
-            const gainNode = audioContext.createGain();
-            
-            oscillator.connect(gainNode);
-            gainNode.connect(audioContext.destination);
-            
-            oscillator.frequency.setValueAtTime(freq, audioContext.currentTime);
-            gainNode.gain.setValueAtTime(0.1, audioContext.currentTime + index * 0.1);
-            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + index * 0.1 + 0.3);
-            
-            oscillator.start(audioContext.currentTime + index * 0.1);
-            oscillator.stop(audioContext.currentTime + index * 0.1 + 0.3);
-        });
-    }
-};
-
-// Export functions for global access
-window.GameSounds = GameSounds;
+// Export only necessary functions for global access
 window.showToast = showToast;
-window.makeMove = makeMove;
-window.createChallenge = createChallenge;
-window.sendFriendRequest = sendFriendRequest;
