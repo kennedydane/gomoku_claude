@@ -3,6 +3,12 @@
 {% block title %}Dashboard - Gomoku{% endblock %}
 
 {% block content %}
+<!-- WebSocket Connection Container (Single connection for entire dashboard) -->
+<div id="websocket-container" 
+     hx-ext="ws" 
+     ws-connect="/ws/user/{{ user.id }}/"
+     style="display: none;"></div>
+
 <div class="container-fluid">
     <!-- Welcome Header -->
     <div class="row mb-4">
@@ -25,81 +31,18 @@
         <!-- Left Panel - Games -->
         <div class="col-lg-2 col-md-3 d-none d-md-block">
             <div class="sticky-top" style="top: 20px;" 
-                 hx-ext="sse" 
-                 sse-connect="/api/v1/events/?channel=user-{{ user.id }}" 
-                 sse-swap="dashboard_update">
+                 id="dashboard-games-panel">
                 {% include 'web/partials/games_panel.html' %}
             </div>
         </div>
         
         <!-- Main Content - Embedded Game Panel -->
         <div class="col-lg-8 col-md-9 col-12"
-             hx-ext="sse" 
-             sse-connect="/api/v1/events/?channel=user-{{ user.id }}" 
-             sse-swap="dashboard_game_update"
-             hx-target="#center-game-panel"
-             hx-swap="outerHTML">
+             id="dashboard-center-panel">
             <!-- Embedded Game Display -->
             {% include 'web/partials/dashboard_game_panel.html' %}
             
-            <!-- Pending Challenges (moved below game) -->
-            {% if pending_challenges %}
-                <div class="card mt-4">
-                    <div class="card-header">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <h6 class="mb-0">
-                                <i class="bi bi-exclamation-triangle me-2"></i>Pending Challenges
-                            </h6>
-                            <span class="badge bg-warning">{{ pending_challenges|length }}</span>
-                        </div>
-                    </div>
-                    <div class="card-body p-2">
-                        {% for challenge in pending_challenges %}
-                            <div id="challenge-{{ challenge.id }}" class="challenge-item p-2 mb-2 border rounded bg-warning-subtle">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <div class="challenge-info">
-                                        <div class="d-flex align-items-center">
-                                            <div class="challenger-avatar me-2">
-                                                <div class="rounded-circle bg-warning text-dark d-flex align-items-center justify-content-center" 
-                                                     style="width: 30px; height: 30px; font-size: 0.8rem;">
-                                                    {{ challenge.challenger.username|first|upper }}
-                                                </div>
-                                            </div>
-                                            <div>
-                                                <strong>{{ challenge.challenger.username }}</strong> challenges you!
-                                                <div class="text-muted small">
-                                                    {{ challenge.ruleset.name }} • {{ challenge.ruleset.board_size }}×{{ challenge.ruleset.board_size }}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="challenge-actions d-flex gap-1">
-                                        <button class="btn btn-success btn-sm" 
-                                                hx-post="{% url 'web:respond_challenge' challenge_id=challenge.id %}"
-                                                hx-vals='{"action": "accept"}'
-                                                hx-confirm="Accept challenge from {{ challenge.challenger.username }}?"
-                                                hx-target="#challenge-{{ challenge.id }}"
-                                                hx-swap="outerHTML"
-                                                hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
-                                            <i class="bi bi-check-lg"></i>
-                                        </button>
-                                        <button class="btn btn-outline-danger btn-sm"
-                                                hx-post="{% url 'web:respond_challenge' challenge_id=challenge.id }}"
-                                                hx-vals='{"action": "reject"}'
-                                                hx-confirm="Reject challenge from {{ challenge.challenger.username }}?"
-                                                hx-target="#challenge-{{ challenge.id }}"
-                                                hx-swap="outerHTML"
-                                                hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
-                                            <i class="bi bi-x-lg"></i>
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        {% endfor %}
-                    </div>
-                </div>
-            {% endif %}
+            <!-- Pending challenges are now displayed in the friends panel -->
             
             <!-- Quick Stats (compact) -->
             <div class="card mt-4">
@@ -130,9 +73,7 @@
         <!-- Right Panel - Friends -->
         <div class="col-lg-2 d-none d-lg-block">
             <div class="sticky-top" style="top: 20px;" 
-                 hx-ext="sse" 
-                 sse-connect="/api/v1/events/?channel=user-{{ user.id }}" 
-                 sse-swap="friends_update">
+                 id="dashboard-friends-panel">
                 {% include 'web/partials/friends_panel.html' %}
             </div>
         </div>
@@ -234,6 +175,88 @@
 }
 </style>
 
+<script>
+// WebSocket Message Routing for Dashboard
+document.addEventListener('DOMContentLoaded', function() {
+    // Listen for WebSocket messages and route them to appropriate panels
+    document.addEventListener('htmx:wsAfterMessage', function(event) {
+        const message = event.detail.message;
+        let data;
+        
+        try {
+            data = JSON.parse(message);
+        } catch (e) {
+            console.error('Failed to parse WebSocket message:', e);
+            return;
+        }
+        
+        console.log('WebSocket message received:', data.type);
+        
+        // Route messages based on type
+        switch(data.type) {
+            case 'dashboard_update':
+                // Update games panel
+                const gamesPanel = document.getElementById('dashboard-games-panel');
+                if (gamesPanel && data.content) {
+                    gamesPanel.innerHTML = data.content;
+                    htmx.process(gamesPanel);
+                }
+                break;
+                
+            case 'dashboard_game_update':
+                // Update center game panel
+                const centerPanel = document.getElementById('dashboard-center-panel');
+                if (centerPanel && data.content) {
+                    centerPanel.innerHTML = data.content;
+                    htmx.process(centerPanel);
+                }
+                break;
+                
+            case 'friends_update':
+                // Update friends panel
+                const friendsPanel = document.getElementById('dashboard-friends-panel');
+                if (friendsPanel && data.content) {
+                    friendsPanel.innerHTML = data.content;
+                    htmx.process(friendsPanel);
+                }
+                break;
+                
+            case 'game_move':
+                // Update embedded game board
+                const gameBoard = document.getElementById('dashboard-game-board-content');
+                if (gameBoard && data.content) {
+                    gameBoard.innerHTML = data.content;
+                    htmx.process(gameBoard);
+                }
+                break;
+                
+            case 'connection_status':
+                console.log('WebSocket connection status:', data.status);
+                break;
+                
+            default:
+                console.log('Unknown WebSocket message type:', data.type);
+        }
+    });
+    
+    // Handle WebSocket connection events
+    document.addEventListener('htmx:wsOpen', function(event) {
+        console.log('WebSocket connected to dashboard');
+        document.body.classList.add('ws-connected');
+        document.body.classList.remove('ws-disconnected');
+    });
+    
+    document.addEventListener('htmx:wsClose', function(event) {
+        console.log('WebSocket disconnected from dashboard');
+        document.body.classList.add('ws-disconnected');
+        document.body.classList.remove('ws-connected');
+    });
+    
+    document.addEventListener('htmx:wsError', function(event) {
+        console.error('WebSocket error:', event.detail);
+    });
+});
+</script>
 
 {% csrf_token %}
 {% endblock %}

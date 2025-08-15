@@ -91,10 +91,13 @@
                         <!-- Error Messages -->
                         <div id="board-errors"></div>
                         
-                        <div id="game-board-wrapper" 
-                             hx-ext="sse" 
-                             sse-connect="/api/v1/events/?channel=user-{{ user.id }}" 
-                             sse-swap="game_move">
+                        <!-- WebSocket Connection for Game -->
+                        <div id="game-websocket-container" 
+                             hx-ext="ws" 
+                             ws-connect="/ws/user/{{ user.id }}/"
+                             style="display: none;"></div>
+                        
+                        <div id="game-board-wrapper">
                             {% include 'web/partials/game_board.html' %}
                         </div>
                     </div>
@@ -276,4 +279,53 @@
 
 
 {% csrf_token %}
+
+<script>
+// WebSocket Message Routing for Game Detail
+document.addEventListener('DOMContentLoaded', function() {
+    // Listen for WebSocket messages
+    document.addEventListener('htmx:wsAfterMessage', function(event) {
+        const message = event.detail.message;
+        let data;
+        
+        try {
+            data = JSON.parse(message);
+        } catch (e) {
+            console.error('Failed to parse WebSocket message:', e);
+            return;
+        }
+        
+        console.log('Game WebSocket message received:', data.type);
+        
+        // Route messages based on type
+        switch(data.type) {
+            case 'game_move':
+                // Update game board
+                const gameBoard = document.getElementById('game-board-wrapper');
+                if (gameBoard && data.content) {
+                    gameBoard.innerHTML = data.content;
+                    htmx.process(gameBoard);
+                }
+                break;
+                
+            case 'connection_status':
+                console.log('Game WebSocket connection status:', data.status);
+                break;
+                
+            default:
+                console.log('Unknown game WebSocket message type:', data.type);
+        }
+    });
+    
+    // Handle WebSocket connection events
+    document.addEventListener('htmx:wsOpen', function(event) {
+        console.log('Game WebSocket connected');
+    });
+    
+    document.addEventListener('htmx:wsClose', function(event) {
+        console.log('Game WebSocket disconnected');
+    });
+});
+</script>
+
 {% endblock %}

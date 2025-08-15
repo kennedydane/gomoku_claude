@@ -89,6 +89,117 @@
                 </div>
             </div>
             
+            <!-- Pending Challenges Section -->
+            {% if pending_sent_challenges or pending_received_challenges %}
+                <div class="pending-challenges-section">
+                    <div class="section-header px-3 py-2 bg-light-subtle border-bottom">
+                        <small class="text-muted fw-semibold">
+                            <i class="bi bi-clock me-1"></i>Pending Challenges
+                        </small>
+                    </div>
+                    
+                    <!-- Sent Challenges -->
+                    {% if pending_sent_challenges %}
+                        <div class="sent-challenges">
+                            <div class="px-3 py-2 bg-info-subtle border-bottom">
+                                <small class="text-info fw-semibold">
+                                    <i class="bi bi-arrow-up-right me-1"></i>Challenges Sent ({{ pending_sent_challenges|length }})
+                                </small>
+                            </div>
+                            {% for challenge in pending_sent_challenges %}
+                                <div class="challenge-item p-2 border-bottom d-flex justify-content-between align-items-center">
+                                    <div class="challenge-info">
+                                        <div class="d-flex align-items-center">
+                                            <div class="challenger-avatar me-2">
+                                                <div class="rounded-circle bg-info text-white d-flex align-items-center justify-content-center" 
+                                                     style="width: 24px; height: 24px; font-size: 0.7rem;">
+                                                    {{ challenge.challenged.username|first|upper }}
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <small class="fw-semibold">{{ challenge.challenged.username }}</small>
+                                                <div class="text-muted" style="font-size: 0.7rem;">
+                                                    {{ challenge.ruleset.name }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="challenge-actions">
+                                        <button class="btn btn-outline-danger btn-sm cancel-challenge-btn" 
+                                                hx-post="{% url 'web:respond_challenge' challenge_id=challenge.id %}"
+                                                hx-vals='{"action": "cancel"}'
+                                                hx-confirm="Cancel challenge to {{ challenge.challenged.username }}?"
+                                                hx-target="#friends-panel"
+                                                hx-swap="outerHTML"
+                                                hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+                                            <i class="bi bi-x-lg"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                    
+                    <!-- Received Challenges -->
+                    {% if pending_received_challenges %}
+                        <div class="received-challenges">
+                            <div class="px-3 py-2 bg-warning-subtle border-bottom">
+                                <small class="text-warning-emphasis fw-semibold">
+                                    <i class="bi bi-arrow-down-left me-1"></i>Challenges Received ({{ pending_received_challenges|length }})
+                                </small>
+                            </div>
+                            {% for challenge in pending_received_challenges %}
+                                <div class="challenge-item p-2 border-bottom d-flex justify-content-between align-items-center">
+                                    <div class="challenge-info">
+                                        <div class="d-flex align-items-center">
+                                            <div class="challenger-avatar me-2">
+                                                <div class="rounded-circle bg-warning text-dark d-flex align-items-center justify-content-center" 
+                                                     style="width: 24px; height: 24px; font-size: 0.7rem;">
+                                                    {{ challenge.challenger.username|first|upper }}
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <small class="fw-semibold">{{ challenge.challenger.username }}</small>
+                                                <div class="text-muted" style="font-size: 0.7rem;">
+                                                    {{ challenge.ruleset.name }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="challenge-actions d-flex gap-1">
+                                        <button class="btn btn-success btn-sm accept-challenge-btn" 
+                                                hx-post="{% url 'web:respond_challenge' challenge_id=challenge.id %}"
+                                                hx-vals='{"action": "accept"}'
+                                                hx-confirm="Accept challenge from {{ challenge.challenger.username }}?"
+                                                hx-target="#friends-panel"
+                                                hx-swap="outerHTML"
+                                                hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+                                            <i class="bi bi-check-lg"></i>
+                                        </button>
+                                        <button class="btn btn-outline-danger btn-sm reject-challenge-btn"
+                                                hx-post="{% url 'web:respond_challenge' challenge_id=challenge.id }}"
+                                                hx-vals='{"action": "reject"}'
+                                                hx-confirm="Reject challenge from {{ challenge.challenger.username }}?"
+                                                hx-target="#friends-panel"
+                                                hx-swap="outerHTML"
+                                                hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+                                            <i class="bi bi-x-lg"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+            {% else %}
+                <!-- Empty state for pending challenges -->
+                <div class="pending-challenges-section">
+                    <div class="empty-state px-3 py-2">
+                        <small class="text-muted">No pending challenges</small>
+                    </div>
+                </div>
+            {% endif %}
+            
         {% else %}
             <!-- Empty state -->
             <div class="empty-state text-center py-4">

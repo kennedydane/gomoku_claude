@@ -86,12 +86,7 @@
             <div id="board-errors"></div>
             
             <!-- Embedded Game Board -->
-            <div id="dashboard-game-board-wrapper" 
-                 hx-ext="sse" 
-                 sse-connect="/api/v1/events/?channel=user-{{ user.id }}" 
-                 sse-swap="game_move"
-                 hx-target="#dashboard-game-board-content"
-                 hx-swap="innerHTML">
+            <div id="dashboard-game-board-wrapper">
                 <div id="dashboard-game-board-content">
                     {% include 'web/partials/game_board.html' with game=selected_game user=user wrapper_id='dashboard-game-board-content' %}
                 </div>

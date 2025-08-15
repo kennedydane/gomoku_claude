@@ -26,6 +26,37 @@ except ImportError:
 from loguru import logger
 
 
+def send_structured_sse_event(user_id, event_type, content, metadata=None):
+    """
+    Send a structured SSE event with optional metadata for better client routing.
+    
+    Args:
+        user_id: Target user ID
+        event_type: Event type (game_move, dashboard_update, etc.)
+        content: HTML content or data to send
+        metadata: Optional dictionary with additional routing/context info
+    """
+    if not HAS_EVENTSTREAM or not send_event:
+        logger.warning("⚠️  SSE: django-eventstream not available")
+        return False
+        
+    channel = f'user-{user_id}'
+    
+    # Add optional metadata headers for advanced client-side routing
+    if metadata:
+        # For now, we keep it simple and just log metadata
+        # Future enhancement could embed metadata in the event data
+        logger.debug(f"📋 SSE: Event metadata for {event_type}: {metadata}")
+    
+    try:
+        send_event(channel, event_type, content, json_encode=False)
+        logger.info(f"📤 SSE: Event '{event_type}' sent to user-{user_id} (channel: {channel})")
+        return True
+    except Exception as e:
+        logger.error(f"❌ SSE: Failed to send {event_type} to user-{user_id}: {e}")
+        return False
+
+
 class UserGamesMixin:
     """Mixin to provide user games query functionality."""
     
@@ -143,9 +174,20 @@ class DashboardView(LoginRequiredMixin, UserGamesMixin, TemplateView):
         from web.models import Friendship
         friends = Friendship.objects.get_friends(user)
         
-        # Pending challenges with optimized queries (received challenges)
+        # Pending challenges with optimized queries
         from django.utils import timezone
-        pending_challenges = Challenge.objects.select_related(
+        
+        # Challenges sent by the current user (pending)
+        pending_sent_challenges = Challenge.objects.select_related(
+            'challenger', 'challenged', 'ruleset'
+        ).filter(
+            challenger=user,
+            status=ChallengeStatus.PENDING,
+            expires_at__gt=timezone.now()  # Only non-expired challenges
+        )
+        
+        # Challenges received by the current user (pending)
+        pending_received_challenges = Challenge.objects.select_related(
             'challenger', 'challenged', 'ruleset'
         ).filter(
             challenged=user, 
@@ -160,7 +202,10 @@ class DashboardView(LoginRequiredMixin, UserGamesMixin, TemplateView):
             'recent_finished_games': recent_finished_games,
             'selected_game': selected_game,  # New: Selected game for center panel
             'friends': friends,
-            'pending_challenges': pending_challenges,
+            'pending_sent_challenges': pending_sent_challenges,
+            'pending_received_challenges': pending_received_challenges,
+            # Keep legacy key for backward compatibility
+            'pending_challenges': pending_received_challenges,
         })
         return context
     
@@ -305,8 +350,20 @@ class GameMoveView(LoginRequiredMixin, View):
                                 event_name = 'game_move'
                                 
                                 # Send the newline-stripped HTML content for HTMX to process
-                                send_event(channel, event_name, board_html_sse, json_encode=False)
-                                logger.info(f"📤 SSE: Event '{event_name}' sent to {notify_username} (channel: {channel})")
+                                # Try WebSocket first, fall back to SSE
+                                try:
+                                    from .consumers import WebSocketMessageSender
+                                    WebSocketMessageSender.send_to_user_sync(
+                                        notify_user_id, 
+                                        event_name, 
+                                        board_html_sse,
+                                        metadata={'game_id': str(game.id), 'target_user': notify_username}
+                                    )
+                                    logger.info(f"📤 WebSocket: Event '{event_name}' sent to {notify_username}")
+                                except Exception as ws_error:
+                                    logger.warning(f"WebSocket failed, falling back to SSE: {ws_error}")
+                                    send_event(channel, event_name, board_html_sse, json_encode=False)
+                                    logger.info(f"📤 SSE: Event '{event_name}' sent to {notify_username} (fallback)")
                                 
                                 # Also send dashboard panel updates for this player
                                 try:
@@ -344,8 +401,19 @@ class GameMoveView(LoginRequiredMixin, View):
                                     
                                     # Send dashboard panel update
                                     panel_html_sse = panel_html.replace('\n\n', ' ').replace('\r\n\r\n', ' ').strip()
-                                    send_event(channel, 'dashboard_update', panel_html_sse, json_encode=False)
-                                    logger.info(f"📊 SSE: Dashboard panel update sent to {notify_username}")
+                                    # Try WebSocket first, fall back to SSE
+                                    try:
+                                        WebSocketMessageSender.send_to_user_sync(
+                                            notify_user_id,
+                                            'dashboard_update',
+                                            panel_html_sse,
+                                            metadata={'game_id': str(game.id), 'panel_type': 'games_list'}
+                                        )
+                                        logger.info(f"📤 WebSocket: Dashboard panel update sent to {notify_username}")
+                                    except Exception as ws_error:
+                                        logger.warning(f"Dashboard WebSocket failed, falling back to SSE: {ws_error}")
+                                        send_event(channel, 'dashboard_update', panel_html_sse, json_encode=False)
+                                        logger.info(f"📊 SSE: Dashboard panel update sent to {notify_username} (fallback)")
                                     
                                     # Send dashboard embedded game panel update (for embedded game in center panel)
                                     try:
@@ -365,8 +433,19 @@ class GameMoveView(LoginRequiredMixin, View):
                                         }, request=request).strip()
                                         
                                         dashboard_game_sse = dashboard_game_html.replace('\\n\\n', ' ').replace('\\r\\n\\r\\n', ' ').strip()
-                                        send_event(channel, 'dashboard_game_update', dashboard_game_sse, json_encode=False)
-                                        logger.info(f"🎮 SSE: Dashboard embedded game panel update sent to {notify_username}")
+                                        # Try WebSocket first, fall back to SSE
+                                        try:
+                                            WebSocketMessageSender.send_to_user_sync(
+                                                notify_user_id,
+                                                'dashboard_game_update',
+                                                dashboard_game_sse,
+                                                metadata={'game_id': str(game.id), 'panel_type': 'embedded_game'}
+                                            )
+                                            logger.info(f"📤 WebSocket: Dashboard embedded game panel update sent to {notify_username}")
+                                        except Exception as ws_error:
+                                            logger.warning(f"Embedded game WebSocket failed, falling back to SSE: {ws_error}")
+                                            send_event(channel, 'dashboard_game_update', dashboard_game_sse, json_encode=False)
+                                            logger.info(f"🎮 SSE: Dashboard embedded game panel update sent to {notify_username} (fallback)")
                                         
                                     except Exception as dashboard_game_error:
                                         logger.warning(f"⚠️  SSE: Dashboard embedded game panel update failed for {notify_username}: {dashboard_game_error}")
@@ -706,17 +785,32 @@ class ChallengeFriendView(FriendAPIViewMixin, LoginRequiredMixin, View):
         username = request.POST.get('username')
         ruleset_id = request.POST.get('ruleset_id')
         
+        # Debug logging to see what's being sent
+        from loguru import logger
+        logger.info(f"🎯 Challenge POST: username='{username}', ruleset_id='{ruleset_id}'")
+        logger.info(f"📋 Full POST data: {dict(request.POST)}")
+        logger.info(f"🔍 POST keys: {list(request.POST.keys())}")
+        
         if not username or not ruleset_id:
+            logger.warning(f"❌ Missing data: username='{username}', ruleset_id='{ruleset_id}'")
             return self.handle_error_response(request, 'Username and ruleset are required', 400)
+        
+        logger.info(f"✅ Initial validation passed")
         
         # Check if trying to challenge self
         if username == request.user.username:
+            logger.warning(f"❌ User trying to challenge self: {username}")
             return self.handle_error_response(request, 'Cannot challenge yourself', 400)
+        
+        logger.info(f"✅ Self-challenge check passed")
         
         # Check if user exists
         challenged_user = self.get_user_or_404(username)
         if not challenged_user:
+            logger.warning(f"❌ User not found: {username}")
             return self.handle_error_response(request, 'User not found', 404)
+        
+        logger.info(f"✅ User exists: {challenged_user.username}")
         
         # Check if they are friends
         is_friend = Friendship.objects.filter(
@@ -725,12 +819,17 @@ class ChallengeFriendView(FriendAPIViewMixin, LoginRequiredMixin, View):
         ).exists()
         
         if not is_friend:
+            logger.warning(f"❌ Users are not friends: {request.user.username} -> {username}")
             return self.handle_error_response(request, 'You can only challenge friends', 400)
+        
+        logger.info(f"✅ Friendship check passed")
         
         # Check if ruleset exists
         try:
             ruleset = RuleSet.objects.get(id=ruleset_id)
+            logger.info(f"✅ Ruleset found: {ruleset.name} (ID: {ruleset.id})")
         except RuleSet.DoesNotExist:
+            logger.warning(f"❌ Invalid ruleset ID: {ruleset_id}")
             return self.handle_error_response(request, 'Invalid ruleset', 400)
         
         # Check for existing pending challenge
@@ -741,12 +840,17 @@ class ChallengeFriendView(FriendAPIViewMixin, LoginRequiredMixin, View):
         ).first()
         
         if existing:
+            logger.warning(f"❌ Existing pending challenge found: {existing.id}")
             return self.handle_error_response(request, 'You already have a pending challenge with this user', 400)
+        
+        logger.info(f"✅ No existing challenge check passed")
         
         # Create challenge
         try:
             from django.utils import timezone
             from datetime import timedelta
+            
+            logger.info(f"🎯 Creating challenge: {request.user.username} -> {challenged_user.username}")
             
             challenge = Challenge.objects.create(
                 challenger=request.user,
@@ -755,8 +859,11 @@ class ChallengeFriendView(FriendAPIViewMixin, LoginRequiredMixin, View):
                 expires_at=timezone.now() + timedelta(minutes=5)  # 5 minute expiry
             )
             
+            logger.info(f"✅ Challenge created successfully: {challenge.id}")
+            
             # Handle HTMX requests
             if request.headers.get('HX-Request'):
+                logger.info(f"📤 Returning HTMX response")
                 return render(request, 'web/partials/challenge_success.html', {
                     'success': True,
                     'message': f'Challenge sent to {username}!',
@@ -765,6 +872,7 @@ class ChallengeFriendView(FriendAPIViewMixin, LoginRequiredMixin, View):
                 })
             
             # Handle regular requests (JSON API)
+            logger.info(f"📤 Returning JSON response")
             return self.json_response({
                 'success': True,
                 'message': f'Challenge sent to {username}',
@@ -772,6 +880,7 @@ class ChallengeFriendView(FriendAPIViewMixin, LoginRequiredMixin, View):
             }, 200)
             
         except Exception as e:
+            logger.error(f"❌ Exception during challenge creation: {type(e).__name__}: {str(e)}")
             # Handle HTMX error responses
             if request.headers.get('HX-Request'):
                 return render(request, 'web/partials/challenge_error.html', {
@@ -785,9 +894,40 @@ class RespondChallengeView(FriendAPIViewMixin, LoginRequiredMixin, View):
     """Respond to a game challenge (accept/reject)."""
     login_url = 'web:login'
     
+    def _get_updated_friends_context(self, user):
+        """Get updated context for friends panel."""
+        from django.utils import timezone
+        
+        # Get friends
+        friends = Friendship.objects.get_friends(user)
+        
+        # Get pending challenges
+        pending_sent_challenges = Challenge.objects.select_related(
+            'challenger', 'challenged', 'ruleset'
+        ).filter(
+            challenger=user,
+            status=ChallengeStatus.PENDING,
+            expires_at__gt=timezone.now()
+        )
+        
+        pending_received_challenges = Challenge.objects.select_related(
+            'challenger', 'challenged', 'ruleset'
+        ).filter(
+            challenged=user, 
+            status=ChallengeStatus.PENDING,
+            expires_at__gt=timezone.now()
+        )
+        
+        return {
+            'friends': friends,
+            'pending_sent_challenges': pending_sent_challenges,
+            'pending_received_challenges': pending_received_challenges,
+            'user': user,
+        }
+    
     def post(self, request, challenge_id):
         action = request.POST.get('action')
-        if action not in ['accept', 'reject']:
+        if action not in ['accept', 'reject', 'cancel']:
             return self.json_error('Invalid action', 400)
         
         try:
@@ -795,9 +935,15 @@ class RespondChallengeView(FriendAPIViewMixin, LoginRequiredMixin, View):
         except Challenge.DoesNotExist:
             return self.json_error('Challenge not found', 404)
         
-        # Check if user is the challenged party
-        if challenge.challenged != request.user:
-            return self.json_error('Access denied', 403)
+        # Check user permissions based on action
+        if action == 'cancel':
+            # Only the challenger can cancel their own challenge
+            if challenge.challenger != request.user:
+                return self.json_error('Access denied - only challenger can cancel', 403)
+        else:
+            # Only the challenged party can accept/reject
+            if challenge.challenged != request.user:
+                return self.json_error('Access denied - only challenged party can accept/reject', 403)
         
         # Check if challenge is still pending
         if challenge.status != ChallengeStatus.PENDING:
@@ -839,13 +985,12 @@ class RespondChallengeView(FriendAPIViewMixin, LoginRequiredMixin, View):
                 game.initialize_board()
                 game.save()
                 
-                # For HTMX requests, return HTML that redirects to the game
+                # For HTMX requests, return updated friends panel and redirect to game
                 if request.headers.get('HX-Request'):
-                    response = render(request, 'web/partials/challenge_response.html', {
-                        'success': True,
-                        'message': 'Challenge accepted! Game created.',
-                        'redirect_url': f'/games/{game.id}/'
-                    })
+                    # First update the friends panel to remove the challenge
+                    context = self._get_updated_friends_context(request.user)
+                    response = render(request, 'web/partials/friends_panel.html', context)
+                    # Then redirect to the new game
                     response['HX-Redirect'] = f'/games/{game.id}/'
                     return response
                 
@@ -863,21 +1008,32 @@ class RespondChallengeView(FriendAPIViewMixin, LoginRequiredMixin, View):
                     }, status=500)
                 return self.json_error(f'Failed to create game: {str(e)}', 500)
         
-        else:  # reject
+        elif action == 'reject':
             challenge.status = ChallengeStatus.REJECTED
             challenge.save()
             
-            # For HTMX requests, return empty div (challenge disappears)
+            # For HTMX requests, return updated friends panel
             if request.headers.get('HX-Request'):
-                return render(request, 'web/partials/challenge_response.html', {
-                    'success': True,
-                    'message': 'Challenge rejected',
-                    'hide_challenge': True
-                })
+                context = self._get_updated_friends_context(request.user)
+                return render(request, 'web/partials/friends_panel.html', context)
             
             return self.json_response({
                 'success': True,
                 'message': 'Challenge rejected'
+            })
+        
+        elif action == 'cancel':
+            challenge.status = ChallengeStatus.CANCELLED
+            challenge.save()
+            
+            # For HTMX requests, return updated friends panel
+            if request.headers.get('HX-Request'):
+                context = self._get_updated_friends_context(request.user)
+                return render(request, 'web/partials/friends_panel.html', context)
+            
+            return self.json_response({
+                'success': True,
+                'message': 'Challenge cancelled'
             })
 
 

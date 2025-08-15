@@ -61,30 +61,45 @@
             </div>
         {% endif %}
         
-        <div class="mb-3">
-            <label for="challenge-ruleset" class="form-label">Game Rules:</label>
-            <select class="form-select" id="challenge-ruleset" name="ruleset_id" required>
-                <option value="">Choose game rules...</option>
-                {% for ruleset in rulesets %}
-                    <option value="{{ ruleset.id }}" 
-                            {% if quick == "mini" and "Mini" in ruleset.name %}selected{% endif %}
-                            {% if quick == "standard" and "Standard" in ruleset.name %}selected{% endif %}>
-                        {{ ruleset.name }} ({{ ruleset.board_size }}×{{ ruleset.board_size }})
-                        {% if ruleset.description %} - {{ ruleset.description }}{% endif %}
-                    </option>
-                {% endfor %}
-            </select>
-        </div>
-        
         {% if quick %}
-            <!-- Auto-select ruleset for quick challenges -->
+            <!-- DEBUG: Quick Challenge Mode - UPDATED TEMPLATE -->
             {% for ruleset in rulesets %}
                 {% if quick == "mini" and "Mini" in ruleset.name %}
-                    <input type="hidden" name="ruleset_id" value="{{ ruleset.id }}">
+                    <div class="mb-3">
+                        <label class="form-label">Game Rules:</label>
+                        <div class="form-control-plaintext">
+                            <strong>{{ ruleset.name }}</strong> ({{ ruleset.board_size }}×{{ ruleset.board_size }})
+                            {% if ruleset.description %} - {{ ruleset.description }}{% endif %}
+                        </div>
+                        <input type="hidden" name="ruleset_id" value="{{ ruleset.id }}">
+                    </div>
                 {% elif quick == "standard" and "Standard" in ruleset.name %}
-                    <input type="hidden" name="ruleset_id" value="{{ ruleset.id }}">
+                    <div class="mb-3">
+                        <label class="form-label">Game Rules:</label>
+                        <div class="form-control-plaintext">
+                            <strong>{{ ruleset.name }}</strong> ({{ ruleset.board_size }}×{{ ruleset.board_size }})
+                            {% if ruleset.description %} - {{ ruleset.description }}{% endif %}
+                        </div>
+                        <input type="hidden" name="ruleset_id" value="{{ ruleset.id }}">
+                    </div>
                 {% endif %}
             {% endfor %}
+        {% endif %}
+        
+        {% if not quick %}
+            <!-- DEBUG: Regular Challenge Mode - DROPDOWN SHOULD NOT SHOW FOR QUICK -->
+            <div class="mb-3">
+                <label for="challenge-ruleset" class="form-label">Game Rules:</label>
+                <select class="form-select" id="challenge-ruleset" name="ruleset_id" required>
+                    <option value="">Choose game rules...</option>
+                    {% for ruleset in rulesets %}
+                        <option value="{{ ruleset.id }}">
+                            {{ ruleset.name }} ({{ ruleset.board_size }}×{{ ruleset.board_size }})
+                            {% if ruleset.description %} - {{ ruleset.description }}{% endif %}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
         {% endif %}
     </div>
     
