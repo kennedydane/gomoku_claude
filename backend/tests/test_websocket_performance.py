@@ -17,7 +17,7 @@ import django
 from pathlib import Path
 
 # Setup Django
-sys.path.append(str(Path(__file__).parent))
+sys.path.append(str(Path(__file__).parent.parent))
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'gomoku.settings')
 django.setup()
 
@@ -57,7 +57,7 @@ def test_websocket_performance():
     sse_total = 0
     
     for template_path, name in templates_to_check:
-        full_path = Path(__file__).parent / template_path
+        full_path = Path(__file__).parent.parent / template_path
         if full_path.exists():
             content = full_path.read_text()
             

@@ -17,7 +17,7 @@ import django
 from pathlib import Path
 
 # Setup Django
-sys.path.append(str(Path(__file__).parent))
+sys.path.append(str(Path(__file__).parent.parent))
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'gomoku.settings')
 django.setup()
 
@@ -70,7 +70,7 @@ def test_websocket_integration():
     template_checks = []
     
     # Check base template for WebSocket extension
-    base_path = Path(__file__).parent / 'templates' / 'base.html'
+    base_path = Path(__file__).parent.parent / 'templates' / 'base.html'
     if base_path.exists():
         content = base_path.read_text()
         has_ws_ext = 'ext/ws.js' in content
@@ -80,7 +80,7 @@ def test_websocket_integration():
         template_checks.append(has_ws_ext and no_sse_ext)
     
     # Check dashboard template
-    dashboard_path = Path(__file__).parent / 'templates' / 'web' / 'dashboard.html'
+    dashboard_path = Path(__file__).parent.parent / 'templates' / 'web' / 'dashboard.html'
     if dashboard_path.exists():
         content = dashboard_path.read_text()
         has_ws_connect = 'ws-connect=' in content
@@ -92,7 +92,7 @@ def test_websocket_integration():
         template_checks.append(has_ws_connect and no_sse_connect and has_message_routing)
     
     # Check game detail template  
-    game_detail_path = Path(__file__).parent / 'templates' / 'web' / 'game_detail.html'
+    game_detail_path = Path(__file__).parent.parent / 'templates' / 'web' / 'game_detail.html'
     if game_detail_path.exists():
         content = game_detail_path.read_text()
         has_game_ws = 'ws-connect=' in content
@@ -112,7 +112,7 @@ def test_websocket_integration():
         print("  ✅ Views can import WebSocket components")
         
         # Check that the WebSocket sender is used in views
-        with open(Path(__file__).parent / 'web' / 'views.py', 'r') as f:
+        with open(Path(__file__).parent.parent / 'web' / 'views.py', 'r') as f:
             views_content = f.read()
             
         has_ws_import = 'WebSocketMessageSender' in views_content
@@ -137,7 +137,7 @@ def test_websocket_integration():
     sse_connections = 0
     
     for template_file in ['dashboard.html', 'game_detail.html']:
-        template_path = Path(__file__).parent / 'templates' / 'web' / template_file
+        template_path = Path(__file__).parent.parent / 'templates' / 'web' / template_file
         if template_path.exists():
             content = template_path.read_text()
             ws_connections += content.count('ws-connect=')

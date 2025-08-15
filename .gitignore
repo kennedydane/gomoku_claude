@@ -229,3 +229,8 @@ alembic.ini.bak
 htmlcov/
 test-results/
 test-reports/
+pytest_report.html
+debug_*.py
+test_debug*.py
+**/test_reports/
+**/htmlcov/

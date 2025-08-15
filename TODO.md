@@ -245,14 +245,26 @@
 ### **Backend Development**
 ```bash
 cd backend
-uv run python manage.py runserver 8001      # Start development server
-uv run python manage.py test                # Run all 265+ tests
-uv run python manage.py test web            # Run web interface tests (43 tests)
-uv run python manage.py migrate             # Apply database migrations
-uv run python manage.py seed_data           # Create test data
+uv run daphne -p 8001 gomoku.asgi:application  # Start WebSocket server
+uv run python manage.py test                   # Run all Django tests
+uv run python manage.py test web              # Run web interface tests
+uv run python manage.py test tests            # Run API and integration tests
+uv run python manage.py migrate               # Apply database migrations
+uv run python manage.py seed_data             # Create test data
 ```
 
-### **Selenium Testing**
+### **WebSocket Testing**
+```bash
+cd backend
+# Run WebSocket consumer tests  
+uv run python -m pytest web/test_websocket_consumer.py -v
+
+# Run WebSocket integration and performance tests
+uv run python -m pytest tests/test_websocket_integration.py -v
+uv run python -m pytest tests/test_websocket_performance.py -v
+```
+
+### **Selenium E2E Testing**
 ```bash
 cd backend
 # Run all Selenium tests
@@ -262,7 +274,6 @@ uv run python -m pytest tests/test_cross_browser_sse.py -v
 
 # Run specific test categories
 uv run python -m pytest -m selenium -v
-uv run python -m pytest -m sse -v
 uv run python -m pytest -m cross_browser -v
 ```
 
