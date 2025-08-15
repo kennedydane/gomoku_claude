@@ -408,6 +408,38 @@ class GameMoveView(LoginRequiredMixin, View):
                                         send_event(channel, 'dashboard_update', panel_html_sse, json_encode=False)
                                         logger.info(f"📊 SSE: Dashboard panel update sent to {notify_username} (fallback)")
                                     
+                                    # Send targeted turn display update for current game panel
+                                    # This updates only the turn display without forcing view switches
+                                    try:
+                                        turn_display_html = render_to_string('web/partials/game_turn_display.html', {
+                                            'game': game,
+                                            'user': notify_user,
+                                        }, request=request).strip()
+                                        
+                                        # Clean for SSE transmission
+                                        turn_display_sse = turn_display_html.replace('\n\n', ' ').replace('\r\n\r\n', ' ').strip()
+                                        
+                                        # Send via WebSocket first, fallback to SSE
+                                        try:
+                                            WebSocketMessageSender.send_to_user_sync(
+                                                notify_user_id,
+                                                'game_turn_update',
+                                                turn_display_sse,
+                                                metadata={
+                                                    'game_id': str(game.id), 
+                                                    'current_player': game.current_player,
+                                                    'is_your_turn': (notify_user == game.get_current_player_user())
+                                                }
+                                            )
+                                            logger.info(f"📤 WebSocket: Turn display update sent to {notify_username}")
+                                        except Exception as ws_error:
+                                            logger.warning(f"Turn display WebSocket failed, falling back to SSE: {ws_error}")
+                                            send_event(channel, 'game_turn_update', turn_display_sse, json_encode=False)
+                                            logger.info(f"🔄 SSE: Turn display update sent to {notify_username} (fallback)")
+                                            
+                                    except Exception as turn_error:
+                                        logger.warning(f"⚠️ Turn display update failed for {notify_username}: {turn_error}")
+                                    
                                     # REMOVED: Dashboard embedded game panel update
                                     # This was causing forced view switching when other players made moves
                                     # Users should maintain their current game view context
@@ -688,6 +720,26 @@ class SearchUsersView(FriendAPIViewMixin, LoginRequiredMixin, View):
 class FriendsPageView(LoginRequiredMixin, TemplateView):
     """Web page for friends management."""
     template_name = 'web/friends.html'
+    login_url = 'web:login'
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+        
+        # Get friends and pending requests
+        friends = Friendship.objects.get_friends(user)
+        pending_requests = Friendship.objects.get_pending_requests(user)
+        
+        context.update({
+            'friends': friends,
+            'pending_requests': pending_requests,
+        })
+        return context
+
+
+class FriendsModalView(LoginRequiredMixin, TemplateView):
+    """Modal content for friends management."""
+    template_name = 'web/partials/friends_modal_content.html'
     login_url = 'web:login'
     
     def get_context_data(self, **kwargs):

@@ -134,6 +134,97 @@ body.dark .table-dark {
     }
 }
 
+/* Stone Indicator Components for Panels */
+.stone-indicator {
+    width: 16px;
+    height: 16px;
+    min-width: 16px;
+    min-height: 16px;
+    border-radius: 50%;
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 6px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+
+.stone-indicator-black {
+    background: radial-gradient(circle at 30% 30%, #444, #000);
+    border: 1px solid #333;
+}
+
+.stone-indicator-white {
+    background: radial-gradient(circle at 30% 30%, #fff, #ddd);
+    border: 1px solid #333;
+}
+
+.stone-indicator.pulse {
+    animation: stone-pulse 2s ease-in-out infinite;
+}
+
+.stone-indicator.dimmed {
+    opacity: 0.5;
+}
+
+@keyframes stone-pulse {
+    0% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    50% {
+        transform: scale(1.1);
+        opacity: 0.8;
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* Panel Game Item Enhancements */
+.game-item .player-stone-info {
+    display: flex;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.game-item .turn-status-inline {
+    display: flex;
+    align-items: center;
+    font-size: 0.75rem;
+    margin-top: 4px;
+}
+
+.game-item .result-status-inline {
+    display: flex;
+    align-items: center;
+    font-size: 0.75rem;
+    margin-top: 4px;
+}
+
+.game-item .status-text {
+    font-weight: 500;
+}
+
+.game-item .status-text.your-turn {
+    color: #198754;
+}
+
+.game-item .status-text.their-turn {
+    color: #6c757d;
+}
+
+.game-item .status-text.won {
+    color: #198754;
+}
+
+.game-item .status-text.lost {
+    color: #dc3545;
+}
+
+.game-item .status-text.draw {
+    color: #6c757d;
+}
+
 /* Clean styles - debug removed */
 
 .board-intersection:focus {

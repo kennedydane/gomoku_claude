@@ -9,23 +9,22 @@
      ws-connect="/ws/user/{{ user.id }}/"
      style="display: none;"></div>
 
-<div class="container-fluid">
-    <!-- Welcome Header -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center">
-                <h1>Welcome back, {{ user.username }}!</h1>
-                <div class="d-flex gap-2">
-                    <a href="{% url 'web:friends' %}" class="btn btn-outline-primary btn-sm">
-                        <i class="bi bi-person-plus"></i> Find Friends
-                    </a>
-                    <a href="{% url 'web:games' %}" class="btn btn-primary btn-sm">
-                        <i class="bi bi-grid-3x3-gap"></i> All Games
-                    </a>
-                </div>
+<!-- Welcome Header -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <h1>Welcome back, {{ user.username }}!</h1>
+            <div class="d-flex gap-2">
+                <a href="{% url 'web:friends' %}" class="btn btn-outline-primary btn-sm">
+                    <i class="bi bi-person-plus"></i> Find Friends
+                </a>
+                <a href="{% url 'web:games' %}" class="btn btn-primary btn-sm">
+                    <i class="bi bi-grid-3x3-gap"></i> All Games
+                </a>
             </div>
         </div>
     </div>
+</div>
     
     <div class="row">
         <!-- Left Panel - Games -->
@@ -102,7 +101,6 @@
             {% include 'web/partials/friends_panel.html' %}
         </div>
     </div>
-</div>
 
 <!-- HTMX Challenge Modal -->
 <div class="modal fade" id="challenge-modal" tabindex="-1" aria-hidden="true">
@@ -115,6 +113,23 @@
                         <span class="visually-hidden">Loading...</span>
                     </div>
                     <div class="mt-2">Loading challenge form...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Friends Management Modal -->
+<div class="modal fade" id="friends-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div id="friends-modal-container">
+                <!-- Content loaded via HTMX -->
+                <div class="modal-body text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <div class="mt-2">Loading friends management...</div>
                 </div>
             </div>
         </div>
@@ -293,6 +308,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (gameBoard && data.content) {
                     gameBoard.innerHTML = data.content;
                     htmx.process(gameBoard);
+                }
+                break;
+                
+            case 'game_turn_update':
+                // Update only the turn display in the current game panel
+                const turnDisplay = document.getElementById('game-turn-display');
+                if (turnDisplay && data.content) {
+                    turnDisplay.innerHTML = data.content;
+                    htmx.process(turnDisplay);
+                    console.log('🔄 Turn display updated:', data.metadata || {});
                 }
                 break;
                 

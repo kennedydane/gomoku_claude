@@ -40,35 +40,9 @@
             </div>
             
             <!-- Current Turn or Game Result -->
-            <div class="game-status-info text-center">
-                {% if selected_game.status == 'ACTIVE' %}
-                    <div class="current-turn">
-                        {% if selected_game.current_player == 'BLACK' %}
-                            <span class="badge bg-dark me-1">
-                                <i class="bi bi-circle-fill"></i>
-                            </span>
-                            <strong>{{ selected_game.black_player.username }}'s turn</strong>
-                        {% else %}
-                            <span class="badge bg-light text-dark me-1">
-                                <i class="bi bi-circle"></i>
-                            </span>
-                            <strong>{{ selected_game.white_player.username }}'s turn</strong>
-                        {% endif %}
-                    </div>
-                {% elif selected_game.status == 'FINISHED' and selected_game.winner %}
-                    <div class="game-winner">
-                        {% if selected_game.winner == selected_game.black_player %}
-                            <span class="badge bg-dark me-1">
-                                <i class="bi bi-trophy-fill"></i>
-                            </span>
-                        {% else %}
-                            <span class="badge bg-light text-dark me-1">
-                                <i class="bi bi-trophy-fill"></i>
-                            </span>
-                        {% endif %}
-                        <strong>{{ selected_game.winner.username }} wins!</strong>
-                    </div>
-                {% endif %}
+            <div class="game-status-info text-center" 
+                 id="game-turn-display">
+                {% include 'web/partials/game_turn_display.html' with game=selected_game user=user %}
             </div>
         </div>
         

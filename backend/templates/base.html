@@ -38,24 +38,9 @@
             </button>
             
             <div class="collapse navbar-collapse" id="navbarNav">
+                <!-- Navigation links removed - functionality now accessible via dashboard modals -->
                 <ul class="navbar-nav me-auto">
-                    {% if user.is_authenticated %}
-                        <li class="nav-item">
-                            <a class="nav-link" href="{% url 'web:dashboard' %}">
-                                <i class="bi bi-house"></i> Dashboard
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="{% url 'web:games' %}">
-                                <i class="bi bi-grid"></i> Games
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="{% url 'web:friends' %}">
-                                <i class="bi bi-people"></i> Friends
-                            </a>
-                        </li>
-                    {% endif %}
+                    <!-- Intentionally empty - dashboard provides all functionality -->
                 </ul>
                 
                 <ul class="navbar-nav">
@@ -114,17 +99,17 @@
     
     <!-- Main Content -->
     <main class="flex-shrink-0 py-4">
-        <div class="container">
+        <div class="container-fluid px-3">
             {% block content %}{% endblock %}
         </div>
     </main>
     
     <!-- Footer -->
     <footer class="footer mt-auto py-3 bg-light">
-        <div class="container">
+        <div class="container-fluid">
             <div class="row align-items-center">
                 <div class="col-md-6">
-                    <span class="text-muted">&copy; 2024 Gomoku Game. Built with Django & htmx.</span>
+                    <span class="text-muted">&copy; 2025 Gomoku Game. Built with Django & htmx. A collaboration between Dane and Claude</span>
                 </div>
                 <div class="col-md-6 text-md-end">
                     {% if user.is_authenticated %}

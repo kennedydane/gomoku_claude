@@ -212,6 +212,18 @@ class UserWebSocketConsumer(AsyncWebsocketConsumer):
             metadata=event.get('metadata', {})
         )
     
+    async def game_turn_update_message(self, event):
+        """
+        Handle game turn display update messages sent to this user's channel group.
+        
+        Forwards turn display updates to the WebSocket client for HTMX processing.
+        """
+        await self.send_htmx_message(
+            event_type='game_turn_update',
+            content=event['content'],
+            metadata=event.get('metadata', {})
+        )
+    
     async def connection_status_message(self, event):
         """
         Handle connection status messages sent to this user's channel group.

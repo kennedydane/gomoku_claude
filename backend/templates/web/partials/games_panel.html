@@ -29,48 +29,42 @@
                              hx-indicator="#panel-loading"
                              style="cursor: pointer;"
                              data-turn-status="{% if game.current_player == 'BLACK' and user == game.black_player or game.current_player == 'WHITE' and user == game.white_player %}your-turn{% else %}their-turn{% endif %}">
-                            <div class="d-flex justify-content-between align-items-start">
-                                <div class="game-info flex-grow-1">
-                                    <div class="d-flex align-items-center mb-1">
-                                        <!-- Opponent name -->
-                                        {% if user == game.black_player %}
-                                            <strong class="opponent-name">{{ game.white_player.username }}</strong>
-                                            <small class="text-muted ms-2">(You: Black)</small>
-                                        {% else %}
-                                            <strong class="opponent-name">{{ game.black_player.username }}</strong>
-                                            <small class="text-muted ms-2">(You: White)</small>
-                                        {% endif %}
-                                    </div>
-                                    
-                                    <!-- Game details -->
-                                    <div class="game-details">
-                                        <small class="text-muted">
-                                            {{ game.ruleset.name }} • {{ game.ruleset.board_size }}×{{ game.ruleset.board_size }}
-                                        </small>
-                                    </div>
+                            <div class="game-info">
+                                <!-- Opponent name with your stone indicator -->
+                                <div class="player-stone-info">
+                                    {% if user == game.black_player %}
+                                        <span class="stone-indicator stone-indicator-black"></span>
+                                        <strong class="opponent-name">{{ game.white_player.username }}</strong>
+                                    {% else %}
+                                        <span class="stone-indicator stone-indicator-white"></span>
+                                        <strong class="opponent-name">{{ game.black_player.username }}</strong>
+                                    {% endif %}
                                 </div>
                                 
-                                <!-- Turn indicator -->
-                                <div class="turn-indicator">
+                                <!-- Game details -->
+                                <div class="game-details">
+                                    <small class="text-muted">
+                                        {{ game.ruleset.name }} • {{ game.ruleset.board_size }}×{{ game.ruleset.board_size }}
+                                    </small>
+                                </div>
+                                
+                                <!-- Turn status (inline) -->
+                                <div class="turn-status-inline">
                                     {% if game.current_player == 'BLACK' %}
                                         {% if user == game.black_player %}
-                                            <span class="badge bg-success my-turn pulse-gentle" title="Your turn!">
-                                                <i class="bi bi-play-circle-fill me-1"></i>Your Turn
-                                            </span>
+                                            <span class="stone-indicator stone-indicator-black pulse" title="Your turn!"></span>
+                                            <span class="status-text your-turn">Your Turn</span>
                                         {% else %}
-                                            <span class="badge bg-secondary their-turn" title="Waiting for {{ game.black_player.username }}">
-                                                <i class="bi bi-hourglass-split me-1"></i>Their Turn
-                                            </span>
+                                            <span class="stone-indicator stone-indicator-black dimmed" title="Waiting for {{ game.black_player.username }}"></span>
+                                            <span class="status-text their-turn">Their Turn</span>
                                         {% endif %}
                                     {% else %}
                                         {% if user == game.white_player %}
-                                            <span class="badge bg-success my-turn pulse-gentle" title="Your turn!">
-                                                <i class="bi bi-play-circle-fill me-1"></i>Your Turn
-                                            </span>
+                                            <span class="stone-indicator stone-indicator-white pulse" title="Your turn!"></span>
+                                            <span class="status-text your-turn">Your Turn</span>
                                         {% else %}
-                                            <span class="badge bg-secondary their-turn" title="Waiting for {{ game.white_player.username }}">
-                                                <i class="bi bi-hourglass-split me-1"></i>Their Turn
-                                            </span>
+                                            <span class="stone-indicator stone-indicator-white dimmed" title="Waiting for {{ game.white_player.username }}"></span>
+                                            <span class="status-text their-turn">Their Turn</span>
                                         {% endif %}
                                     {% endif %}
                                 </div>
@@ -97,43 +91,50 @@
                              hx-swap="outerHTML"
                              hx-indicator="#panel-loading"
                              style="cursor: pointer;">
-                            <div class="d-flex justify-content-between align-items-start">
-                                <div class="game-info flex-grow-1">
-                                    <div class="d-flex align-items-center mb-1">
-                                        <!-- Opponent name -->
-                                        {% if user == game.black_player %}
-                                            <strong class="opponent-name">{{ game.white_player.username }}</strong>
-                                            <small class="text-muted ms-2">(You: Black)</small>
-                                        {% else %}
-                                            <strong class="opponent-name">{{ game.black_player.username }}</strong>
-                                            <small class="text-muted ms-2">(You: White)</small>
-                                        {% endif %}
-                                    </div>
-                                    
-                                    <!-- Game details -->
-                                    <div class="game-details">
-                                        <small class="text-muted">
-                                            {{ game.ruleset.name }} • {{ game.finished_at|timesince }} ago
-                                        </small>
-                                    </div>
+                            <div class="game-info">
+                                <!-- Opponent name with your stone indicator -->
+                                <div class="player-stone-info">
+                                    {% if user == game.black_player %}
+                                        <span class="stone-indicator stone-indicator-black"></span>
+                                        <strong class="opponent-name">{{ game.white_player.username }}</strong>
+                                    {% else %}
+                                        <span class="stone-indicator stone-indicator-white"></span>
+                                        <strong class="opponent-name">{{ game.black_player.username }}</strong>
+                                    {% endif %}
                                 </div>
                                 
-                                <!-- Result indicator -->
-                                <div class="result-indicator">
+                                <!-- Game details (simplified, no timestamp) -->
+                                <div class="game-details">
+                                    <small class="text-muted">
+                                        {{ game.ruleset.name }} • {{ game.ruleset.board_size }}×{{ game.ruleset.board_size }}
+                                    </small>
+                                </div>
+                                
+                                <!-- Result status (inline) -->
+                                <div class="result-status-inline">
                                     {% if game.winner %}
                                         {% if game.winner == user %}
-                                            <span class="badge bg-success">
-                                                <i class="bi bi-trophy-fill"></i> Won
-                                            </span>
+                                            {% if user == game.black_player %}
+                                                <span class="stone-indicator stone-indicator-black" title="You played black and won"></span>
+                                            {% else %}
+                                                <span class="stone-indicator stone-indicator-white" title="You played white and won"></span>
+                                            {% endif %}
+                                            <span class="status-text won">Won</span>
                                         {% else %}
-                                            <span class="badge bg-danger">
-                                                <i class="bi bi-x-circle-fill"></i> Lost
-                                            </span>
+                                            {% if user == game.black_player %}
+                                                <span class="stone-indicator stone-indicator-black dimmed" title="You played black and lost"></span>
+                                            {% else %}
+                                                <span class="stone-indicator stone-indicator-white dimmed" title="You played white and lost"></span>
+                                            {% endif %}
+                                            <span class="status-text lost">Lost</span>
                                         {% endif %}
                                     {% else %}
-                                        <span class="badge bg-secondary">
-                                            <i class="bi bi-dash-circle"></i> Draw
-                                        </span>
+                                        {% if user == game.black_player %}
+                                            <span class="stone-indicator stone-indicator-black dimmed" title="You played black - draw"></span>
+                                        {% else %}
+                                            <span class="stone-indicator stone-indicator-white dimmed" title="You played white - draw"></span>
+                                        {% endif %}
+                                        <span class="status-text draw">Draw</span>
                                     {% endif %}
                                 </div>
                             </div>
