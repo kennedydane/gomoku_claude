@@ -344,7 +344,36 @@ DB_PASSWORD=your_secure_password_here_change_this DB_NAME=gomoku_dev_db uv run d
 
 ---
 
-**Migration Completed**: ✅ Phase 5.8 Complete  
-**Performance Gain**: 75% connection reduction  
-**Test Coverage**: 14 consumer tests + 4 integration tests  
-**Deployment Ready**: Production-ready WebSocket architecture
+## 🔄 Challenge System Integration (Phase 13 Addition)
+
+### Enhanced WebSocket Features
+
+**Challenge Notifications:**
+- Real-time challenge creation notifications via WebSocket
+- Instant friends panel updates when challenges are sent/received
+- Eliminated challenge expiration for simplified UX
+- WebSocket fallback to SSE for challenge notifications
+
+**Implementation:**
+```python
+# Challenge creation in web/views.py
+WebSocketMessageSender.send_to_user_sync(
+    challenged_user.id,
+    'friends_update', 
+    friends_panel_html,
+    metadata={'challenge_id': str(challenge.id), 'action': 'challenge_received'}
+)
+```
+
+**Game View Preservation:**
+- WebSocket message routing prevents jarring view switching
+- Smart panel updates maintain user's current game context
+- Enhanced turn indicators with real-time updates
+- Optional toast notifications for non-intrusive alerts
+
+---
+
+**Migration Completed**: ✅ Phase 5.8 Complete + Phase 13 Enhancements  
+**Performance Gain**: 75% connection reduction + UX improvements  
+**Test Coverage**: 14 consumer tests + 4 integration tests + challenge system validation  
+**Deployment Ready**: Production-ready WebSocket architecture with enhanced UX

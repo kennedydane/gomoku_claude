@@ -5,11 +5,12 @@ A complete Gomoku (Five in a Row) game with Django backend API and responsive we
 ## Features
 
 ### **🎮 Game Features**
-- **Interactive Game Board**: CSS Grid-based responsive game board
-- **Real-time Gameplay**: Server-Sent Events (SSE) for instant move updates
+- **Interactive Game Board**: CSS Grid-based responsive game board with preview stones
+- **Real-time Gameplay**: Server-Sent Events (SSE) + WebSocket for instant move updates
+- **Enhanced UX**: Color-coded stone previews on hover, smart view preservation
 - **Move Validation**: Comprehensive move validation and win detection
-- **Challenge System**: Player-to-player game challenges with accept/reject
-- **Friend System**: Add friends, send/accept friend requests
+- **Challenge System**: Simplified player-to-player challenges with explicit ruleset selection
+- **Friend System**: Add friends, send/accept friend requests with real-time notifications
 
 ### **🔐 Authentication & Security**
 - **Enhanced Token Authentication**: Extended tokens with expiration, device tracking, and refresh capability
@@ -280,11 +281,11 @@ web/
 - Authentication required for SSE connections
 - ASGI middleware security
 
-## Development Status ✅ PRODUCTION READY
+## Development Status ✅ PRODUCTION READY WITH ENHANCED UX
 
 ### **🎉 All Major Development Complete!**
 
-**✅ Phases 1-12: Security → Architecture → Testing → Advanced Features → Web Interface → Real-time → Single-View Dashboard**
+**✅ Phases 1-13: Security → Architecture → Testing → Advanced Features → Web Interface → Real-time → Single-View Dashboard → UX Enhancements**
 
 #### **Phase 1-2: Security & Architecture** ✅
 - Authentication system (web + API)
@@ -309,6 +310,13 @@ web/
 - Unified single-view dashboard with embedded gameplay
 - Real-time multiplayer with seamless turn-based mechanics
 - Dual-player SSE system with proper content scoping
+
+#### **Phase 13: UX Enhancements & Polish** ✅
+- Simplified challenge system with explicit ruleset selection
+- Enhanced game board with preview stones (color-coded hover)
+- Smart view preservation (no jarring view switching)
+- Real-time WebSocket challenge notifications
+- Improved turn indicators and visual feedback
 
 ### **Production-Ready Features**
 - **Scalable**: ASGI server with connection pooling
