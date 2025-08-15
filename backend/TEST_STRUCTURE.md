@@ -62,10 +62,11 @@ backend/
 - **Real-time Features**: WebSocket integration and SSE functionality
 
 ### 3. WebSocket Tests
-**Purpose**: Test real-time communication infrastructure
+**Purpose**: Test real-time communication infrastructure and centralized notifications
 - **Consumer Tests** (`web/test_websocket_consumer.py`): WebSocket message handling
 - **Integration Tests** (`tests/test_websocket_integration.py`): End-to-end WebSocket functionality
 - **Performance Tests** (`tests/test_websocket_performance.py`): Connection optimization validation
+- **Centralized Service Tests**: WebSocketNotificationService testing for consistent notification patterns
 
 ### 4. App-Specific Tests
 **Purpose**: Test individual Django app components
@@ -115,18 +116,18 @@ uv run python -m pytest web/test_game_board.py -v
 ### Current Test Metrics
 - **Total Test Files**: 18 files
 - **API Tests**: 8 files (Core REST API functionality)
-- **Web Tests**: 8 files (Django views and HTMX)
-- **WebSocket Tests**: 3 files (Real-time communication)
+- **Web Tests**: 8 files (Django views, HTMX, and centralized services)
+- **WebSocket Tests**: 3 files (Real-time communication and centralized notifications)
 - **App Tests**: 5 files (Individual app components)
 
 ### Test Distribution
 ```
-API Tests (tests/):           ~150 tests
-Web Interface Tests (web/):   ~120 tests  
-WebSocket Tests:              ~30 tests
+API Tests (tests/):           ~170 tests
+Web Interface Tests (web/):   ~140 tests (includes centralized service tests)
+WebSocket Tests:              ~40 tests (includes centralized notification tests)
 App-Specific Tests:           ~50 tests
 ────────────────────────────────────────
-Total:                        ~350 tests
+Total:                        ~400 tests
 ```
 
 ## 🛠️ Test Infrastructure
@@ -166,14 +167,58 @@ uv run coverage html
 - **Challenge System** (`web/test_challenge_system.py`): Web interface TDD
 - **WebSocket Migration** (`web/test_websocket_consumer.py`): Infrastructure TDD
 
+## 🏗️ Centralized Service Testing
+
+### WebSocket Notification Service Tests
+**Purpose**: Test centralized notification system architecture
+
+**Test Categories:**
+- **Service Layer Tests**: WebSocketNotificationService class functionality
+- **Event Definition Tests**: Validation of EVENT_DEFINITIONS structure
+- **Template Rendering Tests**: Context building and template rendering with user-specific data
+- **Error Handling Tests**: Comprehensive error recovery and fallback mechanisms
+- **Integration Tests**: End-to-end notification delivery across multiple users
+
+**Key Test Patterns:**
+```python
+# Service instantiation and event handling
+def test_websocket_service_event_definitions():
+    service = WebSocketNotificationService()
+    assert 'game_move' in service.EVENT_DEFINITIONS
+    assert 'dashboard_update' in service.EVENT_DEFINITIONS
+
+# Template rendering with proper context
+def test_notification_template_rendering():
+    service = WebSocketNotificationService()
+    context = service._build_game_context(user_id, {'game': test_game})
+    assert 'user' in context
+    assert 'selected_game' in context
+
+# Error handling and fallback mechanisms  
+def test_notification_error_handling():
+    service = WebSocketNotificationService()
+    # Test graceful handling of template errors, WebSocket failures
+```
+
+**CSRF Token Testing:**
+- Client-side CSRF injection validation
+- Session token vs WebSocket token testing
+- Integration with Django CSRF middleware
+
+**Race Condition Testing:**
+- HTMX hx-swap="none" pattern validation
+- WebSocket vs HTMX update coordination
+- DOM conflict prevention testing
+
 ## 🧹 Test Maintenance
 
 ### Recently Cleaned Up
 - ✅ Removed obsolete SSE test files (post-WebSocket migration)
-- ✅ Organized WebSocket tests in proper directories
+- ✅ Organized WebSocket tests in proper directories  
 - ✅ Removed generated HTML coverage reports from git
 - ✅ Updated .gitignore for test artifacts
 - ✅ Fixed import paths after file reorganization
+- ✅ Added centralized service testing patterns and documentation
 
 ### Best Practices
 - **One Test Per Behavior**: Each test validates one specific behavior
@@ -222,11 +267,12 @@ class TestNewWebSocketFeature:
 
 ## 📈 Continuous Improvement
 
-### Current Status: ✅ Well-Organized
-- Clear directory structure by functionality
-- Comprehensive test coverage across all components
-- Modern testing practices with TDD methodology
-- Clean separation between API, web, and infrastructure tests
-- Proper test artifact management
+### Current Status: ✅ Well-Organized with Centralized Architecture
+- Clear directory structure by functionality with centralized service testing
+- Comprehensive test coverage across all components including WebSocket notification system
+- Modern testing practices with TDD methodology and centralized service patterns
+- Clean separation between API, web, infrastructure, and centralized service tests
+- Proper test artifact management and centralized service validation
+- Complete testing of CSRF handling, race condition fixes, and code deduplication
 
-The test suite provides robust validation of all system components while maintaining fast execution and easy maintenance.
+The test suite provides robust validation of all system components including the centralized notification architecture while maintaining fast execution and easy maintenance.

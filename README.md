@@ -1,5 +1,7 @@
 # Gomoku Game System
 
+![Gomoku Dashboard](Gomoku_Screenshot.png)
+
 A modern, full-stack implementation of Gomoku (Five-in-a-Row) featuring a Django REST Framework backend with PostgreSQL database, responsive web interface, and Dear PyGUI desktop client.
 
 ## What is Gomoku?
@@ -34,10 +36,10 @@ Gomoku has been played competitively since 1989, with modern tournaments using t
 This implementation consists of four main components:
 
 - **Backend**: Django REST Framework server providing REST API for game logic and state management
-- **Web Interface**: Responsive Bootstrap 5 + htmx web application with real-time multiplayer via Server-Sent Events
+- **Web Interface**: Responsive Bootstrap 5 + htmx web application with real-time multiplayer via centralized WebSocket notification system
 - **Desktop Frontend**: Dear PyGUI desktop application for native interactive gameplay
 - **Database**: PostgreSQL for persistent game storage with Django admin interface
-- **Real-Time Features**: Server-Sent Events (SSE) for instant move propagation between players
+- **Real-Time Features**: Centralized WebSocket notification system with standardized event handling and CSRF token management
 - **Containerization**: Docker Compose for easy development and deployment
 
 ## Installation
@@ -197,14 +199,16 @@ The game logic is implemented in a service layer that handles:
 Run the Django test suite:
 ```bash
 cd backend
-# Run all tests (334+ total)
+# Run all tests (350+ total including centralized notifications)
 uv run python manage.py test
 
-# Run web interface tests (63+ tests, including 20 new panel tests)
+# Run web interface tests (80+ tests, including panel and centralized system tests)
 uv run python manage.py test web
 
-# Run Phase 11 panel tests specifically
-uv run python manage.py test web.test_phase11_panels
+# Run specific test categories
+uv run python manage.py test web.test_phase11_panels      # Panel tests
+uv run python manage.py test web.test_phase12_single_view # Single-view dashboard tests
+uv run python manage.py test web.test_websocket_consumer  # WebSocket tests
 
 # Run with verbose output
 uv run python manage.py test --verbosity=2
@@ -230,12 +234,14 @@ uv run python -m pytest -m cross_browser -v
 ```
 
 **Test Coverage:**
-- **API Tests**: 220+ tests covering authentication, game logic, and challenges
-- **Web Interface Tests**: 63+ comprehensive TDD tests for web functionality (includes 25 friend system tests + 20 new panel tests)
-- **Panel Tests**: 20 new TDD tests specifically for Phase 11 enhanced web interface features
-  - Navigation cleanup, games table conversion, left/right panels, dashboard layout, SSE integration, styling
-- **Integration Tests**: End-to-end workflows and edge cases
-- **Selenium Tests**: Real-time multiplayer SSE functionality with cross-browser support
+- **API Tests**: 250+ tests covering authentication, game logic, challenges, and centralized notifications
+- **Web Interface Tests**: 80+ comprehensive TDD tests for web functionality (includes friend system, panels, single-view dashboard, and WebSocket integration)
+- **Centralized System Tests**: Tests for WebSocketNotificationService, CSRF handling, and race condition fixes
+- **Panel Tests**: 20 TDD tests for Phase 11 enhanced web interface features (navigation, games table, dashboard layout)
+- **Single-View Tests**: 12 TDD tests for Phase 12 embedded game board and dashboard integration
+- **WebSocket Tests**: Comprehensive testing for centralized notification system and real-time updates
+- **Integration Tests**: End-to-end workflows and edge cases with centralized architecture
+- **Selenium Tests**: Real-time multiplayer functionality with cross-browser support
   - **Multiplayer Game Flow**: Two-player sessions with real-time move propagation
   - **SSE Real-Time Updates**: Server-Sent Events testing with sub-2-second latency validation
   - **Cross-Browser Compatibility**: Chrome ↔ Firefox interoperability testing
@@ -298,7 +304,22 @@ Key development practices:
 
 ## Recent Major Changes
 
-- ✅ **Phase 11: Enhanced Web Interface with Dynamic Panels** (Latest): Complete dashboard redesign with real-time panels
+- ✅ **Phase 14: Centralized WebSocket Notification System** (Latest): Complete consolidation of scattered WebSocket code
+  - **WebSocketNotificationService**: Single service replacing scattered update code across 6+ locations
+  - **EVENT_DEFINITIONS**: Standardized event types with consistent notification patterns
+  - **CSRF Token Client-Side Handling**: JavaScript automatic injection eliminating server-side token issues
+  - **Race Condition Resolution**: Fixed HTMX/WebSocket DOM conflicts using hx-swap="none" pattern
+  - **Code Deduplication**: Eliminated scattered WebSocket update code in GameMoveView, GameResignView, ChallengeFriendView, RespondChallengeView
+  - **Production Verification**: All console errors resolved and real-time updates working seamlessly
+- ✅ **Phase 13: Challenge System Simplification & Game View Improvements**: Enhanced UX and simplified workflows
+  - **Quick Challenge Removal**: Eliminated confusing quick challenge functionality per user request
+  - **Enhanced Game Board UX**: Preview stone hover with color indication and smooth animations
+  - **Game View Switching Prevention**: Fixed jarring view switching when other players make moves
+- ✅ **Phase 12: Single-View Dashboard with Embedded Game Board**: Unified interface with embedded gameplay
+  - **Embedded Game Display**: Full game functionality within dashboard center panel
+  - **Game Selection Logic**: Most recent active game shown by default with URL parameter support
+  - **Real-Time Dashboard Updates**: SSE updates for both game board and dashboard panels simultaneously
+- ✅ **Phase 11: Enhanced Web Interface with Dynamic Panels**: Complete dashboard redesign with real-time panels
   - **3-Column Dashboard**: Left panel (games), center (main content), right panel (friends) with responsive mobile design
   - **Games Table View**: Converted from card layout to sortable table with turn indicators, opponent info, and direct game links
   - **Real-Time Panel Updates**: All panels update automatically via SSE when moves are made or game state changes
@@ -327,12 +348,13 @@ Key development practices:
   - Ruleset name display instead of UUIDs for better UX
   - Optimized game ordering and display
 - ✅ **Friend System**: Complete friend request/accept/reject system with TDD (25 tests)
-- ✅ **TDD Methodology**: 74+ comprehensive tests for web interface following TDD methodology
-- ✅ **Django Migration Complete**: Migrated from FastAPI to Django + DRF
+- ✅ **TDD Methodology**: 350+ comprehensive tests for all systems following TDD methodology
+- ✅ **Django Migration Complete**: Migrated from FastAPI to Django + DRF with centralized architecture
 - ✅ **Admin Interface**: Built-in Django admin replaces pgAdmin
-- ✅ **Comprehensive Testing**: 314 tests with Django test framework integration
-- ✅ **Service Layer**: Clean separation of business logic
+- ✅ **Comprehensive Testing**: 350+ tests with Django test framework integration and centralized service testing
+- ✅ **Service Layer**: Clean separation of business logic with centralized WebSocket notification service
 - ✅ **Database Optimization**: Strategic indexing and query optimization
+- ✅ **Production Ready**: All 14 phases complete with centralized architecture and comprehensive error handling
 
 ## License
 

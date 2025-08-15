@@ -19,6 +19,7 @@ This development guide documents the key lessons learned, best practices, and ar
 11. [Debugging Tips](#debugging-tips)
 12. [Common Pitfalls](#common-pitfalls)
 13. [Web Interface Panel Development](#web-interface-panel-development)
+14. [Centralized WebSocket Notification System](#centralized-websocket-notification-system)
 
 ---
 
@@ -1366,15 +1367,379 @@ recent_finished_games = games.filter(status=GameStatus.FINISHED).order_by('-fini
 
 ---
 
+## Centralized WebSocket Notification System
+
+### Architecture Philosophy (Phase 14)
+
+The centralized WebSocket notification system was introduced in Phase 14 to address the growing complexity of scattered WebSocket update code across multiple views. This section documents the architectural patterns and best practices for maintainable real-time notification systems.
+
+### Problem Statement
+
+**Before Centralization:**
+- WebSocket update code scattered across 6+ locations (GameMoveView, GameResignView, ChallengeFriendView, RespondChallengeView, etc.)
+- Inconsistent notification patterns and error handling
+- Code duplication and maintenance complexity
+- CSRF token issues in WebSocket-delivered content
+- Race conditions between HTMX and WebSocket updates
+
+### Centralized Service Architecture
+
+**WebSocketNotificationService Class:**
+```python
+# web/services.py
+class WebSocketNotificationService:
+    """
+    Centralized service for all WebSocket notifications.
+    Eliminates code duplication and provides consistent notification patterns.
+    """
+    
+    EVENT_DEFINITIONS = {
+        'game_move': {
+            'template': 'web/partials/dashboard_game_panel.html',
+            'context_builder': '_build_game_context'
+        },
+        'dashboard_update': {
+            'template': 'web/partials/games_panel.html',
+            'context_builder': '_build_dashboard_context'
+        },
+        'friends_update': {
+            'template': 'web/partials/friends_panel.html',
+            'context_builder': '_build_friends_context'
+        }
+    }
+    
+    def send_notification(self, event_type, user_ids, context_data):
+        """Send standardized WebSocket notification."""
+        event_def = self.EVENT_DEFINITIONS[event_type]
+        
+        for user_id in user_ids:
+            try:
+                # Build user-specific context
+                context = self._build_context(event_def['context_builder'], user_id, context_data)
+                
+                # Render template with proper context
+                html_content = render_to_string(event_def['template'], context)
+                
+                # Send via WebSocket
+                WebSocketMessageSender.send_to_user_sync(user_id, event_type, html_content)
+                
+            except Exception as e:
+                logger.error(f"Failed to send {event_type} to user {user_id}: {e}")
+```
+
+### Key Benefits
+
+**1. Code Deduplication:**
+- Single source of truth for all WebSocket notifications
+- Eliminated 6+ instances of scattered WebSocket update code
+- Consistent error handling and logging across all notifications
+
+**2. Standardized Event Definitions:**
+- EVENT_DEFINITIONS dictionary provides clear structure for all notification types
+- Template and context builder patterns ensure consistency
+- Easy to add new notification types with standardized patterns
+
+**3. Maintainability:**
+- Clear separation of concerns with service layer architecture
+- Comprehensive error handling and fallback mechanisms
+- Consistent template caching and rendering optimization
+
+### Integration Patterns
+
+**Before (Scattered Code):**
+```python
+# In GameMoveView
+board_html = render_to_string('web/partials/game_board.html', context)
+WebSocketMessageSender.send_to_user_sync(opponent.id, 'game_move', board_html)
+
+# In GameResignView  
+games_html = render_to_string('web/partials/games_panel.html', context)
+WebSocketMessageSender.send_to_user_sync(opponent.id, 'dashboard_update', games_html)
+
+# In ChallengeFriendView
+friends_html = render_to_string('web/partials/friends_panel.html', context)
+WebSocketMessageSender.send_to_user_sync(challenged.id, 'friends_update', friends_html)
+```
+
+**After (Centralized Service):**
+```python
+# All views use centralized service
+notification_service = WebSocketNotificationService()
+notification_service.send_game_move_update([opponent.id], {'game': game, 'user': opponent})
+notification_service.send_dashboard_update([user.id, opponent.id], {'updated_game': game})
+notification_service.send_friends_update([challenged.id], {'new_challenge': challenge})
+```
+
+### CSRF Token Client-Side Handling
+
+**Problem Solved:**
+WebSocket-delivered content contained stale CSRF tokens that didn't match the page session, causing "CSRF token from POST incorrect" errors.
+
+**Solution - Client-Side JavaScript:**
+```javascript
+// static/js/csrf-handling.js
+document.addEventListener('htmx:configRequest', function(event) {
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value;
+    if (csrfToken) {
+        event.detail.headers['X-CSRFToken'] = csrfToken;
+    }
+});
+```
+
+**Benefits:**
+- Automatic CSRF token injection for all HTMX requests
+- Uses current page session tokens instead of stale WebSocket tokens
+- Eliminates server-side CSRF token generation complexity in WebSocket updates
+- Works seamlessly with Django's CSRF middleware
+
+### Race Condition Resolution
+
+**Problem:**
+HTMX responses and WebSocket notifications could conflict, causing DOM overwrites and "htmx:swapError" console errors.
+
+**Solution - Coordination Pattern:**
+```html
+<!-- HTMX actions use hx-swap="none" to prevent DOM conflicts -->
+<button hx-post="/games/123/resign/" 
+        hx-swap="none"
+        hx-confirm="Are you sure?">
+    Resign Game
+</button>
+```
+
+```python
+# Views return HTTP 204 No Content for HTMX requests
+def resign_view(request, game_id):
+    # Process resignation
+    game.resign(request.user)
+    
+    # Send WebSocket notifications to both players
+    notification_service.send_dashboard_update([game.black_player.id, game.white_player.id], 
+                                               {'updated_game': game})
+    
+    # Return empty response for HTMX (WebSocket handles UI updates)
+    if request.headers.get('HX-Request'):
+        return HttpResponse(status=204)  # No Content
+    
+    return redirect('dashboard')
+```
+
+**Benefits:**
+- HTMX provides user interaction without DOM conflicts
+- WebSocket notifications handle all visual updates
+- Prevents race conditions between different update mechanisms
+- Eliminates console errors and improves user experience
+
+### Context Building Patterns
+
+**User-Specific Context:**
+```python
+def _build_game_context(self, user_id, context_data):
+    """Build game-specific context for notifications."""
+    user = User.objects.get(id=user_id)
+    game = context_data['game']
+    
+    return {
+        'user': user,
+        'selected_game': game,
+        'csrf_token': get_token_for_user(user),  # User-specific token
+    }
+
+def _build_dashboard_context(self, user_id, context_data):
+    """Build dashboard-specific context for notifications."""
+    user = User.objects.get(id=user_id)
+    
+    # Get user's active games with optimized queries
+    user_games_query = Q(black_player=user) | Q(white_player=user)
+    active_games = Game.objects.select_related(
+        'black_player', 'white_player', 'ruleset'
+    ).filter(user_games_query, status=GameStatus.ACTIVE).order_by('-created_at')
+    
+    return {
+        'user': user,
+        'active_games': active_games[:3],  # Limit for performance
+        'recent_finished_games': Game.objects.filter(
+            user_games_query
+        ).exclude(status=GameStatus.ACTIVE).order_by('-finished_at')[:2]
+    }
+```
+
+### Testing Patterns
+
+**Service Layer Testing:**
+```python
+def test_websocket_service_event_definitions():
+    service = WebSocketNotificationService()
+    assert 'game_move' in service.EVENT_DEFINITIONS
+    assert 'dashboard_update' in service.EVENT_DEFINITIONS
+    assert 'friends_update' in service.EVENT_DEFINITIONS
+
+def test_notification_template_rendering():
+    service = WebSocketNotificationService()
+    context = service._build_game_context(user_id, {'game': test_game})
+    
+    assert 'user' in context
+    assert 'selected_game' in context
+    assert context['selected_game'] == test_game
+
+def test_notification_error_handling():
+    service = WebSocketNotificationService()
+    
+    # Test graceful handling of missing templates
+    with patch('django.template.loader.render_to_string') as mock_render:
+        mock_render.side_effect = TemplateDoesNotExist("missing_template.html")
+        
+        # Should not raise exception
+        service.send_notification('invalid_event', [user.id], {})
+```
+
+**Integration Testing:**
+```python
+def test_challenge_acceptance_notifications():
+    """Test that challenge acceptance sends proper notifications to both users."""
+    challenge = create_test_challenge(challenger=user1, challenged=user2)
+    
+    with patch.object(WebSocketNotificationService, 'send_friends_update') as mock_send:
+        # Accept challenge
+        response = client.post(f'/api/challenges/{challenge.id}/respond/', {'action': 'accept'})
+        
+        # Verify notifications sent to both users
+        assert mock_send.call_count == 2
+        assert user1.id in [call[0][0][0] for call in mock_send.call_args_list]
+        assert user2.id in [call[0][0][0] for call in mock_send.call_args_list]
+```
+
+### Performance Optimization
+
+**Template Caching:**
+```python
+# Leverage Django's template caching for frequently rendered notifications
+from django.template.loader import get_template
+
+class WebSocketNotificationService:
+    def __init__(self):
+        # Pre-load and cache frequently used templates
+        self._template_cache = {
+            event_type: get_template(event_def['template'])
+            for event_type, event_def in self.EVENT_DEFINITIONS.items()
+        }
+```
+
+**Efficient Queries:**
+```python
+def _build_dashboard_context(self, user_id, context_data):
+    # Use select_related to avoid N+1 queries
+    active_games = Game.objects.select_related(
+        'black_player', 'white_player', 'ruleset'
+    ).filter(user_games_query, status=GameStatus.ACTIVE)
+    
+    # Limit results to prevent UI clutter and improve performance
+    return {
+        'active_games': active_games[:3],
+        'recent_finished_games': finished_games[:2]
+    }
+```
+
+### Development Patterns
+
+**Service Instantiation:**
+```python
+# In views.py
+class GameMoveView(APIView):
+    def __init__(self):
+        super().__init__()
+        self.notification_service = WebSocketNotificationService()
+    
+    def post(self, request, game_id):
+        # Process move
+        move = GameService.make_move(game, request.user.id, row, col)
+        
+        # Send notifications via centralized service
+        opponent = game.get_opponent(request.user)
+        self.notification_service.send_game_move_update(
+            [opponent.id], 
+            {'game': game, 'user': opponent}
+        )
+```
+
+**Error Recovery:**
+```python
+def send_notification(self, event_type, user_ids, context_data):
+    """Send notification with comprehensive error handling."""
+    for user_id in user_ids:
+        try:
+            # Build context and render template
+            context = self._build_context(event_def['context_builder'], user_id, context_data)
+            html_content = render_to_string(event_def['template'], context)
+            
+            # Send WebSocket notification
+            WebSocketMessageSender.send_to_user_sync(user_id, event_type, html_content)
+            logger.info(f"📤 Sent {event_type} to user {user_id}")
+            
+        except User.DoesNotExist:
+            logger.warning(f"User {user_id} not found for {event_type} notification")
+        except TemplateDoesNotExist as e:
+            logger.error(f"Template not found for {event_type}: {e}")
+        except Exception as e:
+            logger.error(f"Failed to send {event_type} to user {user_id}: {e}")
+```
+
+### Best Practices
+
+**1. Service Design:**
+- Use dependency injection for testability
+- Keep service methods focused and single-purpose
+- Include comprehensive error handling with logging
+- Design for extensibility with standardized patterns
+
+**2. Event Definition Structure:**
+- Use descriptive event type names
+- Include template and context builder references
+- Keep EVENT_DEFINITIONS as a class constant for easy discovery
+- Document expected context data structure
+
+**3. Context Building:**
+- Build user-specific contexts for personalized notifications
+- Use optimized queries with select_related/prefetch_related
+- Limit data sets to prevent performance issues
+- Include proper error handling for missing data
+
+**4. Integration:**
+- Use centralized service consistently across all views
+- Avoid bypassing the service for direct WebSocket calls
+- Test notification flows with comprehensive integration tests
+- Monitor notification delivery with proper logging
+
+### Migration Strategy
+
+**From Scattered to Centralized:**
+1. **Identify**: Find all locations with WebSocket update code
+2. **Categorize**: Group updates by event type and target
+3. **Extract**: Create event definitions and context builders
+4. **Replace**: Update views to use centralized service
+5. **Test**: Verify all notification flows work correctly
+6. **Cleanup**: Remove old scattered WebSocket code
+
+**Rollback Strategy:**
+- Keep old WebSocket code commented during transition
+- Use feature flags to switch between old and new systems
+- Monitor logs for notification delivery issues
+- Have quick rollback plan if problems arise
+
+---
+
 ## Conclusion
 
-This development guide captures the key lessons learned during the development of a production-ready, real-time multiplayer Gomoku game with enhanced web interface panels. The most important insights are:
+This development guide captures the key lessons learned during the development of a production-ready, real-time multiplayer Gomoku game with enhanced web interface panels and centralized notification architecture. The most important insights are:
 
 1. **Trust Framework Patterns**: Don't fight HTMX with complex JavaScript
 2. **Test-Driven Development**: Write tests first, implement minimal solutions
 3. **Progressive Enhancement**: Ensure basic functionality without JavaScript
-4. **Service Layer Architecture**: Keep business logic separate from views
+4. **Service Layer Architecture**: Keep business logic separate from views, centralize cross-cutting concerns
 5. **Performance First**: Optimize database queries and minimize client-side complexity
 6. **Panel-Based UI**: Use consistent patterns for dynamic, real-time panel updates
+7. **Centralized Services**: Eliminate code duplication with well-designed service layers
+8. **Client-Side CSRF Handling**: Use JavaScript for seamless authentication in WebSocket scenarios
+9. **Race Condition Prevention**: Coordinate HTMX and WebSocket updates to prevent DOM conflicts
 
-The combination of Django + HTMX + SSE with panel-based architecture provides a powerful, modern web development stack that prioritizes simplicity, performance, and maintainability while delivering rich, real-time user experiences.
+The combination of Django + HTMX + centralized WebSocket notification system provides a powerful, modern web development stack that prioritizes simplicity, performance, and maintainability while delivering rich, real-time user experiences with minimal code duplication and maximum reliability.
