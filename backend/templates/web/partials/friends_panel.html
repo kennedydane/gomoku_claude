@@ -59,35 +59,6 @@
                 </div>
             </div>
             
-            <!-- Quick Challenge Section -->
-            <div class="quick-challenge-section">
-                <div class="section-header px-3 py-2 bg-light-subtle border-bottom">
-                    <small class="text-muted fw-semibold">
-                        <i class="bi bi-lightning me-1"></i>Quick Challenge
-                    </small>
-                </div>
-                <div class="px-3 py-3">
-                    <p class="text-muted small mb-2">Challenge a friend to a quick game:</p>
-                    <div class="d-grid gap-2">
-                        <button class="btn btn-success btn-sm" 
-                                hx-get="{% url 'web:challenge_friend' %}?quick=mini"
-                                hx-target="#challenge-modal-container"
-                                hx-swap="innerHTML"
-                                data-bs-toggle="modal" 
-                                data-bs-target="#challenge-modal">
-                            <i class="bi bi-zap"></i> Mini Gomoku (8×8)
-                        </button>
-                        <button class="btn btn-primary btn-sm" 
-                                hx-get="{% url 'web:challenge_friend' %}?quick=standard"
-                                hx-target="#challenge-modal-container"
-                                hx-swap="innerHTML"
-                                data-bs-toggle="modal" 
-                                data-bs-target="#challenge-modal">
-                            <i class="bi bi-grid-3x3-gap"></i> Standard (15×15)
-                        </button>
-                    </div>
-                </div>
-            </div>
             
             <!-- Pending Challenges Section -->
             {% if pending_sent_challenges or pending_received_challenges %}
@@ -177,7 +148,7 @@
                                             <i class="bi bi-check-lg"></i>
                                         </button>
                                         <button class="btn btn-outline-danger btn-sm reject-challenge-btn"
-                                                hx-post="{% url 'web:respond_challenge' challenge_id=challenge.id }}"
+                                                hx-post="{% url 'web:respond_challenge' challenge_id=challenge.id %}"
                                                 hx-vals='{"action": "reject"}'
                                                 hx-confirm="Reject challenge from {{ challenge.challenger.username }}?"
                                                 hx-target="#friends-panel"

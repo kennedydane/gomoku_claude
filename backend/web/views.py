@@ -175,15 +175,13 @@ class DashboardView(LoginRequiredMixin, UserGamesMixin, TemplateView):
         friends = Friendship.objects.get_friends(user)
         
         # Pending challenges with optimized queries
-        from django.utils import timezone
         
         # Challenges sent by the current user (pending)
         pending_sent_challenges = Challenge.objects.select_related(
             'challenger', 'challenged', 'ruleset'
         ).filter(
             challenger=user,
-            status=ChallengeStatus.PENDING,
-            expires_at__gt=timezone.now()  # Only non-expired challenges
+            status=ChallengeStatus.PENDING
         )
         
         # Challenges received by the current user (pending)
@@ -191,8 +189,7 @@ class DashboardView(LoginRequiredMixin, UserGamesMixin, TemplateView):
             'challenger', 'challenged', 'ruleset'
         ).filter(
             challenged=user, 
-            status=ChallengeStatus.PENDING,
-            expires_at__gt=timezone.now()  # Only non-expired challenges
+            status=ChallengeStatus.PENDING
         )
         
         context.update({
@@ -383,13 +380,9 @@ class GameMoveView(LoginRequiredMixin, View):
                                         status=GameStatus.FINISHED
                                     ).order_by('-finished_at')[:5]
                                     
-                                    # Check if the current game should be selected in games panel
+                                    # Don't force game selection - preserve user's current view
+                                    # The games panel will update turn indicators without changing selection
                                     selected_game_for_panel = None
-                                    if active_games.exists():
-                                        selected_game_for_panel = active_games.first()
-                                        # If the current game is in active games, use it as selected
-                                        if game in active_games:
-                                            selected_game_for_panel = game
                                     
                                     # Render updated games panel
                                     panel_html = render_to_string('web/partials/games_panel.html', {
@@ -415,40 +408,9 @@ class GameMoveView(LoginRequiredMixin, View):
                                         send_event(channel, 'dashboard_update', panel_html_sse, json_encode=False)
                                         logger.info(f"📊 SSE: Dashboard panel update sent to {notify_username} (fallback)")
                                     
-                                    # Send dashboard embedded game panel update (for embedded game in center panel)
-                                    try:
-                                        # Determine selected game for dashboard embedded panel
-                                        dashboard_selected_game = None
-                                        if active_games.exists():
-                                            dashboard_selected_game = active_games.first()
-                                            # If the current game is in active games, use it as selected
-                                            if game in active_games:
-                                                dashboard_selected_game = game
-                                        
-                                        dashboard_game_html = render_to_string('web/partials/dashboard_game_panel.html', {
-                                            'user': notify_user,
-                                            'selected_game': dashboard_selected_game,
-                                            'active_games': active_games,
-                                            'recent_finished_games': recent_finished_games,
-                                        }, request=request).strip()
-                                        
-                                        dashboard_game_sse = dashboard_game_html.replace('\\n\\n', ' ').replace('\\r\\n\\r\\n', ' ').strip()
-                                        # Try WebSocket first, fall back to SSE
-                                        try:
-                                            WebSocketMessageSender.send_to_user_sync(
-                                                notify_user_id,
-                                                'dashboard_game_update',
-                                                dashboard_game_sse,
-                                                metadata={'game_id': str(game.id), 'panel_type': 'embedded_game'}
-                                            )
-                                            logger.info(f"📤 WebSocket: Dashboard embedded game panel update sent to {notify_username}")
-                                        except Exception as ws_error:
-                                            logger.warning(f"Embedded game WebSocket failed, falling back to SSE: {ws_error}")
-                                            send_event(channel, 'dashboard_game_update', dashboard_game_sse, json_encode=False)
-                                            logger.info(f"🎮 SSE: Dashboard embedded game panel update sent to {notify_username} (fallback)")
-                                        
-                                    except Exception as dashboard_game_error:
-                                        logger.warning(f"⚠️  SSE: Dashboard embedded game panel update failed for {notify_username}: {dashboard_game_error}")
+                                    # REMOVED: Dashboard embedded game panel update
+                                    # This was causing forced view switching when other players made moves
+                                    # Users should maintain their current game view context
                                     
                                 except Exception as panel_error:
                                     logger.warning(f"⚠️  SSE: Dashboard panel update failed for {notify_username}: {panel_error}")
@@ -753,6 +715,33 @@ class ChallengeFriendView(FriendAPIViewMixin, LoginRequiredMixin, View):
         """Get user's friends list."""
         return Friendship.objects.get_friends(user)
     
+    def _get_updated_friends_context(self, user):
+        """Get updated context for friends panel."""
+        # Get friends
+        friends = Friendship.objects.get_friends(user)
+        
+        # Get pending challenges
+        pending_sent_challenges = Challenge.objects.select_related(
+            'challenger', 'challenged', 'ruleset'
+        ).filter(
+            challenger=user,
+            status=ChallengeStatus.PENDING
+        )
+        
+        pending_received_challenges = Challenge.objects.select_related(
+            'challenger', 'challenged', 'ruleset'
+        ).filter(
+            challenged=user, 
+            status=ChallengeStatus.PENDING
+        )
+        
+        return {
+            'friends': friends,
+            'pending_sent_challenges': pending_sent_challenges,
+            'pending_received_challenges': pending_received_challenges,
+            'user': user,
+        }
+    
     def handle_error_response(self, request, message, status=400):
         """Handle error response for both HTMX and JSON requests."""
         if request.headers.get('HX-Request'):
@@ -764,21 +753,13 @@ class ChallengeFriendView(FriendAPIViewMixin, LoginRequiredMixin, View):
     def get(self, request):
         """Return challenge modal content for HTMX."""
         username = request.GET.get('username', '')
-        quick = request.GET.get('quick', '')
         
         # Get available rulesets
         rulesets = RuleSet.objects.all().order_by('board_size', 'name')
         
-        # For quick challenges, determine the target username
-        if quick and not username:
-            # Find first friend for quick challenge
-            friends = self.get_friends(request.user)
-            username = friends[0].username if friends else ''
-        
         return render(request, 'web/partials/challenge_modal.html', {
             'username': username,
-            'rulesets': rulesets,
-            'quick': quick
+            'rulesets': rulesets
         })
     
     def post(self, request):
@@ -847,19 +828,41 @@ class ChallengeFriendView(FriendAPIViewMixin, LoginRequiredMixin, View):
         
         # Create challenge
         try:
-            from django.utils import timezone
-            from datetime import timedelta
-            
             logger.info(f"🎯 Creating challenge: {request.user.username} -> {challenged_user.username}")
             
             challenge = Challenge.objects.create(
                 challenger=request.user,
                 challenged=challenged_user,
-                ruleset=ruleset,
-                expires_at=timezone.now() + timedelta(minutes=5)  # 5 minute expiry
+                ruleset=ruleset
             )
             
             logger.info(f"✅ Challenge created successfully: {challenge.id}")
+            
+            # Send real-time update to challenged user
+            try:
+                from .consumers import WebSocketMessageSender
+                from django.template.loader import render_to_string
+                
+                # Get updated friends context for the challenged user
+                challenged_user_context = self._get_updated_friends_context(challenged_user)
+                challenged_user_context['csrf_token'] = request.META.get('CSRF_COOKIE')
+                
+                # Render updated friends panel for challenged user
+                friends_panel_html = render_to_string('web/partials/friends_panel.html', 
+                    challenged_user_context, request=request).strip()
+                
+                # Send WebSocket update to challenged user
+                WebSocketMessageSender.send_to_user_sync(
+                    challenged_user.id,
+                    'friends_update',
+                    friends_panel_html,
+                    metadata={'challenge_id': str(challenge.id), 'action': 'challenge_received'}
+                )
+                logger.info(f"📤 WebSocket: Challenge notification sent to {challenged_user.username}")
+                
+            except Exception as ws_error:
+                logger.warning(f"⚠️  WebSocket challenge notification failed: {ws_error}")
+                # Don't fail the request if WebSocket fails
             
             # Handle HTMX requests
             if request.headers.get('HX-Request'):
@@ -896,8 +899,6 @@ class RespondChallengeView(FriendAPIViewMixin, LoginRequiredMixin, View):
     
     def _get_updated_friends_context(self, user):
         """Get updated context for friends panel."""
-        from django.utils import timezone
-        
         # Get friends
         friends = Friendship.objects.get_friends(user)
         
@@ -906,16 +907,14 @@ class RespondChallengeView(FriendAPIViewMixin, LoginRequiredMixin, View):
             'challenger', 'challenged', 'ruleset'
         ).filter(
             challenger=user,
-            status=ChallengeStatus.PENDING,
-            expires_at__gt=timezone.now()
+            status=ChallengeStatus.PENDING
         )
         
         pending_received_challenges = Challenge.objects.select_related(
             'challenger', 'challenged', 'ruleset'
         ).filter(
             challenged=user, 
-            status=ChallengeStatus.PENDING,
-            expires_at__gt=timezone.now()
+            status=ChallengeStatus.PENDING
         )
         
         return {
@@ -949,12 +948,7 @@ class RespondChallengeView(FriendAPIViewMixin, LoginRequiredMixin, View):
         if challenge.status != ChallengeStatus.PENDING:
             return self.json_error('Challenge is no longer pending', 400)
         
-        # Check if challenge is expired
-        from django.utils import timezone
-        if timezone.now() > challenge.expires_at:
-            challenge.status = ChallengeStatus.EXPIRED
-            challenge.save()
-            return self.json_error('Challenge has expired', 400)
+        # Challenges no longer expire - removed expiration check
         
         # Handle response
         from django.utils import timezone

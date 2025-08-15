@@ -69,9 +69,72 @@ body.dark .table-dark {
     cursor: pointer;
 }
 
-.board-intersection[hx-post]:hover {
-    background-color: #F5DEB3;
+.board-intersection[hx-post]:hover,
+.board-intersection:not(.occupied):hover {
+    background-color: rgba(245, 222, 179, 0.3); /* More subtle background when preview stone is shown */
+    transform: scale(1.02);
+    transition: all 0.15s ease;
 }
+
+/* Preview stone for black player */
+.game-board-grid[data-current-player="BLACK"] .board-intersection:not(.occupied):hover::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: var(--stone-size, 24px);
+    height: var(--stone-size, 24px);
+    min-width: 12px;
+    min-height: 12px;
+    max-width: 32px;
+    max-height: 32px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, #444, #000);
+    border: 1px solid rgba(51, 51, 51, 0.8);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.25);
+    opacity: 0.65;
+    pointer-events: none;
+    z-index: 10;
+    animation: fadeInStone 0.2s ease;
+}
+
+/* Preview stone for white player */
+.game-board-grid[data-current-player="WHITE"] .board-intersection:not(.occupied):hover::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: var(--stone-size, 24px);
+    height: var(--stone-size, 24px);
+    min-width: 12px;
+    min-height: 12px;
+    max-width: 32px;
+    max-height: 32px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, #fff, #ddd);
+    border: 1px solid rgba(51, 51, 51, 0.8);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.25);
+    opacity: 0.65;
+    pointer-events: none;
+    z-index: 10;
+    animation: fadeInStone 0.2s ease;
+}
+
+/* Animation for preview stone appearance */
+@keyframes fadeInStone {
+    0% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.8);
+    }
+    100% {
+        opacity: 0.65;
+        transform: translate(-50%, -50%) scale(1);
+    }
+}
+
+/* Clean styles - debug removed */
 
 .board-intersection:focus {
     outline: 2px solid #007bff;

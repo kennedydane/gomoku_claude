@@ -121,6 +121,19 @@
     </div>
 </div>
 
+<!-- Toast Container for Turn Notifications -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1060;">
+    <div id="turn-notification-toast" class="toast align-items-center text-white bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+            <div class="toast-body">
+                <i class="bi bi-play-circle-fill me-2"></i>
+                <span id="toast-message">It's your turn in a game!</span>
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    </div>
+</div>
+
 <!-- Additional CSS for dashboard -->
 <style>
 .pulse {
@@ -147,6 +160,48 @@
 .challenge-item:hover {
     transform: translateX(5px);
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+/* Your Turn Game Styling */
+.game-item.your-turn {
+    border-left: 4px solid #28a745 !important;
+    background: linear-gradient(90deg, rgba(40, 167, 69, 0.05) 0%, transparent 100%) !important;
+}
+
+.game-item.your-turn:hover {
+    background: linear-gradient(90deg, rgba(40, 167, 69, 0.1) 0%, transparent 100%) !important;
+    transform: translateX(3px);
+    box-shadow: 0 2px 6px rgba(40, 167, 69, 0.2);
+}
+
+/* Gentle pulse animation for turn indicators */
+.pulse-gentle {
+    animation: pulse-gentle 3s ease-in-out infinite;
+}
+
+@keyframes pulse-gentle {
+    0% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    50% {
+        transform: scale(1.05);
+        opacity: 0.9;
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* Turn indicator styling */
+.my-turn {
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.their-turn {
+    font-size: 0.7rem;
 }
 
 .challenger-avatar {
@@ -198,8 +253,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Update games panel
                 const gamesPanel = document.getElementById('dashboard-games-panel');
                 if (gamesPanel && data.content) {
+                    // Check if any new "your turn" games appeared
+                    const oldYourTurnGames = gamesPanel.querySelectorAll('.your-turn').length;
+                    
                     gamesPanel.innerHTML = data.content;
                     htmx.process(gamesPanel);
+                    
+                    // Check for new "your turn" games after update
+                    const newYourTurnGames = gamesPanel.querySelectorAll('.your-turn').length;
+                    
+                    // Show toast notification if new turn games appeared
+                    if (newYourTurnGames > oldYourTurnGames) {
+                        showTurnNotification('It\'s your turn in a game!');
+                    }
                 }
                 break;
                 
@@ -255,6 +321,26 @@ document.addEventListener('DOMContentLoaded', function() {
     document.addEventListener('htmx:wsError', function(event) {
         console.error('WebSocket error:', event.detail);
     });
+    
+    // Function to show turn notification toast
+    function showTurnNotification(message) {
+        const toast = document.getElementById('turn-notification-toast');
+        const toastMessage = document.getElementById('toast-message');
+        
+        if (toast && toastMessage) {
+            toastMessage.textContent = message;
+            
+            // Use Bootstrap's toast API
+            const bsToast = new bootstrap.Toast(toast, {
+                autohide: true,
+                delay: 4000
+            });
+            bsToast.show();
+        }
+    }
+    
+    // Make function available globally for debugging
+    window.showTurnNotification = showTurnNotification;
 });
 </script>
 

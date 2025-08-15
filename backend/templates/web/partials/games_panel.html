@@ -22,12 +22,13 @@
                 </div>
                 <div class="games-list">
                     {% for game in active_games %}
-                        <div class="game-item p-3 border-bottom hover-bg-light{% if selected_game and selected_game.id == game.id %} selected-game{% endif %}" 
+                        <div class="game-item p-3 border-bottom hover-bg-light{% if selected_game and selected_game.id == game.id %} selected-game{% endif %}{% if game.current_player == 'BLACK' and user == game.black_player or game.current_player == 'WHITE' and user == game.white_player %} your-turn{% endif %}" 
                              hx-get="{% url 'web:dashboard' %}?game={{ game.id }}"
                              hx-target="#center-game-panel"
                              hx-swap="outerHTML"
                              hx-indicator="#panel-loading"
-                             style="cursor: pointer;">
+                             style="cursor: pointer;"
+                             data-turn-status="{% if game.current_player == 'BLACK' and user == game.black_player or game.current_player == 'WHITE' and user == game.white_player %}your-turn{% else %}their-turn{% endif %}">
                             <div class="d-flex justify-content-between align-items-start">
                                 <div class="game-info flex-grow-1">
                                     <div class="d-flex align-items-center mb-1">
@@ -53,22 +54,22 @@
                                 <div class="turn-indicator">
                                     {% if game.current_player == 'BLACK' %}
                                         {% if user == game.black_player %}
-                                            <span class="badge bg-success my-turn">
-                                                <i class="bi bi-play-circle-fill"></i>
+                                            <span class="badge bg-success my-turn pulse-gentle" title="Your turn!">
+                                                <i class="bi bi-play-circle-fill me-1"></i>Your Turn
                                             </span>
                                         {% else %}
-                                            <span class="badge bg-secondary their-turn">
-                                                <i class="bi bi-hourglass-split"></i>
+                                            <span class="badge bg-secondary their-turn" title="Waiting for {{ game.black_player.username }}">
+                                                <i class="bi bi-hourglass-split me-1"></i>Their Turn
                                             </span>
                                         {% endif %}
                                     {% else %}
                                         {% if user == game.white_player %}
-                                            <span class="badge bg-success my-turn">
-                                                <i class="bi bi-play-circle-fill"></i>
+                                            <span class="badge bg-success my-turn pulse-gentle" title="Your turn!">
+                                                <i class="bi bi-play-circle-fill me-1"></i>Your Turn
                                             </span>
                                         {% else %}
-                                            <span class="badge bg-secondary their-turn">
-                                                <i class="bi bi-hourglass-split"></i>
+                                            <span class="badge bg-secondary their-turn" title="Waiting for {{ game.white_player.username }}">
+                                                <i class="bi bi-hourglass-split me-1"></i>Their Turn
                                             </span>
                                         {% endif %}
                                     {% endif %}
