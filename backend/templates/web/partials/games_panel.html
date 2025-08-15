@@ -5,9 +5,15 @@
             <h6 class="mb-0">
                 <i class="bi bi-grid-3x3-gap me-2"></i>Your Games
             </h6>
-            <a href="{% url 'web:games' %}" class="btn btn-outline-primary btn-sm">
+            <button class="btn btn-outline-primary btn-sm" 
+                    hx-get="{% url 'web:games_modal' %}"
+                    hx-target="#games-modal-container"
+                    hx-trigger="click"
+                    data-bs-toggle="modal" 
+                    data-bs-target="#games-modal"
+                    title="View all games">
                 <i class="bi bi-eye"></i> View All
-            </a>
+            </button>
         </div>
     </div>
     <div class="card-body p-0">

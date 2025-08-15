@@ -1,0 +1,178 @@
+<!-- Games Management Modal Content -->
+<div class="modal-header">
+    <h5 class="modal-title">
+        <i class="bi bi-grid-3x3-gap me-2"></i>All Your Games
+    </h5>
+    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+</div>
+
+<div class="modal-body">
+    <div class="row">
+        <div class="col-12">
+            <!-- Summary Stats -->
+            <div class="row mb-4">
+                <div class="col-md-4 text-center">
+                    <div class="stat-card">
+                        <div class="stat-value h4 text-primary">{{ total_games }}</div>
+                        <div class="stat-label text-muted">Total Games</div>
+                    </div>
+                </div>
+                <div class="col-md-4 text-center">
+                    <div class="stat-card">
+                        <div class="stat-value h4 text-success">{{ active_games.count }}</div>
+                        <div class="stat-label text-muted">Active Games</div>
+                    </div>
+                </div>
+                <div class="col-md-4 text-center">
+                    <div class="stat-card">
+                        <div class="stat-value h4 text-info">{{ finished_games.count }}</div>
+                        <div class="stat-label text-muted">Finished Games</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Active Games Section -->
+            {% if active_games %}
+                <div class="games-section mb-4">
+                    <h6 class="section-title">
+                        <i class="bi bi-play-circle me-2 text-success"></i>Active Games ({{ active_games.count }})
+                    </h6>
+                    <div class="list-group">
+                        {% for game in active_games %}
+                            <div class="list-group-item d-flex justify-content-between align-items-center{% if game.current_player == 'BLACK' and user == game.black_player or game.current_player == 'WHITE' and user == game.white_player %} list-group-item-success{% endif %}">
+                                <div class="game-info">
+                                    <div class="d-flex align-items-center">
+                                        {% if user == game.black_player %}
+                                            <span class="stone-indicator stone-indicator-black me-2"></span>
+                                            <strong>vs {{ game.white_player.username }}</strong>
+                                        {% else %}
+                                            <span class="stone-indicator stone-indicator-white me-2"></span>
+                                            <strong>vs {{ game.black_player.username }}</strong>
+                                        {% endif %}
+                                    </div>
+                                    <small class="text-muted">{{ game.ruleset.name }} ({{ game.ruleset.board_size }}×{{ game.ruleset.board_size }})</small>
+                                </div>
+                                <div class="game-actions">
+                                    {% if game.current_player == 'BLACK' and user == game.black_player or game.current_player == 'WHITE' and user == game.white_player %}
+                                        <span class="badge bg-success me-2">Your Turn</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary me-2">Waiting</span>
+                                    {% endif %}
+                                    <button class="btn btn-primary btn-sm" 
+                                            data-bs-dismiss="modal"
+                                            hx-get="{% url 'web:dashboard' %}?game={{ game.id }}"
+                                            hx-target="#center-game-panel"
+                                            hx-swap="outerHTML">
+                                        <i class="bi bi-play"></i> Play
+                                    </button>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endif %}
+            
+            <!-- Finished Games Section -->
+            {% if finished_games %}
+                <div class="games-section">
+                    <h6 class="section-title">
+                        <i class="bi bi-check-circle me-2 text-primary"></i>Recent Finished Games
+                    </h6>
+                    <div class="list-group">
+                        {% for game in finished_games|slice:":10" %}
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <div class="game-info">
+                                    <div class="d-flex align-items-center">
+                                        {% if user == game.black_player %}
+                                            <span class="stone-indicator stone-indicator-black me-2"></span>
+                                            <strong>vs {{ game.white_player.username }}</strong>
+                                        {% else %}
+                                            <span class="stone-indicator stone-indicator-white me-2"></span>
+                                            <strong>vs {{ game.black_player.username }}</strong>
+                                        {% endif %}
+                                        {% if game.winner %}
+                                            {% if game.winner == user %}
+                                                <span class="badge bg-success ms-2">Won</span>
+                                            {% else %}
+                                                <span class="badge bg-danger ms-2">Lost</span>
+                                            {% endif %}
+                                        {% else %}
+                                            <span class="badge bg-secondary ms-2">Draw</span>
+                                        {% endif %}
+                                    </div>
+                                    <small class="text-muted">{{ game.ruleset.name }} • {{ game.finished_at|date:"M j, Y" }}</small>
+                                </div>
+                                <div class="game-actions">
+                                    <button class="btn btn-outline-primary btn-sm" 
+                                            data-bs-dismiss="modal"
+                                            hx-get="{% url 'web:dashboard' %}?game={{ game.id }}"
+                                            hx-target="#center-game-panel"
+                                            hx-swap="outerHTML">
+                                        <i class="bi bi-eye"></i> View
+                                    </button>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                    {% if finished_games.count > 10 %}
+                        <div class="text-center mt-3">
+                            <small class="text-muted">Showing 10 of {{ finished_games.count }} finished games</small>
+                        </div>
+                    {% endif %}
+                </div>
+            {% endif %}
+            
+            {% if not active_games and not finished_games %}
+                <div class="text-center py-5">
+                    <i class="bi bi-grid-3x3-gap display-1 text-muted mb-3"></i>
+                    <h5 class="text-muted">No Games Yet</h5>
+                    <p class="text-muted">Challenge a friend to start your first game!</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="modal-footer">
+    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+</div>
+
+<style>
+/* Games Modal Specific Styles */
+.stone-indicator {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.stone-indicator-black {
+    background: radial-gradient(circle at 30% 30%, #444, #000);
+    border: 1px solid #333;
+}
+
+.stone-indicator-white {
+    background: radial-gradient(circle at 30% 30%, #fff, #ddd);
+    border: 1px solid #333;
+}
+
+.stat-card {
+    padding: 1rem;
+    background: rgba(13, 110, 253, 0.05);
+    border-radius: 8px;
+}
+
+.section-title {
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.list-group-item-success {
+    background-color: rgba(25, 135, 84, 0.1) !important;
+    border-color: rgba(25, 135, 84, 0.2) !important;
+}
+</style>

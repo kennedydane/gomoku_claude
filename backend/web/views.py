@@ -7,7 +7,7 @@ from django.contrib.auth import login
 from django.urls import reverse_lazy
 from django.views import View
 from django.db.models import Q
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 
 from games.models import Game, Challenge, GameStatus, ChallengeStatus, RuleSet
 from games.services import GameService
@@ -315,7 +315,7 @@ class GameMoveView(LoginRequiredMixin, View):
                         # Send HTML fragment for HTMX SSE to both players
                         from django.middleware.csrf import get_token
                         csrf_token = get_token(request)
-                        logger.debug(f"🔐 CSRF: Token generated for SSE: {csrf_token[:10]}..." if csrf_token else "🔐 CSRF: No token generated")
+                        logger.debug("🔐 CSRF: Token generated for SSE: %s...", csrf_token[:10] if csrf_token else "No token generated")
                         
                         # Use Django template and prevent all escaping
                         from django.template.loader import render_to_string
@@ -554,6 +554,7 @@ class FriendAPIViewMixin:
             return User.objects.get(username=username)
         except User.DoesNotExist:
             return None
+    
 
 
 class SendFriendRequestView(FriendAPIViewMixin, LoginRequiredMixin, View):
@@ -757,6 +758,36 @@ class FriendsModalView(LoginRequiredMixin, TemplateView):
         return context
 
 
+class GamesModalView(LoginRequiredMixin, TemplateView):
+    """Modal content for games management and viewing."""
+    template_name = 'web/partials/games_modal_content.html'
+    login_url = 'web:login'
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+        
+        # Get user's games with same logic as GamesView
+        from django.db.models import Q
+        user_games_query = Q(black_player=user) | Q(white_player=user)
+        
+        # Get all games for this user
+        all_games = Game.objects.select_related(
+            'black_player', 'white_player', 'winner', 'ruleset'
+        ).filter(user_games_query).order_by('-created_at')
+        
+        # Separate active and finished games
+        active_games = all_games.filter(status=GameStatus.ACTIVE)
+        finished_games = all_games.filter(status=GameStatus.FINISHED)
+        
+        context.update({
+            'active_games': active_games,
+            'finished_games': finished_games,
+            'total_games': all_games.count(),
+        })
+        return context
+
+
 # Challenge System Views
 
 class ChallengeFriendView(FriendAPIViewMixin, LoginRequiredMixin, View):
@@ -890,27 +921,22 @@ class ChallengeFriendView(FriendAPIViewMixin, LoginRequiredMixin, View):
             
             logger.info(f"✅ Challenge created successfully: {challenge.id}")
             
-            # Send real-time update to challenged user
+            # Send real-time updates to both users using centralized service
             try:
-                from .consumers import WebSocketMessageSender
-                from django.template.loader import render_to_string
+                from .services import WebSocketNotificationService
                 
-                # Get updated friends context for the challenged user
-                challenged_user_context = self._get_updated_friends_context(challenged_user)
-                challenged_user_context['csrf_token'] = request.META.get('CSRF_COOKIE')
-                
-                # Render updated friends panel for challenged user
-                friends_panel_html = render_to_string('web/partials/friends_panel.html', 
-                    challenged_user_context, request=request).strip()
-                
-                # Send WebSocket update to challenged user
-                WebSocketMessageSender.send_to_user_sync(
-                    challenged_user.id,
-                    'friends_update',
-                    friends_panel_html,
-                    metadata={'challenge_id': str(challenge.id), 'action': 'challenge_received'}
+                # Create a temporary game object to pass the challenge relationships
+                # The centralized service expects a game, but for challenges we need to pass challenge info
+                WebSocketNotificationService.notify_game_event(
+                    event_type='challenge_sent',
+                    game=None,  # No game yet, just challenge
+                    triggering_user=request.user,
+                    request=request,
+                    challenge=challenge,
+                    metadata={'challenge_id': str(challenge.id)}
                 )
-                logger.info(f"📤 WebSocket: Challenge notification sent to {challenged_user.username}")
+                
+                logger.info(f"📤 WebSocket: Challenge notifications sent via centralized service")
                 
             except Exception as ws_error:
                 logger.warning(f"⚠️  WebSocket challenge notification failed: {ws_error}")
@@ -977,8 +1003,24 @@ class RespondChallengeView(FriendAPIViewMixin, LoginRequiredMixin, View):
         }
     
     def post(self, request, challenge_id):
+        # DEBUG: Log all request details
+        from loguru import logger
+        logger.info(f"🔍 CHALLENGE RESPONSE DEBUG: challenge_id={challenge_id}")
+        logger.info(f"📋 Request method: {request.method}")
+        logger.info(f"📋 Request path: {request.path}")
+        logger.info(f"📋 POST data keys: {list(request.POST.keys())}")
+        logger.info(f"📋 POST data values: {dict(request.POST)}")
+        logger.info(f"📋 Headers: {dict(request.headers)}")
+        logger.info(f"📋 User: {request.user}")
+        logger.info(f"📋 CSRF cookie: {request.META.get('CSRF_COOKIE')}")
+        logger.info(f"📋 X-CSRFToken header: {request.headers.get('X-CSRFToken')}")
+        logger.info(f"📋 csrfmiddlewaretoken in POST: {request.POST.get('csrfmiddlewaretoken')}")
+        
         action = request.POST.get('action')
+        logger.info(f"📋 Action: {action}")
+        
         if action not in ['accept', 'reject', 'cancel']:
+            logger.error(f"❌ Invalid action: {action}")
             return self.json_error('Invalid action', 400)
         
         try:
@@ -1031,6 +1073,26 @@ class RespondChallengeView(FriendAPIViewMixin, LoginRequiredMixin, View):
                 game.initialize_board()
                 game.save()
                 
+                # Send real-time updates to both users using centralized service
+                try:
+                    from .services import WebSocketNotificationService
+                    
+                    WebSocketNotificationService.notify_game_event(
+                        event_type='challenge_accepted',
+                        game=game,
+                        triggering_user=request.user,
+                        request=request,
+                        challenge=challenge,
+                        metadata={'challenge_id': str(challenge.id), 'game_id': str(game.id)}
+                    )
+                    
+                    from loguru import logger
+                    logger.info(f"📤 WebSocket: Game creation notifications sent via centralized service")
+                    
+                except Exception as ws_error:
+                    from loguru import logger
+                    logger.warning(f"⚠️ WebSocket game creation notification failed: {ws_error}")
+                
                 # For HTMX requests, return updated friends panel and redirect to game
                 if request.headers.get('HX-Request'):
                     # First update the friends panel to remove the challenge
@@ -1058,6 +1120,26 @@ class RespondChallengeView(FriendAPIViewMixin, LoginRequiredMixin, View):
             challenge.status = ChallengeStatus.REJECTED
             challenge.save()
             
+            # Send real-time updates to both users using centralized service
+            try:
+                from .services import WebSocketNotificationService
+                
+                WebSocketNotificationService.notify_game_event(
+                    event_type='challenge_rejected',
+                    game=None,  # No game for rejected challenges
+                    triggering_user=request.user,
+                    request=request,
+                    challenge=challenge,
+                    metadata={'challenge_id': str(challenge.id), 'action': 'rejected'}
+                )
+                
+                from loguru import logger
+                logger.info(f"📤 WebSocket: Challenge rejection notifications sent via centralized service")
+                
+            except Exception as ws_error:
+                from loguru import logger
+                logger.warning(f"⚠️ WebSocket challenge rejection notification failed: {ws_error}")
+            
             # For HTMX requests, return updated friends panel
             if request.headers.get('HX-Request'):
                 context = self._get_updated_friends_context(request.user)
@@ -1071,6 +1153,27 @@ class RespondChallengeView(FriendAPIViewMixin, LoginRequiredMixin, View):
         elif action == 'cancel':
             challenge.status = ChallengeStatus.CANCELLED
             challenge.save()
+            
+            # Send real-time updates to both users using centralized service
+            try:
+                from .services import WebSocketNotificationService
+                
+                # For cancellations, we can reuse challenge_rejected event type
+                WebSocketNotificationService.notify_game_event(
+                    event_type='challenge_rejected',
+                    game=None,  # No game for cancelled challenges
+                    triggering_user=request.user,
+                    request=request,
+                    challenge=challenge,
+                    metadata={'challenge_id': str(challenge.id), 'action': 'cancelled'}
+                )
+                
+                from loguru import logger
+                logger.info(f"📤 WebSocket: Challenge cancellation notifications sent via centralized service")
+                
+            except Exception as ws_error:
+                from loguru import logger
+                logger.warning(f"⚠️ WebSocket challenge cancellation notification failed: {ws_error}")
             
             # For HTMX requests, return updated friends panel
             if request.headers.get('HX-Request'):
@@ -1100,3 +1203,97 @@ class RulesetsListView(FriendAPIViewMixin, LoginRequiredMixin, View):
         } for ruleset in rulesets]
         
         return self.json_response(rulesets_data)
+
+
+class GameResignView(FriendAPIViewMixin, LoginRequiredMixin, View):
+    """Handle game resignation through web interface."""
+    login_url = 'web:login'
+    
+    def post(self, request, game_id):
+        """Resign from a game."""
+        try:
+            from games.models import Game
+            from games.services import GameService
+            from games.models import GameEvent
+            from games.serializers import GameSerializer
+            
+            # Get the game
+            try:
+                game = Game.objects.get(id=game_id)
+            except Game.DoesNotExist:
+                if request.headers.get('HX-Request'):
+                    return render(request, 'web/partials/error_message.html', {
+                        'error': 'Game not found'
+                    }, status=404)
+                return self.json_error('Game not found', 404)
+            
+            # Check if authenticated user is a player in this game
+            user = request.user
+            if user.id not in [game.black_player_id, game.white_player_id]:
+                if request.headers.get('HX-Request'):
+                    return render(request, 'web/partials/error_message.html', {
+                        'error': 'You are not a player in this game'
+                    }, status=403)
+                return self.json_error('You are not a player in this game', 403)
+            
+            # Resign the game
+            try:
+                GameService.resign_game(game, user.id)
+                
+                # Create game event
+                for player in [game.black_player, game.white_player]:
+                    GameEvent.objects.create(
+                        user=player,
+                        event_type='resign',
+                        event_data={
+                            'game_id': str(game.id),
+                            'resigned_player_id': user.id,
+                            'winner_id': game.winner_id
+                        }
+                    )
+                
+                # Send real-time updates to both players using centralized service
+                try:
+                    from .services import WebSocketNotificationService
+                    
+                    WebSocketNotificationService.notify_game_event(
+                        event_type='game_resigned',
+                        game=game,
+                        triggering_user=user,
+                        request=request,
+                        metadata={'resigned_by': user.id}
+                    )
+                    
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.info(f"📤 WebSocket: Game resignation notifications sent via centralized service")
+                    
+                except Exception as ws_error:
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.warning(f"⚠️ WebSocket resignation notification failed: {ws_error}")
+                
+                # For HTMX requests, return minimal response since WebSocket handles updates
+                if request.headers.get('HX-Request'):
+                    return HttpResponse(status=204)  # No Content - WebSocket will handle updates
+                
+                # For non-HTMX requests, return JSON
+                return self.json_response({
+                    'success': True,
+                    'message': 'Game resigned successfully',
+                    'game': GameSerializer(game).data
+                })
+                
+            except Exception as e:
+                if request.headers.get('HX-Request'):
+                    return render(request, 'web/partials/error_message.html', {
+                        'error': f'Failed to resign game: {str(e)}'
+                    }, status=500)
+                return self.json_error(f'Failed to resign game: {str(e)}', 500)
+                
+        except Exception as e:
+            if request.headers.get('HX-Request'):
+                return render(request, 'web/partials/error_message.html', {
+                    'error': f'An error occurred: {str(e)}'
+                }, status=500)
+            return self.json_error(f'An error occurred: {str(e)}', 500)

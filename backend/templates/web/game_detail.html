@@ -142,10 +142,11 @@
                     <div class="card-body">
                         {% if game.status == 'ACTIVE' %}
                             <button class="btn btn-outline-danger btn-sm" 
-                                    hx-post="/api/v1/games/{{ game.id }}/resign/"
+                                    hx-post="{% url 'web:game_resign' game.id %}"
                                     hx-confirm="Are you sure you want to resign this game?"
                                     hx-target="#game-container"
-                                    hx-swap="outerHTML">
+                                    hx-swap="outerHTML"
+                                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
                                 Resign Game
                             </button>
                         {% endif %}

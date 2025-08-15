@@ -12,17 +12,7 @@
 <!-- Welcome Header -->
 <div class="row mb-4">
     <div class="col-12">
-        <div class="d-flex justify-content-between align-items-center">
-            <h1>Welcome back, {{ user.username }}!</h1>
-            <div class="d-flex gap-2">
-                <a href="{% url 'web:friends' %}" class="btn btn-outline-primary btn-sm">
-                    <i class="bi bi-person-plus"></i> Find Friends
-                </a>
-                <a href="{% url 'web:games' %}" class="btn btn-primary btn-sm">
-                    <i class="bi bi-grid-3x3-gap"></i> All Games
-                </a>
-            </div>
-        </div>
+        <h1>Welcome back, {{ user.username }}!</h1>
     </div>
 </div>
     
@@ -130,6 +120,23 @@
                         <span class="visually-hidden">Loading...</span>
                     </div>
                     <div class="mt-2">Loading friends management...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Games Management Modal -->
+<div class="modal fade" id="games-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div id="games-modal-container">
+                <!-- Content loaded via HTMX -->
+                <div class="modal-body text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <div class="mt-2">Loading games...</div>
                 </div>
             </div>
         </div>
@@ -248,6 +255,35 @@
 <script>
 // WebSocket Message Routing for Dashboard
 document.addEventListener('DOMContentLoaded', function() {
+    // Configure HTMX to automatically include CSRF tokens from the page
+    document.addEventListener('htmx:configRequest', function(event) {
+        // Get CSRF token from the page's meta tag or cookie
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || 
+                         document.querySelector('meta[name=csrf-token]')?.getAttribute('content') ||
+                         getCookie('csrftoken');
+        
+        if (csrfToken) {
+            // Add CSRF token to the request parameters
+            event.detail.parameters['csrfmiddlewaretoken'] = csrfToken;
+        }
+    });
+    
+    // Helper function to get cookie value
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    
     // Listen for WebSocket messages and route them to appropriate panels
     document.addEventListener('htmx:wsAfterMessage', function(event) {
         const message = event.detail.message;

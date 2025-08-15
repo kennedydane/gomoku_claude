@@ -21,8 +21,10 @@ urlpatterns = [
     
     # Games
     path('games/', views.GamesView.as_view(), name='games'),
+    path('games/modal/', views.GamesModalView.as_view(), name='games_modal'),
     path('games/<uuid:game_id>/', views.GameDetailRedirectView.as_view(), name='game_detail'),
     path('games/<uuid:game_id>/move/', views.GameMoveView.as_view(), name='game_move'),
+    path('games/<uuid:game_id>/resign/', views.GameResignView.as_view(), name='game_resign'),
     
     # Friends - Web Pages
     path('friends/', views.FriendsPageView.as_view(), name='friends'),

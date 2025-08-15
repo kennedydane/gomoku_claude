@@ -107,8 +107,7 @@
                                                 hx-vals='{"action": "cancel"}'
                                                 hx-confirm="Cancel challenge to {{ challenge.challenged.username }}?"
                                                 hx-target="#friends-panel"
-                                                hx-swap="outerHTML"
-                                                hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+                                                hx-swap="outerHTML">
                                             <i class="bi bi-x-lg"></i>
                                         </button>
                                     </div>
@@ -149,8 +148,7 @@
                                                 hx-vals='{"action": "accept"}'
                                                 hx-confirm="Accept challenge from {{ challenge.challenger.username }}?"
                                                 hx-target="#friends-panel"
-                                                hx-swap="outerHTML"
-                                                hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+                                                hx-swap="outerHTML">
                                             <i class="bi bi-check-lg"></i>
                                         </button>
                                         <button class="btn btn-outline-danger btn-sm reject-challenge-btn"
@@ -158,8 +156,7 @@
                                                 hx-vals='{"action": "reject"}'
                                                 hx-confirm="Reject challenge from {{ challenge.challenger.username }}?"
                                                 hx-target="#friends-panel"
-                                                hx-swap="outerHTML"
-                                                hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+                                                hx-swap="outerHTML">
                                             <i class="bi bi-x-lg"></i>
                                         </button>
                                     </div>
