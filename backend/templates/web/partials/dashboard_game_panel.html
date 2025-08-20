@@ -160,11 +160,10 @@
 }
 
 .dashboard-game-panel .game-board-grid {
-    /* Truly fluid sizing that adapts to container */
-    --fluid-intersection-size: clamp(
-        8px, 
-        calc(min(60vw, 500px) / var(--board-size-num, 8)), 
-        30px
+    /* Container-relative sizing with higher minimum to prevent tiny boards */
+    --fluid-intersection-size: min(
+        8vh,
+        min(45vw, 1024px) / var(--board-size-num, 8)
     ) !important;
     --fluid-stone-size: calc(var(--fluid-intersection-size) * 0.8) !important;
 }
@@ -172,11 +171,10 @@
 /* Responsive adjustments for dashboard panel */
 @media (max-width: 992px) {
     .dashboard-game-panel .game-board-grid {
-        --fluid-intersection-size: clamp(
-            14px, 
-            calc((100% - 100px) / var(--board-size-num, 8)), 
-            28px
-        );
+        --fluid-intersection-size: min(
+            6vh,
+            min(40vw, 800px) / var(--board-size-num, 8)
+        ) !important;
     }
 }
 
@@ -195,11 +193,10 @@
     }
     
     .dashboard-game-panel .game-board-grid {
-        --fluid-intersection-size: clamp(
-            12px, 
-            calc((100% - 80px) / var(--board-size-num, 8)), 
-            24px
-        );
+        --fluid-intersection-size: min(
+            4vh,
+            min(60vw, 600px) / var(--board-size-num, 8)
+        ) !important;
     }
 }
 
