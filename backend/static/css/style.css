@@ -30,16 +30,53 @@ body.dark .table-dark {
     display: flex;
     justify-content: center;
     align-items: center;
-    padding: 20px;
+    padding: 0; /* Remove padding to eliminate white gaps */
 }
+
+/* Coordinate System Cells */
+.coordinate-cell-letter,
+.coordinate-cell-number {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: #495057;
+    user-select: none;
+    background-color: transparent; /* Clean transparent background */
+    border: none; /* No borders for coordinate labels */
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.spacer-cell {
+    background-color: transparent;
+    /* Creates visual separation between coordinates and game board */
+    max-width: 8px;
+    max-height: 8px;
+    /* Narrower spacers to bring coordinates closer to board */
+}
+
+.corner-cell {
+    background-color: transparent; /* Clean corners too */
+    border: none;
+}
+
+/* Empty coordinate cells (used as corners) should be invisible */
+.coordinate-cell-letter:empty,
+.coordinate-cell-number:empty {
+    background-color: transparent;
+    border: none;
+}
+
+/* Removed unused .game-board-area - using single grid approach now */
 
 .game-board-grid {
     display: grid;
-    gap: 1px;
-    background-color: #8B4513;
-    border: 2px solid #654321;
+    gap: 0; /* Remove gap to eliminate white lines between cells */
+    background-color: transparent; /* Keep transparent to avoid brown behind coordinates */
+    border: none;
     border-radius: 8px;
-    padding: 10px;
+    padding: 0; /* Remove padding to eliminate white gaps at borders */
     box-shadow: 0 4px 8px rgba(0,0,0,0.2);
     /* Dynamic grid layout - set via CSS custom properties in template */
     grid-template-columns: repeat(var(--board-size), 1fr);
@@ -54,14 +91,76 @@ body.dark .table-dark {
     min-height: 16px;
     max-width: 40px;
     max-height: 40px;
-    background-color: #DEB887;
-    border: 1px solid #8B4513;
+    background-color: transparent !important; /* Make the cell background transparent */
+    border: none !important; /* Remove all borders */
     cursor: default;
     display: flex;
     justify-content: center;
     align-items: center;
-    transition: background-color 0.2s;
-    position: relative;
+    transition: all 0.2s;
+    position: relative; /* This is crucial for positioning the grid lines */
+}
+
+/* Grid lines using pseudo-elements */
+.board-intersection::before,
+.board-intersection::after {
+    content: '';
+    position: absolute;
+    background-color: #8B4513; /* Dark brown grid lines */
+    z-index: 1; /* Grid lines behind stones but visible */
+}
+
+/* Vertical line */
+.board-intersection::before {
+    top: 0;
+    left: 50%;
+    width: 1px; /* Line thickness */
+    height: 100%;
+    transform: translateX(-50%);
+}
+
+/* Horizontal line */
+.board-intersection::after {
+    top: 50%;
+    left: 0;
+    width: 100%;
+    height: 1px; /* Line thickness */
+    transform: translateY(-50%);
+}
+
+/* Edge trimming for grid lines - dynamic based on board size */
+/* Left edge: trim horizontal lines to start from center */
+.board-intersection[data-col="0"]::after { 
+    left: 50%; 
+    width: 50%; 
+}
+
+/* Right edge: trim horizontal lines to end at center */
+.game-board-grid[data-board-size="8"] .board-intersection[data-col="7"]::after,
+.game-board-grid[data-board-size="9"] .board-intersection[data-col="8"]::after,
+.game-board-grid[data-board-size="11"] .board-intersection[data-col="10"]::after,
+.game-board-grid[data-board-size="13"] .board-intersection[data-col="12"]::after,
+.game-board-grid[data-board-size="15"] .board-intersection[data-col="14"]::after,
+.game-board-grid[data-board-size="19"] .board-intersection[data-col="18"]::after,
+.game-board-grid[data-board-size="25"] .board-intersection[data-col="24"]::after { 
+    width: 50%; 
+}
+
+/* Top edge: trim vertical lines to start from center */
+.board-intersection[data-row="0"]::before { 
+    top: 50%; 
+    height: 50%; 
+}
+
+/* Bottom edge: trim vertical lines to end at center */
+.game-board-grid[data-board-size="8"] .board-intersection[data-row="7"]::before,
+.game-board-grid[data-board-size="9"] .board-intersection[data-row="8"]::before,
+.game-board-grid[data-board-size="11"] .board-intersection[data-row="10"]::before,
+.game-board-grid[data-board-size="13"] .board-intersection[data-row="12"]::before,
+.game-board-grid[data-board-size="15"] .board-intersection[data-row="14"]::before,
+.game-board-grid[data-board-size="19"] .board-intersection[data-row="18"]::before,
+.game-board-grid[data-board-size="25"] .board-intersection[data-row="24"]::before { 
+    height: 50%; 
 }
 
 /* Clickable intersections (when it's player's turn) */
@@ -71,14 +170,13 @@ body.dark .table-dark {
 
 .board-intersection[hx-post]:hover,
 .board-intersection:not(.occupied):hover {
-    background-color: rgba(245, 222, 179, 0.3); /* More subtle background when preview stone is shown */
-    transform: scale(1.02);
+    background-color: transparent; /* No background color change for intersection-based design */
+    transform: scale(1.02); /* Keep subtle zoom effect */
     transition: all 0.15s ease;
 }
 
-/* Preview stone for black player */
-.game-board-grid[data-current-player="BLACK"] .board-intersection:not(.occupied):hover::before {
-    content: '';
+/* Preview stones using template elements (no pseudo-element conflicts) */
+.preview-stone {
     position: absolute;
     top: 50%;
     left: 50%;
@@ -90,36 +188,27 @@ body.dark .table-dark {
     max-width: calc(40px * 0.8);
     max-height: calc(40px * 0.8);
     border-radius: 50%;
-    background: radial-gradient(circle at 30% 30%, #444, #000);
-    border: 1px solid rgba(51, 51, 51, 0.8);
+    border: 1px solid rgba(51, 51, 51, 0.6);
     box-shadow: 0 2px 4px rgba(0,0,0,0.25);
-    opacity: 0.65;
+    opacity: 0;
     pointer-events: none;
-    z-index: 10;
-    animation: fadeInStone 0.2s ease;
+    z-index: 5; /* Above grid lines (1) but below actual stones (10) */
+    transition: opacity 0.2s ease;
 }
 
-/* Preview stone for white player */
-.game-board-grid[data-current-player="WHITE"] .board-intersection:not(.occupied):hover::before {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: calc(var(--intersection-size, 30px) * 0.8);
-    height: calc(var(--intersection-size, 30px) * 0.8);
-    min-width: 12px;
-    min-height: 12px;
-    max-width: calc(40px * 0.8);
-    max-height: calc(40px * 0.8);
-    border-radius: 50%;
-    background: radial-gradient(circle at 30% 30%, #fff, #ddd);
-    border: 1px solid rgba(51, 51, 51, 0.8);
-    box-shadow: 0 2px 4px rgba(0,0,0,0.25);
-    opacity: 0.65;
-    pointer-events: none;
-    z-index: 10;
-    animation: fadeInStone 0.2s ease;
+/* Show preview stones on hover for clickable intersections */
+.board-intersection[hx-post]:hover .preview-stone {
+    opacity: 0.5; /* More transparent to show grid lines */
+}
+
+/* Black player preview stones */
+.game-board-grid[data-current-player="BLACK"] .board-intersection:hover .preview-stone {
+    background: radial-gradient(circle at 30% 30%, rgba(68,68,68,0.7), rgba(0,0,0,0.7));
+}
+
+/* White player preview stones */
+.game-board-grid[data-current-player="WHITE"] .board-intersection:hover .preview-stone {
+    background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.7), rgba(221,221,221,0.7));
 }
 
 /* Animation for preview stone appearance */
@@ -447,6 +536,12 @@ body.dark .table-dark {
         --stone-size: calc(var(--base-stone-size, 24px) * 0.8);
     }
     
+    /* Coordinate cells also scale down */
+    .coordinate-cell-letter,
+    .coordinate-cell-number {
+        font-size: 0.75rem;
+    }
+    
     /* Legacy board styles */
     .game-board {
         gap: 0;
@@ -468,6 +563,12 @@ body.dark .table-dark {
     .board-intersection {
         --intersection-size: calc(var(--base-intersection-size, 30px) * 0.7);
         --stone-size: calc(var(--base-stone-size, 24px) * 0.7);
+    }
+    
+    /* Even smaller coordinate cells */
+    .coordinate-cell-letter,
+    .coordinate-cell-number {
+        font-size: 0.65rem;
     }
     
     /* Legacy board styles */

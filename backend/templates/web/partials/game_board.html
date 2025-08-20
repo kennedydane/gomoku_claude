@@ -1,3 +1,4 @@
+{% load board_filters %}
 {% if game.board_state and game.board_state.board %}
 <div class="game-board-container board-responsive">
     <div class="game-board-grid" 
@@ -6,8 +7,21 @@
          data-current-player="{{ game.current_player }}"
          data-game-status="{{ game.status }}"
          id="game-board"
-         style="--board-size: {{ game.ruleset.board_size }}; --intersection-size: var(--base-intersection-size, 30px); --stone-size: var(--base-stone-size, 24px);">
+         style="--board-size: {{ game.ruleset.board_size|add:2 }}; --intersection-size: var(--base-intersection-size, 30px); --stone-size: var(--base-stone-size, 24px);">
+    
+    {% with board_size=game.ruleset.board_size %}
+    {% with letters="ABCDEFGHIJKLMNOPQRSTUVWXYZ" %}
+    
+    {# Row 1: Top coordinate row with empty corner + letters + empty corner #}
+    <div class="coordinate-cell-letter"></div>
+    {% for i in board_size|range_filter %}
+        <div class="coordinate-cell-letter">{{ letters|get_letter:i }}</div>
+    {% endfor %}
+    <div class="coordinate-cell-letter"></div>
+    
+    {# Rows 2 to board_size+1: Game rows with left number + intersections + right number #}
     {% for row in game.board_state.board %}
+        <div class="coordinate-cell-number">{{ forloop.counter }}</div>
         {% for cell in row %}
             <div class="board-intersection{% if cell %} occupied{% endif %}"
                  data-row="{{ forloop.parentloop.counter0 }}"
@@ -24,6 +38,13 @@
                  hx-indicator="#board-loading"
                  hx-include="[name='csrfmiddlewaretoken']"
                  {% endif %}>
+                
+                {# Preview stone element (only for empty intersections) #}
+                {% if not cell %}
+                    <div class="preview-stone"></div>
+                {% endif %}
+                
+                {# Actual stones #}
                 {% if cell == 'BLACK' or cell == 'black' %}
                     <div class="stone-black"></div>
                 {% elif cell == 'WHITE' or cell == 'white' %}
@@ -31,7 +52,18 @@
                 {% endif %}
             </div>
         {% endfor %}
+        <div class="coordinate-cell-number">{{ forloop.counter }}</div>
     {% endfor %}
+    
+    {# Row board_size+2: Bottom coordinate row with empty corner + letters + empty corner #}
+    <div class="coordinate-cell-letter"></div>
+    {% for i in board_size|range_filter %}
+        <div class="coordinate-cell-letter">{{ letters|get_letter:i }}</div>
+    {% endfor %}
+    <div class="coordinate-cell-letter"></div>
+    
+    {% endwith %}
+    {% endwith %}
     </div>
 </div>
 {% else %}
