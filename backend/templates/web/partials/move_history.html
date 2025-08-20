@@ -1,0 +1,20 @@
+{% load board_filters %}
+<!-- Move History Display -->
+{% if game.moves.exists %}
+<div class="move-history-container">
+    <div class="move-history-header">
+        <small class="text-muted">
+            <i class="bi bi-clock-history me-1"></i>Move History
+        </small>
+    </div>
+    <div class="move-history-list">
+        {% for move in game.moves.all %}
+            <div class="move-chip move-chip-{{ move.player_color|lower }}{% if move.is_winning_move %} winning-move{% endif %}"
+                 title="Move {{ move.move_number }}: {{ move.player.username }} played {{ move.player_color|lower }} at {{ move|move_coordinate }}">
+                <span class="move-coordinate">{{ move|move_coordinate }}</span>
+                <span class="move-number">{{ move.move_number }}</span>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}

@@ -347,6 +347,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 break;
                 
+            case 'move_history_update':
+                // Update move history below game board
+                const moveHistory = document.getElementById('dashboard-move-history');
+                if (moveHistory && data.content) {
+                    moveHistory.innerHTML = data.content;
+                    htmx.process(moveHistory);
+                    console.log('📋 Move history updated:', data.metadata || {});
+                }
+                break;
+                
             case 'game_turn_update':
                 // Update only the turn display in the current game panel
                 const turnDisplay = document.getElementById('game-turn-display');

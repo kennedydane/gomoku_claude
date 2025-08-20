@@ -658,3 +658,140 @@ body.dark .table-dark {
 .offline-indicator::after {
     background-color: #6c757d;
 }
+
+/* Move History Styles */
+.move-history-container {
+    margin-top: 1rem;
+    padding: 0.75rem;
+    background: rgba(248, 249, 250, 0.8);
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+}
+
+.move-history-header {
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+}
+
+.move-history-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    max-height: 120px;
+    overflow-y: auto;
+    padding: 0.25rem;
+}
+
+.move-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 2px solid #333;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    font-size: 0.75rem;
+    font-weight: 600;
+    position: relative;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+    flex-shrink: 0;
+}
+
+.move-chip:hover {
+    transform: scale(1.1);
+    z-index: 10;
+}
+
+.move-chip-black {
+    background: radial-gradient(circle at 30% 30%, #444, #000);
+    color: white;
+}
+
+.move-chip-white {
+    background: radial-gradient(circle at 30% 30%, #fff, #ddd);
+    color: black;
+    border-color: #666;
+}
+
+.move-coordinate {
+    font-size: 0.7rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.move-number {
+    position: absolute;
+    bottom: -6px;
+    right: -6px;
+    background: #6c757d;
+    color: white;
+    border-radius: 50%;
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.6rem;
+    font-weight: 600;
+    border: 1px solid white;
+}
+
+.move-chip.winning-move {
+    border-color: #ffd700;
+    box-shadow: 0 0 8px rgba(255, 215, 0, 0.6);
+    animation: winning-pulse 2s ease-in-out infinite;
+}
+
+.move-chip.winning-move .move-number {
+    background: #ffd700;
+    color: #000;
+}
+
+@keyframes winning-pulse {
+    0%, 100% {
+        box-shadow: 0 0 8px rgba(255, 215, 0, 0.6);
+    }
+    50% {
+        box-shadow: 0 0 12px rgba(255, 215, 0, 0.9);
+    }
+}
+
+/* Responsive adjustments for move history */
+@media (max-width: 768px) {
+    .move-chip {
+        width: 35px;
+        height: 35px;
+        font-size: 0.65rem;
+    }
+    
+    .move-number {
+        width: 14px;
+        height: 14px;
+        font-size: 0.55rem;
+        bottom: -5px;
+        right: -5px;
+    }
+    
+    .move-history-list {
+        gap: 0.35rem;
+        max-height: 100px;
+    }
+}
+
+@media (max-width: 576px) {
+    .move-chip {
+        width: 32px;
+        height: 32px;
+        font-size: 0.6rem;
+    }
+    
+    .move-number {
+        width: 12px;
+        height: 12px;
+        font-size: 0.5rem;
+        bottom: -4px;
+        right: -4px;
+    }
+}

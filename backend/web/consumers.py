@@ -224,6 +224,18 @@ class UserWebSocketConsumer(AsyncWebsocketConsumer):
             metadata=event.get('metadata', {})
         )
     
+    async def move_history_update_message(self, event):
+        """
+        Handle move history update messages sent to this user's channel group.
+        
+        Forwards move history updates to the WebSocket client for HTMX processing.
+        """
+        await self.send_htmx_message(
+            event_type='move_history_update',
+            content=event['content'],
+            metadata=event.get('metadata', {})
+        )
+    
     async def connection_status_message(self, event):
         """
         Handle connection status messages sent to this user's channel group.

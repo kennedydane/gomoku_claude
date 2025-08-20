@@ -300,166 +300,26 @@ class GameMoveView(LoginRequiredMixin, View):
                 # Refresh game from database to get updated state
                 game.refresh_from_db()
                 
-                # Send SSE event to notify other player of the move
+                # Send real-time notifications to both players
                 logger.info(f"🎮 MOVE: Processing move by {request.user.username} in game {game.id}")
                 
-                if HAS_EVENTSTREAM:
-                    # Both players need to receive the updated board state:
-                    # - The player who moved needs to see they can't move anymore
-                    # - The other player needs to see the move and that they can now move
-                    players_to_notify = [game.black_player, game.white_player]
+                # Use centralized WebSocket notification service
+                try:
+                    from .services import WebSocketNotificationService
                     
-                    logger.info(f"📡 SSE: Will notify both players about move in game {game.id}")
+                    success = WebSocketNotificationService.notify_game_event(
+                        event_type='game_move_made',
+                        game=game,
+                        triggering_user=request.user,
+                        request=request
+                    )
                     
-                    try:
-                        # Send HTML fragment for HTMX SSE to both players
-                        from django.middleware.csrf import get_token
-                        csrf_token = get_token(request)
-                        logger.debug("🔐 CSRF: Token generated for SSE: %s...", csrf_token[:10] if csrf_token else "No token generated")
+                    if not success:
+                        logger.warning(f"Some WebSocket notifications failed for move in game {game.id}")
                         
-                        # Use Django template and prevent all escaping
-                        from django.template.loader import render_to_string
-                        import json
-                        
-                        # Send to both players with their respective contexts
-                        for notify_user in players_to_notify:
-                            notify_user_id = notify_user.id
-                            notify_username = notify_user.username
-                            
-                            try:
-                                # Always use dashboard context since standalone game page is removed
-                                board_html = render_to_string('web/partials/game_board.html', {
-                                    'game': game,
-                                    'user': notify_user,  # Each player gets their own context
-                                    'csrf_token': csrf_token,
-                                    'wrapper_id': 'dashboard-game-board-content'  # Always use dashboard wrapper
-                                }, request=request).strip()
-                                
-                                # Fix SSE protocol newline issues while preserving HTML structure
-                                board_html_sse = board_html.replace('\n\n', ' ').replace('\r\n\r\n', ' ').strip()
-                                
-                                # Log details for this player
-                                clickable_count = board_html.count('hx-post')
-                                is_current_player = (notify_user == game.get_current_player_user())
-                                logger.debug(f"📄 {notify_username}: Board HTML ({len(board_html)} chars), {clickable_count} clickable, current_player={is_current_player}")
-                                
-                                channel = f'user-{notify_user_id}'
-                                event_name = 'game_move'
-                                
-                                # Send the newline-stripped HTML content for HTMX to process
-                                # Try WebSocket first, fall back to SSE
-                                try:
-                                    from .consumers import WebSocketMessageSender
-                                    WebSocketMessageSender.send_to_user_sync(
-                                        notify_user_id, 
-                                        event_name, 
-                                        board_html_sse,
-                                        metadata={'game_id': str(game.id), 'target_user': notify_username}
-                                    )
-                                    logger.info(f"📤 WebSocket: Event '{event_name}' sent to {notify_username}")
-                                except Exception as ws_error:
-                                    logger.warning(f"WebSocket failed, falling back to SSE: {ws_error}")
-                                    send_event(channel, event_name, board_html_sse, json_encode=False)
-                                    logger.info(f"📤 SSE: Event '{event_name}' sent to {notify_username} (fallback)")
-                                
-                                # Also send dashboard panel updates for this player
-                                try:
-                                    # Generate updated games panel for dashboard
-                                    from django.db.models import Q
-                                    user_games_query = Q(black_player=notify_user) | Q(white_player=notify_user)
-                                    
-                                    # Get updated active games and recent finished games
-                                    active_games = Game.objects.select_related(
-                                        'black_player', 'white_player', 'ruleset'
-                                    ).filter(user_games_query, status=GameStatus.ACTIVE).order_by('-created_at')
-                                    
-                                    recent_finished_games = Game.objects.select_related(
-                                        'black_player', 'white_player', 'winner', 'ruleset'
-                                    ).filter(
-                                        user_games_query, 
-                                        status=GameStatus.FINISHED
-                                    ).order_by('-finished_at')[:5]
-                                    
-                                    # Don't force game selection - preserve user's current view
-                                    # The games panel will update turn indicators without changing selection
-                                    selected_game_for_panel = None
-                                    
-                                    # Render updated games panel
-                                    panel_html = render_to_string('web/partials/games_panel.html', {
-                                        'user': notify_user,
-                                        'active_games': active_games,
-                                        'recent_finished_games': recent_finished_games,
-                                        'selected_game': selected_game_for_panel
-                                    }, request=request).strip()
-                                    
-                                    # Send dashboard panel update
-                                    panel_html_sse = panel_html.replace('\n\n', ' ').replace('\r\n\r\n', ' ').strip()
-                                    # Try WebSocket first, fall back to SSE
-                                    try:
-                                        WebSocketMessageSender.send_to_user_sync(
-                                            notify_user_id,
-                                            'dashboard_update',
-                                            panel_html_sse,
-                                            metadata={'game_id': str(game.id), 'panel_type': 'games_list'}
-                                        )
-                                        logger.info(f"📤 WebSocket: Dashboard panel update sent to {notify_username}")
-                                    except Exception as ws_error:
-                                        logger.warning(f"Dashboard WebSocket failed, falling back to SSE: {ws_error}")
-                                        send_event(channel, 'dashboard_update', panel_html_sse, json_encode=False)
-                                        logger.info(f"📊 SSE: Dashboard panel update sent to {notify_username} (fallback)")
-                                    
-                                    # Send targeted turn display update for current game panel
-                                    # This updates only the turn display without forcing view switches
-                                    try:
-                                        turn_display_html = render_to_string('web/partials/game_turn_display.html', {
-                                            'game': game,
-                                            'user': notify_user,
-                                        }, request=request).strip()
-                                        
-                                        # Clean for SSE transmission
-                                        turn_display_sse = turn_display_html.replace('\n\n', ' ').replace('\r\n\r\n', ' ').strip()
-                                        
-                                        # Send via WebSocket first, fallback to SSE
-                                        try:
-                                            WebSocketMessageSender.send_to_user_sync(
-                                                notify_user_id,
-                                                'game_turn_update',
-                                                turn_display_sse,
-                                                metadata={
-                                                    'game_id': str(game.id), 
-                                                    'current_player': game.current_player,
-                                                    'is_your_turn': (notify_user == game.get_current_player_user())
-                                                }
-                                            )
-                                            logger.info(f"📤 WebSocket: Turn display update sent to {notify_username}")
-                                        except Exception as ws_error:
-                                            logger.warning(f"Turn display WebSocket failed, falling back to SSE: {ws_error}")
-                                            send_event(channel, 'game_turn_update', turn_display_sse, json_encode=False)
-                                            logger.info(f"🔄 SSE: Turn display update sent to {notify_username} (fallback)")
-                                            
-                                    except Exception as turn_error:
-                                        logger.warning(f"⚠️ Turn display update failed for {notify_username}: {turn_error}")
-                                    
-                                    # REMOVED: Dashboard embedded game panel update
-                                    # This was causing forced view switching when other players made moves
-                                    # Users should maintain their current game view context
-                                    
-                                except Exception as panel_error:
-                                    logger.warning(f"⚠️  SSE: Dashboard panel update failed for {notify_username}: {panel_error}")
-                                
-                            except Exception as e:
-                                # Don't fail the request if SSE fails for this player
-                                logger.error(f"❌ SSE: Failed to send event to {notify_username}: {type(e).__name__}: {str(e)}")
-                                import traceback
-                                logger.debug(f"📋 SSE: Full traceback for {notify_username}: {traceback.format_exc()}")
-                        
-                    except Exception as e:
-                        # Overall SSE failure
-                        logger.error(f"❌ SSE: Overall SSE processing failed: {type(e).__name__}: {str(e)}")
-                        import traceback
-                        logger.debug(f"📋 SSE: Overall traceback: {traceback.format_exc()}")
-                else:
-                    logger.warning(f"⚠️  SSE: django-eventstream not available, skipping real-time update")
+                except Exception as e:
+                    logger.error(f"WebSocket notification failed for move: {e}")
+                    # Don't let WebSocket errors break the move response
                 
                 # Return HTML fragment for HTMX requests
                 if self.is_htmx_request(request):

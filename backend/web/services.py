@@ -53,8 +53,8 @@ class WebSocketNotificationService:
         'game_move_made': {
             'description': 'A move was made in a game',
             'updates': {
-                'current_player': ['game_board'],
-                'other_player': ['game_board', 'turn_display']
+                'current_player': ['game_board', 'games_panel'],
+                'other_player': ['game_board', 'turn_display', 'games_panel']
             }
         },
         'game_resigned': {
@@ -316,6 +316,25 @@ class WebSocketNotificationService:
             board_html,
             metadata=context.get('metadata', {})
         )
+        
+        # Also send move history update
+        cls._send_move_history_update(user, game, request, csrf_token, context)
+        
+        return True
+    
+    @classmethod
+    def _send_move_history_update(cls, user: User, game: Game, request, csrf_token: str, context: Dict) -> bool:
+        """Send move history update to user."""
+        history_html = render_to_string('web/partials/move_history.html', {
+            'game': game,
+        }, request=request).strip()
+        
+        WebSocketMessageSender.send_to_user_sync(
+            user.id,
+            'move_history_update',
+            history_html,
+            metadata={'target': 'dashboard-move-history', **context.get('metadata', {})}
+        )
         return True
     
     @classmethod
@@ -332,4 +351,8 @@ class WebSocketNotificationService:
             turn_html,
             metadata=context.get('metadata', {})
         )
+        
+        # Also send move history update when turn changes (indicating a move was made)
+        cls._send_move_history_update(user, game, request, csrf_token, context)
+        
         return True

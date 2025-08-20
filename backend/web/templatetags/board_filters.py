@@ -60,3 +60,14 @@ def is_star_point(board_size, position):
         return (row, col) in star_points
     except (ValueError, AttributeError):
         return False
+
+@register.filter
+def move_coordinate(move):
+    """Convert a GameMove to coordinate notation (e.g., 'E7')"""
+    try:
+        letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        col_letter = letters[int(move.col)]
+        row_number = int(move.row) + 1  # Convert 0-based to 1-based
+        return f"{col_letter}{row_number}"
+    except (IndexError, ValueError, AttributeError):
+        return f"?{move.move_number}"

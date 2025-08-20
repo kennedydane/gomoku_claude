@@ -65,6 +65,11 @@
                     {% include 'web/partials/game_board.html' with game=selected_game user=user wrapper_id='dashboard-game-board-content' %}
                 </div>
             </div>
+            
+            <!-- Move History -->
+            <div id="dashboard-move-history">
+                {% include 'web/partials/move_history.html' with game=selected_game %}
+            </div>
         </div>
         
         <!-- Game Actions (minimal) -->
