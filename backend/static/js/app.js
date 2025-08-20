@@ -94,6 +94,15 @@ document.addEventListener('DOMContentLoaded', function() {
         if (target.dataset.successMessage) {
             showToast(target.dataset.successMessage, 'success');
         }
+        
+        // Play click sound for successful move placements
+        if (event.target.classList.contains('board-intersection') || 
+            event.target.closest('.board-intersection')) {
+            // Check if audio function is available (defined in dashboard)
+            if (typeof window.playStoneClickSound === 'function') {
+                window.playStoneClickSound();
+            }
+        }
     });
     
     // Loading indicators for form submissions

@@ -839,6 +839,25 @@ body.dark .table-dark {
     }
 }
 
+/* Move Chip Pulse Animation - mirrors the stone highlight effect */
+.move-chip-highlighted {
+    animation: move-chip-pulse-highlight 1.5s ease-in-out infinite;
+    z-index: 15;
+}
+
+@keyframes move-chip-pulse-highlight {
+    0%, 100% {
+        transform: scale(1);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    }
+    50% {
+        transform: scale(1.15);
+        box-shadow: 0 4px 16px rgba(180, 50, 50, 0.8),
+                    0 0 20px rgba(200, 60, 60, 0.6),
+                    0 0 30px rgba(150, 40, 40, 0.4);
+    }
+}
+
 /* Simplified Stone Base - Focus on Shadow Effect Only */
 .stone-white {
     background: radial-gradient(circle at 30% 30%, #fff, #ddd);

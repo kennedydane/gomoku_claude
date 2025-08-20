@@ -344,6 +344,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (gameBoard && data.content) {
                     gameBoard.innerHTML = data.content;
                     htmx.process(gameBoard);
+                    
+                    // Play stone click sound for move updates
+                    playStoneClickSound();
                 }
                 break;
                 
@@ -412,6 +415,47 @@ document.addEventListener('DOMContentLoaded', function() {
     window.showTurnNotification = showTurnNotification;
 });
 
+// Audio Effects: Stone Placement Sounds
+let audioContext = null;
+
+function createStoneClickSound() {
+    if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    
+    // Create a short, percussive click sound
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    
+    // Connect nodes
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    
+    // Configure the sound - short, sharp click
+    oscillator.frequency.setValueAtTime(800, audioContext.currentTime); // Start high
+    oscillator.frequency.exponentialRampToValueAtTime(200, audioContext.currentTime + 0.02); // Drop quickly
+    
+    // Sharp attack, quick decay
+    gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+    gainNode.gain.linearRampToValueAtTime(0.1, audioContext.currentTime + 0.005); // Quick attack
+    gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.1); // Quick decay
+    
+    // Play the sound
+    oscillator.start(audioContext.currentTime);
+    oscillator.stop(audioContext.currentTime + 0.1);
+}
+
+function playStoneClickSound() {
+    try {
+        createStoneClickSound();
+    } catch (error) {
+        console.log('Audio not available:', error);
+    }
+}
+
+// Make audio functions globally available
+window.playStoneClickSound = playStoneClickSound;
+
 // Visual Candy: Enhanced Stone Effects
 document.addEventListener('DOMContentLoaded', function() {
     initializeVisualEffects();
@@ -453,7 +497,40 @@ function initializeVisualEffects() {
         });
     });
     
-    // Phase 2: Board-Wide Dynamic Mouse-as-Light-Source Effect
+    // Phase 2: Board → Move History Pulse Effect  
+    const stones = document.querySelectorAll('.stone-black, .stone-white');
+    
+    stones.forEach(stone => {
+        stone.addEventListener('mouseenter', function() {
+            const row = this.dataset.stoneRow;
+            const col = this.dataset.stoneCol;
+            
+            // Find corresponding move chip in history
+            const moveChip = document.querySelector(
+                `.move-chip[data-move-row="${row}"][data-move-col="${col}"]`
+            );
+            
+            if (moveChip) {
+                moveChip.classList.add('move-chip-highlighted');
+            }
+        });
+        
+        stone.addEventListener('mouseleave', function() {
+            const row = this.dataset.stoneRow;
+            const col = this.dataset.stoneCol;
+            
+            // Remove highlight from corresponding move chip
+            const moveChip = document.querySelector(
+                `.move-chip[data-move-row="${row}"][data-move-col="${col}"]`
+            );
+            
+            if (moveChip) {
+                moveChip.classList.remove('move-chip-highlighted');
+            }
+        });
+    });
+    
+    // Phase 3: Board-Wide Dynamic Mouse-as-Light-Source Effect
     const gameBoard = document.querySelector('.game-board-grid');
     
     if (gameBoard) {
