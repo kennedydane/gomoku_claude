@@ -85,10 +85,10 @@ body.dark .table-dark {
     
     /* Container-relative sizing that scales naturally with zoom */
     --fluid-intersection-size: min(
-        10vh,
-        min(70vw, 800px) / var(--board-size-num, 8)
+        min(8vh, 60px),
+        min(60vw, 600px) / var(--board-size-num, 8)
     );
-    --fluid-stone-size: calc(var(--fluid-intersection-size) * 0.9);
+    --fluid-stone-size: calc(var(--fluid-intersection-size) * 0.85);
 }
 
 .board-intersection {
@@ -180,12 +180,12 @@ body.dark .table-dark {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: calc(var(--intersection-size, var(--fluid-intersection-size, 30px)) * 0.9) !important;
-    height: calc(var(--intersection-size, var(--fluid-intersection-size, 30px)) * 0.9) !important;
+    width: calc(var(--intersection-size, var(--fluid-intersection-size, 40px)) * 0.85) !important;
+    height: calc(var(--intersection-size, var(--fluid-intersection-size, 40px)) * 0.85) !important;
     min-width: 18px !important;
     min-height: 18px !important;
-    max-width: calc(55px * 0.9) !important;
-    max-height: calc(55px * 0.9) !important;
+    max-width: calc(55px * 1.05) !important;
+    max-height: calc(55px * 1.05) !important;
     border-radius: 50%;
     border: 1px solid #333;
     box-shadow: 0 2px 4px rgba(0,0,0,0.3);
@@ -322,9 +322,9 @@ body.dark .table-dark {
 }
 
 .stone-black, .stone-white {
-    /* Dynamic stone sizing - roughly 90% of intersection size */
-    width: var(--stone-size, var(--fluid-stone-size, 36px));
-    height: var(--stone-size, var(--fluid-stone-size, 36px));
+    /* Dynamic stone sizing - roughly 85% of intersection size */
+    width: var(--stone-size, var(--fluid-stone-size, 38px));
+    height: var(--stone-size, var(--fluid-stone-size, 38px));
     min-width: 18px;
     min-height: 18px;
     max-width: 50px;
@@ -341,12 +341,12 @@ body.dark .table-dark {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: calc(var(--intersection-size, var(--fluid-intersection-size, 30px)) * 0.9) !important;
-    height: calc(var(--intersection-size, var(--fluid-intersection-size, 30px)) * 0.9) !important;
+    width: calc(var(--intersection-size, var(--fluid-intersection-size, 40px)) * 0.85) !important;
+    height: calc(var(--intersection-size, var(--fluid-intersection-size, 40px)) * 0.85) !important;
     min-width: 18px !important;
     min-height: 18px !important;
-    max-width: calc(55px * 0.9) !important;
-    max-height: calc(55px * 0.9) !important;
+    max-width: calc(55px * 1.05) !important;
+    max-height: calc(55px * 1.05) !important;
     border-radius: 50%;
     border: 1px solid #333;
     box-shadow: 0 2px 4px rgba(0,0,0,0.3);

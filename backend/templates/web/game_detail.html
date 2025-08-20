@@ -222,8 +222,8 @@
     
     .stone-black, .stone-white {
         /* Dynamic stone sizing - roughly 80% of intersection size */
-        width: var(--stone-size, 36px);
-        height: var(--stone-size, 36px);
+        width: var(--stone-size, 38px);
+        height: var(--stone-size, 38px);
         min-width: 18px;
         min-height: 18px;
         max-width: 50px;
@@ -265,7 +265,7 @@
         /* Mobile devices get smaller default sizes */
         .board-intersection {
             --intersection-size: calc(var(--base-intersection-size, 30px) * 0.8);
-            --stone-size: calc(var(--base-stone-size, 36px) * 0.9);
+            --stone-size: calc(var(--base-stone-size, 38px) * 0.95);
         }
     }
     
@@ -273,7 +273,7 @@
         /* Very small screens get even smaller sizes */
         .board-intersection {
             --intersection-size: calc(var(--base-intersection-size, 30px) * 0.7);
-            --stone-size: calc(var(--base-stone-size, 36px) * 0.8);
+            --stone-size: calc(var(--base-stone-size, 38px) * 0.9);
         }
     }
 </style>
