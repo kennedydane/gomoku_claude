@@ -1,14 +1,20 @@
-# Gomoku Game System
+# Go Goban Go Game System
 
-![Gomoku Dashboard](Gomoku_Screenshot.png)
+![Go Goban Go Dashboard](Gomoku_Screenshot.png)
 
-A modern, full-stack implementation of Gomoku (Five-in-a-Row) featuring a Django REST Framework backend with PostgreSQL database, responsive web interface, and Dear PyGUI desktop client.
+A modern, full-stack implementation of Gomoku and Go board games featuring a Django REST Framework backend with PostgreSQL database, responsive web interface, and Dear PyGUI desktop client.
 
-## What is Gomoku?
+## Supported Games
+
+### What is Gomoku?
 
 Gomoku (五目並べ, "five points in a row") is an abstract strategy board game traditionally played with Go pieces on a Go board. The objective is to be the first player to form an unbroken chain of exactly five stones horizontally, vertically, or diagonally.
 
-### Game Rules
+### What is Go?
+
+Go (囲碁, Weiqi) is an ancient strategy game where players use black and white stones to control territory on a board. Players alternate placing stones to surround territory and capture opponent stones. The game ends when both players pass, and the winner is determined by controlled territory plus captured stones.
+
+### Gomoku Rules
 
 **Basic Rules:**
 - Two players alternate placing black and white stones on a board
