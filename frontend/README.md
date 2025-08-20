@@ -270,9 +270,9 @@ frontend/
 │   ├── test_config_management.py   # Config management tests (16 tests)
 │   ├── test_game_management.py     # Game management tests (27 tests)
 │   ├── test_integration_full.py    # Full integration tests (4 tests)
-│   ├── test_gui.py                # GUI functionality tests
-│   ├── test_gameplay.py           # Game logic tests
-│   └── test_win.py                # Win condition tests
+│   ├── demo_gui.py                # GUI functionality demo
+│   ├── demo_gameplay.py           # Game logic demo
+│   └── demo_win.py                # Win condition demo
 ├── simple_gomoku.py      # Current GUI application
 └── gomoku_gui.py         # Enhanced GUI (work in progress)
 ```
@@ -328,14 +328,14 @@ uv run python -m pytest tests/test_integration_full.py -v      # Integration tes
 
 ### Legacy GUI Tests
 ```bash
-# Test GUI components (legacy)
-uv run python test_gui.py
+# Demo GUI components (legacy)
+uv run python demo_gui.py
 
-# Test game logic
-uv run python test_gameplay.py
+# Demo game logic
+uv run python demo_gameplay.py
 
-# Test win detection
-uv run python test_win.py
+# Demo win detection
+uv run python demo_win.py
 ```
 
 ### Test Coverage

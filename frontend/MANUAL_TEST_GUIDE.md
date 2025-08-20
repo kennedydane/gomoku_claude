@@ -21,7 +21,7 @@ This guide provides instructions for manually testing the authentication GUI com
 1. **Start the test application**:
    ```bash
    cd frontend
-   uv run python test_auth_gui_manual.py
+   uv run python manual_auth_test.py
    ```
 
 2. **Expected result**: A GUI window should open with authentication controls
