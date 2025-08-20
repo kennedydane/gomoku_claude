@@ -5,7 +5,7 @@ This module contains the GameService class which handles move validation,
 win detection, and game state management.
 """
 
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 from django.db import transaction
 from core.exceptions import InvalidMoveError, GameStateError, PlayerError
 
@@ -142,6 +142,88 @@ class GameService:
         return move
     
     @staticmethod
+    def count_stones_in_direction(
+        board: List[List[Optional[str]]], 
+        board_size: int, 
+        start_row: int, 
+        start_col: int, 
+        direction: Tuple[int, int], 
+        color: str
+    ) -> Tuple[int, int, int]:
+        """
+        Count stones in a given direction with enhanced information.
+        
+        Args:
+            board: The game board (2D list)
+            board_size: Size of the board
+            start_row: Starting row position
+            start_col: Starting column position
+            direction: Direction tuple (dr, dc)
+            color: Stone color to count
+            
+        Returns:
+            Tuple containing:
+            - consecutive_count: Number of consecutive stones of given color
+            - count_with_gap: Number of stones allowing one empty space
+            - max_potential: Maximum possible length considering edges and opponents
+        """
+        direction_dr, direction_dc = direction
+        consecutive_count = 0
+        count_with_gap = 0
+        max_potential = 0
+        
+        r, c = start_row + direction_dr, start_col + direction_dc
+        found_gap = False
+        
+        # Count consecutive stones first
+        while 0 <= r < board_size and 0 <= c < board_size:
+            if board[r][c] == color:
+                consecutive_count += 1
+                r += direction_dr
+                c += direction_dc
+            else:
+                break
+        
+        # Reset position for gap counting
+        r, c = start_row + direction_dr, start_col + direction_dc
+        
+        # Count stones allowing one gap
+        while 0 <= r < board_size and 0 <= c < board_size:
+            cell_value = board[r][c]
+            
+            if cell_value == color:
+                count_with_gap += 1
+            elif cell_value is None and not found_gap:
+                # Found empty space, look ahead
+                found_gap = True
+                next_r, next_c = r + direction_dr, c + direction_dc
+                if (0 <= next_r < board_size and 0 <= next_c < board_size and 
+                    board[next_r][next_c] == color):
+                    # Continue scanning after the gap
+                    r, c = next_r, next_c
+                    continue
+                else:
+                    break
+            else:
+                # Either opponent stone or second gap
+                break
+            
+            r += direction_dr
+            c += direction_dc
+        
+        # Calculate maximum potential (reach until opponent or edge)
+        r, c = start_row + direction_dr, start_col + direction_dc
+        while 0 <= r < board_size and 0 <= c < board_size:
+            if board[r][c] is not None and board[r][c] != color:
+                # Hit opponent stone
+                break
+            max_potential += 1
+            r += direction_dr
+            c += direction_dc
+        
+        return consecutive_count, count_with_gap, max_potential
+
+    @staticmethod
     def check_win(game: Game, last_row: int, last_col: int) -> bool:
         """
         Check if the last move resulted in a win.
@@ -165,22 +247,6 @@ class GameService:
         board_size = game.ruleset.board_size
         allow_overlines = game.ruleset.allow_overlines
         
-        # Helper function to count consecutive stones
-        def count_direction(dr: int, dc: int) -> int:
-            """Count consecutive stones in one direction."""
-            count = 0
-            r, c = last_row + dr, last_col + dc
-            
-            while 0 <= r < board_size and 0 <= c < board_size:
-                if board[r][c] == color:
-                    count += 1
-                    r += dr
-                    c += dc
-                else:
-                    break
-            
-            return count
-        
         # Check all four directions
         directions = [
             (0, 1),   # Horizontal
@@ -189,9 +255,17 @@ class GameService:
             (1, -1),  # Diagonal /
         ]
         
-        for dr, dc in directions:
+        for direction in directions:
             # Count in both directions plus the placed stone
-            total = 1 + count_direction(dr, dc) + count_direction(-dr, -dc)
+            positive_count, _, _ = GameService.count_stones_in_direction(
+                board, board_size, last_row, last_col, direction, color
+            )
+            negative_count, _, _ = GameService.count_stones_in_direction(
+                board, board_size, last_row, last_col, 
+                (-direction[0], -direction[1]), color
+            )
+            
+            total = 1 + positive_count + negative_count
             
             if allow_overlines:
                 # Any line of 5 or more wins

@@ -413,6 +413,152 @@ class GameServiceUtilityMethodsTestCase(TestCase):
         self.assertIn("not a player", str(context.exception))
 
 
+class GameServiceStoneCountingTestCase(TestCase):
+    """Test cases for GameService.count_stones_in_direction method."""
+    
+    def setUp(self):
+        """Set up test data."""
+        self.ruleset = RuleSetFactory(board_size=15)
+        self.game = GameFactory(ruleset=self.ruleset)
+        self.game.initialize_board()
+        self.board = self.game.board_state['board']
+        self.board_size = self.game.ruleset.board_size
+    
+    def test_count_consecutive_horizontal(self):
+        """Test counting consecutive stones horizontally."""
+        # Place 3 stones horizontally: XXX_
+        for col in range(3):
+            self.board[7][col] = Player.BLACK
+        
+        # Count from position (7,0) going right (0,1)
+        consecutive, with_gap, max_potential = GameService.count_stones_in_direction(
+            self.board, self.board_size, 7, 0, (0, 1), Player.BLACK
+        )
+        
+        self.assertEqual(consecutive, 2)  # 2 more stones after starting position
+        self.assertEqual(with_gap, 2)    # Same as consecutive (no gaps)
+        self.assertEqual(max_potential, 14)  # 14 spaces to right edge from [7][0]
+    
+    def test_count_with_single_gap(self):
+        """Test counting stones with a single gap."""
+        # Place stones with gap: XX_X
+        self.board[7][0] = Player.BLACK
+        self.board[7][1] = Player.BLACK
+        # gap at [7][2]
+        self.board[7][3] = Player.BLACK
+        
+        consecutive, with_gap, max_potential = GameService.count_stones_in_direction(
+            self.board, self.board_size, 7, 0, (0, 1), Player.BLACK
+        )
+        
+        self.assertEqual(consecutive, 1)  # Only 1 consecutive after start
+        self.assertEqual(with_gap, 2)    # 1 consecutive + 1 after gap
+        self.assertEqual(max_potential, 14)  # 14 spaces to right edge from [7][0]
+    
+    def test_count_blocked_by_opponent(self):
+        """Test counting stops at opponent stone."""
+        # Place stones: XXO
+        self.board[7][0] = Player.BLACK
+        self.board[7][1] = Player.BLACK
+        self.board[7][2] = Player.WHITE  # Opponent block
+        
+        consecutive, with_gap, max_potential = GameService.count_stones_in_direction(
+            self.board, self.board_size, 7, 0, (0, 1), Player.BLACK
+        )
+        
+        self.assertEqual(consecutive, 1)  # Only 1 stone after start
+        self.assertEqual(with_gap, 1)    # Same, blocked by opponent
+        self.assertEqual(max_potential, 1)  # Stopped by opponent
+    
+    def test_count_vertical_direction(self):
+        """Test counting in vertical direction."""
+        # Place 4 stones vertically
+        for row in range(4):
+            self.board[row][7] = Player.WHITE
+        
+        consecutive, with_gap, max_potential = GameService.count_stones_in_direction(
+            self.board, self.board_size, 0, 7, (1, 0), Player.WHITE
+        )
+        
+        self.assertEqual(consecutive, 3)  # 3 more stones below start
+        self.assertEqual(with_gap, 3)    # No gaps
+        self.assertEqual(max_potential, 14)  # 14 spaces downward from [0][7]
+    
+    def test_count_diagonal_direction(self):
+        """Test counting in diagonal direction."""
+        # Place stones diagonally: \\\
+        for i in range(3):
+            self.board[5+i][5+i] = Player.BLACK
+        
+        consecutive, with_gap, max_potential = GameService.count_stones_in_direction(
+            self.board, self.board_size, 5, 5, (1, 1), Player.BLACK
+        )
+        
+        self.assertEqual(consecutive, 2)  # 2 more stones after start
+        self.assertEqual(with_gap, 2)    # No gaps
+        # Max potential limited by board edge (min of rows/cols remaining)
+        self.assertTrue(max_potential >= 2)  
+    
+    def test_count_at_board_edge(self):
+        """Test counting at board boundaries."""
+        # Place stone at edge
+        self.board[0][0] = Player.BLACK
+        
+        # Count going right from top-left corner
+        consecutive, with_gap, max_potential = GameService.count_stones_in_direction(
+            self.board, self.board_size, 0, 0, (0, 1), Player.BLACK
+        )
+        
+        self.assertEqual(consecutive, 0)  # No stones after start
+        self.assertEqual(with_gap, 0)    # No stones with gap
+        self.assertEqual(max_potential, 14)  # 14 spaces to right edge
+    
+    def test_count_gap_at_end(self):
+        """Test counting when gap is at the end."""
+        # Place stones: XX_
+        self.board[7][0] = Player.BLACK
+        self.board[7][1] = Player.BLACK
+        # gap at [7][2], nothing after
+        
+        consecutive, with_gap, max_potential = GameService.count_stones_in_direction(
+            self.board, self.board_size, 7, 0, (0, 1), Player.BLACK
+        )
+        
+        self.assertEqual(consecutive, 1)  # 1 consecutive after start
+        self.assertEqual(with_gap, 1)    # No stones after gap
+        self.assertEqual(max_potential, 14)  # 14 spaces to right edge from [7][0]
+    
+    def test_count_multiple_gaps(self):
+        """Test counting with multiple gaps (should stop at second gap)."""
+        # Place stones: X_X_X (multiple gaps)
+        self.board[7][0] = Player.BLACK
+        # gap at [7][1]
+        self.board[7][2] = Player.BLACK
+        # gap at [7][3] 
+        self.board[7][4] = Player.BLACK
+        
+        consecutive, with_gap, max_potential = GameService.count_stones_in_direction(
+            self.board, self.board_size, 7, 0, (0, 1), Player.BLACK
+        )
+        
+        self.assertEqual(consecutive, 0)   # No consecutive stones
+        self.assertEqual(with_gap, 1)     # Only 1 stone after first gap
+        self.assertEqual(max_potential, 14)  # 14 spaces to right edge from [7][0]
+    
+    def test_count_empty_direction(self):
+        """Test counting in empty direction."""
+        # Place only starting stone
+        self.board[7][7] = Player.BLACK
+        
+        consecutive, with_gap, max_potential = GameService.count_stones_in_direction(
+            self.board, self.board_size, 7, 7, (0, 1), Player.BLACK
+        )
+        
+        self.assertEqual(consecutive, 0)  # No stones in direction
+        self.assertEqual(with_gap, 0)    # No stones with gap
+        self.assertEqual(max_potential, 7)  # 7 spaces to right edge
+
+
 class GameServiceIntegrationTestCase(TransactionTestCase):
     """Integration tests for GameService methods working together."""
     
