@@ -30,6 +30,7 @@ class RuleSetFactory(factory.django.DjangoModelFactory):
         model = RuleSet
     
     name = factory.Sequence(lambda n: f"RuleSet {n}")
+    game_type = 'GOMOKU'  # Default to Gomoku for backward compatibility
     board_size = 15
     allow_overlines = False
     forbidden_moves = {}

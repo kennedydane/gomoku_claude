@@ -10,7 +10,7 @@ from django.db.models import Q
 from django.http import JsonResponse, HttpResponse
 
 from games.models import Game, Challenge, GameStatus, ChallengeStatus, RuleSet
-from games.services import GameService
+from games.game_services import GameServiceFactory
 from core.exceptions import InvalidMoveError, GameStateError, PlayerError
 from users.models import User
 from .forms import CustomUserCreationForm
@@ -293,9 +293,10 @@ class GameMoveView(LoginRequiredMixin, View):
                     'error': 'Access denied'
                 }, status=403)
             
-            # Make the move using GameService
+            # Make the move using game-specific service
             try:
-                move = GameService.make_move(game, request.user.id, row, col)
+                service = GameServiceFactory.get_service(game.ruleset.game_type)
+                move = service.make_move(game, request.user.id, row, col)
                 
                 # Refresh game from database to get updated state
                 game.refresh_from_db()
@@ -1073,7 +1074,7 @@ class GameResignView(FriendAPIViewMixin, LoginRequiredMixin, View):
         """Resign from a game."""
         try:
             from games.models import Game
-            from games.services import GameService
+            from games.game_services import GameServiceFactory
             from games.models import GameEvent
             from games.serializers import GameSerializer
             
@@ -1096,9 +1097,10 @@ class GameResignView(FriendAPIViewMixin, LoginRequiredMixin, View):
                     }, status=403)
                 return self.json_error('You are not a player in this game', 403)
             
-            # Resign the game
+            # Resign the game using game-specific service
             try:
-                GameService.resign_game(game, user.id)
+                service = GameServiceFactory.get_service(game.ruleset.game_type)
+                service.resign_game(game, user.id)
                 
                 # Create game event
                 for player in [game.black_player, game.white_player]:

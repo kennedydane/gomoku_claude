@@ -19,7 +19,7 @@ from .serializers import (
     GameMoveSerializer, MakeMoveSerializer, PlayerSessionSerializer,
     GameEventSerializer, ChallengeSerializer, ChallengeResponseSerializer
 )
-from .services import GameService
+from .game_services import GameServiceFactory
 
 
 class RuleSetViewSet(viewsets.ModelViewSet):
@@ -100,7 +100,9 @@ class GameViewSet(viewsets.ModelViewSet):
             )
         
         try:
-            move = GameService.make_move(
+            # Get the appropriate service for this game type
+            service = GameServiceFactory.get_service(game.ruleset.game_type)
+            move = service.make_move(
                 game,
                 user.id,
                 serializer.validated_data['row'],
@@ -240,7 +242,9 @@ class GameViewSet(viewsets.ModelViewSet):
             )
         
         try:
-            GameService.resign_game(game, user.id)
+            # Get the appropriate service for this game type
+            service = GameServiceFactory.get_service(game.ruleset.game_type)
+            service.resign_game(game, user.id)
             
             # Create game event
             for player in [game.black_player, game.white_player]:
@@ -338,11 +342,13 @@ class ChallengeViewSet(viewsets.ModelViewSet):
                 
                 # Create a game if accepted
                 if challenge.status == 'ACCEPTED':
-                    # Default to standard ruleset
-                    ruleset = RuleSet.objects.first()
+                    # Default to standard Gomoku ruleset
+                    from .models import GameType
+                    ruleset = RuleSet.objects.filter(game_type=GameType.GOMOKU).first()
                     if not ruleset:
                         ruleset = RuleSet.objects.create(
                             name='Standard Gomoku',
+                            game_type=GameType.GOMOKU,
                             board_size=15,
                             allow_overlines=False
                         )

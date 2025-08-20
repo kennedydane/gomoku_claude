@@ -14,17 +14,27 @@ from .models import (
 class RuleSetAdmin(admin.ModelAdmin):
     """Admin interface for RuleSet model."""
     
-    list_display = ['name', 'board_size', 'allow_overlines', 'created_at']
-    list_filter = ['board_size', 'allow_overlines', 'created_at']
+    list_display = ['name', 'game_type', 'board_size', 'allow_overlines', 'created_at']
+    list_filter = ['game_type', 'board_size', 'allow_overlines', 'scoring_method', 'created_at']
     search_fields = ['name', 'description']
     readonly_fields = ['created_at', 'updated_at']
     
     fieldsets = (
         (None, {
-            'fields': ('name', 'description')
+            'fields': ('name', 'game_type', 'description')
         }),
-        ('Game Rules', {
-            'fields': ('board_size', 'allow_overlines', 'forbidden_moves')
+        ('Board Configuration', {
+            'fields': ('board_size',)
+        }),
+        ('Gomoku Rules', {
+            'fields': ('allow_overlines', 'forbidden_moves'),
+            'classes': ('collapse',),
+            'description': 'These settings apply only to Gomoku games'
+        }),
+        ('Go Rules', {
+            'fields': ('komi', 'handicap_stones', 'scoring_method'),
+            'classes': ('collapse',),
+            'description': 'These settings apply only to Go games'
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at'),

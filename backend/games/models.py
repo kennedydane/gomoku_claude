@@ -13,12 +13,30 @@ from django.db import models
 from django.utils import timezone
 
 
+class GameType(models.TextChoices):
+    """Enumeration of supported game types."""
+    GOMOKU = 'GOMOKU', 'Gomoku'
+    GO = 'GO', 'Go'
+
+
+class ScoringMethod(models.TextChoices):
+    """Enumeration of Go scoring methods."""
+    TERRITORY = 'TERRITORY', 'Territory'
+    AREA = 'AREA', 'Area'
+
+
 class RuleSet(models.Model):
     """
-    RuleSet model for different Gomoku game variations.
+    RuleSet model for different game types and their variations.
     
-    Supports Standard, Renju, Freestyle, Caro and custom rule configurations.
+    Supports Gomoku (Standard, Renju, Freestyle, Caro) and Go game configurations.
     """
+    
+    game_type = models.CharField(
+        max_length=10,
+        choices=GameType.choices,
+        help_text="Type of game this ruleset is for"
+    )
     
     name = models.CharField(
         max_length=100,
@@ -52,6 +70,25 @@ class RuleSet(models.Model):
         help_text="Human-readable description of the rules"
     )
     
+    # Go-specific fields
+    komi = models.FloatField(
+        default=6.5,
+        help_text="Points given to white player to compensate for black's first move advantage (Go only)"
+    )
+    
+    handicap_stones = models.PositiveIntegerField(
+        default=0,
+        validators=[MaxValueValidator(9)],
+        help_text="Number of handicap stones for weaker player (Go only)"
+    )
+    
+    scoring_method = models.CharField(
+        max_length=10,
+        choices=ScoringMethod.choices,
+        default=ScoringMethod.TERRITORY,
+        help_text="Method used for scoring (Go only)"
+    )
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
@@ -63,6 +100,16 @@ class RuleSet(models.Model):
     
     def __str__(self):
         return self.name
+    
+    @property
+    def is_gomoku(self):
+        """Check if this is a Gomoku ruleset."""
+        return self.game_type == GameType.GOMOKU
+    
+    @property
+    def is_go(self):
+        """Check if this is a Go ruleset."""
+        return self.game_type == GameType.GO
 
 
 class GameStatus(models.TextChoices):
@@ -81,9 +128,9 @@ class Player(models.TextChoices):
 
 class Game(models.Model):
     """
-    Game model representing a Gomoku game session.
+    Game model representing a game session (Gomoku or Go).
     
-    Tracks game state, players, moves, and results.
+    Tracks game state, players, moves, and results for multiple game types.
     """
     
     id = models.UUIDField(
@@ -182,15 +229,27 @@ class Game(models.Model):
         ]
     
     def __str__(self):
-        return f"Game {self.id}: {self.black_player} vs {self.white_player}"
+        game_type = self.ruleset.get_game_type_display()
+        return f"{game_type} Game {self.id}: {self.black_player} vs {self.white_player}"
     
     def initialize_board(self):
-        """Initialize empty board based on ruleset size."""
+        """Initialize empty board based on ruleset size and game type."""
         size = self.ruleset.board_size
-        self.board_state = {
+        board_state = {
+            'game_type': self.ruleset.game_type,
             'size': size,
             'board': [[None for _ in range(size)] for _ in range(size)]
         }
+        
+        # Add game-specific fields
+        if self.ruleset.game_type == GameType.GO:
+            board_state.update({
+                'captured_stones': {'black': 0, 'white': 0},
+                'ko_position': None,
+                'consecutive_passes': 0
+            })
+        
+        self.board_state = board_state
     
     def start_game(self):
         """Start the game."""
@@ -220,6 +279,21 @@ class Game(models.Model):
             return self.black_player
         else:
             return self.white_player
+    
+    @property
+    def is_gomoku(self):
+        """Check if this is a Gomoku game."""
+        return self.ruleset.game_type == GameType.GOMOKU
+    
+    @property
+    def is_go(self):
+        """Check if this is a Go game."""
+        return self.ruleset.game_type == GameType.GO
+    
+    def get_service(self):
+        """Get the appropriate game service for this game."""
+        from .game_services import GameServiceFactory
+        return GameServiceFactory.get_service(self.ruleset.game_type)
 
 
 class GameMove(models.Model):
@@ -249,14 +323,14 @@ class GameMove(models.Model):
         help_text="Sequential move number"
     )
     
-    row = models.PositiveIntegerField(
-        validators=[MaxValueValidator(24)],
-        help_text="Row position (0-based)"
+    row = models.IntegerField(
+        validators=[MinValueValidator(-1), MaxValueValidator(24)],
+        help_text="Row position (0-based), -1 for pass move"
     )
     
-    col = models.PositiveIntegerField(
-        validators=[MaxValueValidator(24)],
-        help_text="Column position (0-based)"
+    col = models.IntegerField(
+        validators=[MinValueValidator(-1), MaxValueValidator(24)],
+        help_text="Column position (0-based), -1 for pass move"
     )
     
     player_color = models.CharField(
@@ -281,8 +355,15 @@ class GameMove(models.Model):
         verbose_name_plural = 'Game Moves'
         ordering = ['game', 'move_number']
         unique_together = [
-            ['game', 'move_number'],
-            ['game', 'row', 'col']
+            ['game', 'move_number']
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['game', 'row', 'col'],
+                condition=models.Q(row__gte=0, col__gte=0),
+                name='unique_game_position',
+                violation_error_message="This position is already occupied in this game"
+            )
         ]
         indexes = [
             models.Index(fields=['game', 'move_number']),
