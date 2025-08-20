@@ -10,6 +10,9 @@
     <div class="move-history-list">
         {% for move in game.moves.all %}
             <div class="move-chip move-chip-{{ move.player_color|lower }}{% if move.is_winning_move %} winning-move{% endif %}"
+                 data-move-number="{{ move.move_number }}"
+                 data-move-row="{{ move.row }}" 
+                 data-move-col="{{ move.col }}"
                  title="Move {{ move.move_number }}: {{ move.player.username }} played {{ move.player_color|lower }} at {{ move|move_coordinate }}">
                 <span class="move-coordinate">{{ move|move_coordinate }}</span>
                 <span class="move-number">{{ move.move_number }}</span>

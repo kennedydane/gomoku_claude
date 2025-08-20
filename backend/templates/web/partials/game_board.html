@@ -46,9 +46,13 @@
                 
                 {# Actual stones #}
                 {% if cell == 'BLACK' or cell == 'black' %}
-                    <div class="stone-black"></div>
+                    <div class="stone-black" 
+                         data-stone-row="{{ forloop.parentloop.counter0 }}" 
+                         data-stone-col="{{ forloop.counter0 }}"></div>
                 {% elif cell == 'WHITE' or cell == 'white' %}
-                    <div class="stone-white"></div>
+                    <div class="stone-white" 
+                         data-stone-row="{{ forloop.parentloop.counter0 }}" 
+                         data-stone-col="{{ forloop.counter0 }}"></div>
                 {% endif %}
             </div>
         {% endfor %}

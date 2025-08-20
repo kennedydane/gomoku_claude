@@ -353,13 +353,7 @@ body.dark .table-dark {
     z-index: 10;
 }
 
-.stone-black {
-    background: radial-gradient(circle at 30% 30%, #444, #000);
-}
-
-.stone-white {
-    background: radial-gradient(circle at 30% 30%, #fff, #ddd);
-}
+/* Stone base styles moved to dynamic lighting section below - see lines 849+ */
 
 .stone-small {
     width: 16px;
@@ -705,14 +699,26 @@ body.dark .table-dark {
 }
 
 .move-chip-black {
-    background: radial-gradient(circle at 30% 30%, #444, #000);
+    background: 
+        radial-gradient(circle at 30% 30%, rgba(80, 80, 80, 0.9), rgba(0, 0, 0, 1)),
+        radial-gradient(circle at 70% 70%, transparent 60%, rgba(40, 40, 40, 0.3) 100%);
     color: white;
+    box-shadow: 
+        0 2px 4px rgba(0,0,0,0.2),
+        inset 0 1px 0 rgba(255,255,255,0.1),
+        inset 0 -1px 0 rgba(0,0,0,0.3);
 }
 
 .move-chip-white {
-    background: radial-gradient(circle at 30% 30%, #fff, #ddd);
+    background: 
+        radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.95), rgba(220, 220, 220, 1)),
+        radial-gradient(circle at 70% 70%, transparent 60%, rgba(180, 180, 180, 0.4) 100%);
     color: black;
     border-color: #666;
+    box-shadow: 
+        0 2px 4px rgba(0,0,0,0.2),
+        inset 0 1px 0 rgba(255,255,255,0.8),
+        inset 0 -1px 0 rgba(160,160,160,0.4);
 }
 
 .move-coordinate {
@@ -794,4 +800,75 @@ body.dark .table-dark {
         bottom: -4px;
         right: -4px;
     }
+}
+
+/* Visual Candy: Move History Hover Effects */
+.move-chip {
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.move-chip:hover {
+    transform: scale(1.15);
+    z-index: 10;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+/* Board Stone Pulse Animation */
+.stone-black, .stone-white {
+    transition: transform 0.2s ease, box-shadow 0.3s ease, 
+                background 0.2s ease, opacity 0.2s ease;
+    will-change: transform, box-shadow, background;
+}
+
+.stone-highlighted {
+    animation: stone-pulse-highlight 1.5s ease-in-out infinite;
+    z-index: 15;
+}
+
+@keyframes stone-pulse-highlight {
+    0%, 100% {
+        transform: translate(-50%, -50%) scale(1);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    }
+    50% {
+        transform: translate(-50%, -50%) scale(1.15);
+        box-shadow: 0 4px 16px rgba(180, 50, 50, 0.8),
+                    0 0 20px rgba(200, 60, 60, 0.6),
+                    0 0 30px rgba(150, 40, 40, 0.4);
+    }
+}
+
+/* Simplified Stone Base - Focus on Shadow Effect Only */
+.stone-white {
+    background: radial-gradient(circle at 30% 30%, #fff, #ddd);
+    --light-x: 0;
+    --light-y: 0;
+    position: relative;
+}
+
+/* Shadows now handled entirely by JavaScript - CSS provides base styling only */
+.stone-white {
+    background: radial-gradient(circle at 30% 30%, #fff, #ddd);
+    --light-x: 0;
+    --light-y: 0;
+    position: relative;
+}
+
+.stone-black {
+    background: radial-gradient(circle at 30% 30%, #444, #000);
+    --light-x: 0;
+    --light-y: 0;
+    position: relative;
+}
+
+/* Enhanced hover states for more dramatic lighting */
+.stone-white:hover {
+    --shadow-opacity: 0.9;
+    transform: translate(-50%, -50%) scale(1.02);
+}
+
+.stone-black:hover {
+    --highlight-opacity: 0.8;
+    transform: translate(-50%, -50%) scale(1.02);
 }

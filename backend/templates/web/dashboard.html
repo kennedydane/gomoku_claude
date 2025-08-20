@@ -353,7 +353,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (moveHistory && data.content) {
                     moveHistory.innerHTML = data.content;
                     htmx.process(moveHistory);
-                    console.log('📋 Move history updated:', data.metadata || {});
                 }
                 break;
                 
@@ -363,7 +362,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (turnDisplay && data.content) {
                     turnDisplay.innerHTML = data.content;
                     htmx.process(turnDisplay);
-                    console.log('🔄 Turn display updated:', data.metadata || {});
                 }
                 break;
                 
@@ -413,6 +411,152 @@ document.addEventListener('DOMContentLoaded', function() {
     // Make function available globally for debugging
     window.showTurnNotification = showTurnNotification;
 });
+
+// Visual Candy: Enhanced Stone Effects
+document.addEventListener('DOMContentLoaded', function() {
+    initializeVisualEffects();
+});
+
+function initializeVisualEffects() {
+    // Phase 1: Move History → Board Pulse Effect
+    const moveChips = document.querySelectorAll('.move-chip');
+    
+    moveChips.forEach(chip => {
+        chip.addEventListener('mouseenter', function() {
+            const row = this.dataset.moveRow;
+            const col = this.dataset.moveCol;
+            
+            // Find corresponding stone on the board
+            const stone = document.querySelector(
+                `.stone-black[data-stone-row="${row}"][data-stone-col="${col}"], ` +
+                `.stone-white[data-stone-row="${row}"][data-stone-col="${col}"]`
+            );
+            
+            if (stone) {
+                stone.classList.add('stone-highlighted');
+            }
+        });
+        
+        chip.addEventListener('mouseleave', function() {
+            const row = this.dataset.moveRow;
+            const col = this.dataset.moveCol;
+            
+            // Remove highlight from corresponding stone
+            const stone = document.querySelector(
+                `.stone-black[data-stone-row="${row}"][data-stone-col="${col}"], ` +
+                `.stone-white[data-stone-row="${row}"][data-stone-col="${col}"]`
+            );
+            
+            if (stone) {
+                stone.classList.remove('stone-highlighted');
+            }
+        });
+    });
+    
+    // Phase 2: Board-Wide Dynamic Mouse-as-Light-Source Effect
+    const gameBoard = document.querySelector('.game-board-grid');
+    
+    if (gameBoard) {
+        
+        // Single event listener on the board container
+        gameBoard.addEventListener('mousemove', throttle(function(e) {
+            // Get all placed stones each time (handles dynamic updates)
+            const stones = this.querySelectorAll('.stone-black, .stone-white');
+            
+            if (stones.length > 0) {
+                // Update lighting for each stone individually
+                stones.forEach(stone => {
+                    updateStoneLightingFromBoard(stone, e, this);
+                });
+            }
+        }, 16)); // ~60fps throttling
+        
+        // Reset all stones when mouse leaves the board
+        gameBoard.addEventListener('mouseleave', function() {
+            const stones = this.querySelectorAll('.stone-black, .stone-white');
+            
+            stones.forEach(stone => {
+                // Reset CSS variables
+                stone.style.setProperty('--light-x', '0');
+                stone.style.setProperty('--light-y', '0');
+                
+                // Reset box-shadow to default (just static shadow)
+                stone.style.boxShadow = '0px 2px 4px rgba(0,0,0,0.3)';
+            });
+        });
+    }
+    
+    function updateStoneLightingFromBoard(stone, boardEvent, boardElement) {
+        // Get stone position relative to viewport
+        const stoneRect = stone.getBoundingClientRect();
+        const stoneCenterX = stoneRect.left + stoneRect.width / 2;
+        const stoneCenterY = stoneRect.top + stoneRect.height / 2;
+        
+        // Calculate mouse position relative to this stone's center
+        const mouseX = boardEvent.clientX - stoneCenterX;
+        const mouseY = boardEvent.clientY - stoneCenterY;
+        
+        // Normalize to -0.5 to 0.5 range based on stone size
+        const normalizedX = Math.max(-0.5, Math.min(0.5, mouseX / stoneRect.width));
+        const normalizedY = Math.max(-0.5, Math.min(0.5, mouseY / stoneRect.height));
+        
+        // Apply lighting effect using CSS custom properties (for potential future lighting)
+        stone.style.setProperty('--light-x', normalizedX.toString());
+        stone.style.setProperty('--light-y', normalizedY.toString());
+        
+        // Calculate subtle shadow offsets (opposite to mouse direction)
+        const shadowX = -normalizedX * 3; // Max 3px offset - very subtle
+        const shadowY = -normalizedY * 3;
+        
+        // Set subtle, realistic box-shadow
+        const staticShadow = '0px 2px 4px rgba(0,0,0,0.3)';
+        
+        if (stone.classList.contains('stone-white')) {
+            // Subtle dark shadow for white stones
+            const dynamicShadow = `${shadowX}px ${shadowY}px 3px rgba(0,0,0,0.2)`;
+            stone.style.boxShadow = `${staticShadow}, ${dynamicShadow}`;
+        } else if (stone.classList.contains('stone-black')) {
+            // Slightly darker shadow for black stones
+            const dynamicShadow = `${shadowX}px ${shadowY}px 3px rgba(0,0,0,0.3)`;
+            stone.style.boxShadow = `${staticShadow}, ${dynamicShadow}`;
+        }
+        
+    }
+    
+    // Utility function for performance throttling
+    function throttle(func, limit) {
+        let inThrottle;
+        return function() {
+            const args = arguments;
+            const context = this;
+            if (!inThrottle) {
+                func.apply(context, args);
+                inThrottle = true;
+                setTimeout(() => inThrottle = false, limit);
+            }
+        }
+    }
+    
+    // Re-initialize when board updates via WebSocket
+    document.addEventListener('htmx:wsAfterMessage', function(event) {
+        const message = event.detail.message;
+        let data;
+        
+        try {
+            data = JSON.parse(message);
+        } catch (e) {
+            return;
+        }
+        
+        // Re-initialize effects when board updates
+        if (data.type === 'game_move' || data.type === 'move_history_update') {
+            // Small delay to ensure DOM is updated
+            setTimeout(() => {
+                initializeVisualEffects();
+            }, 100);
+        }
+    });
+}
 </script>
 
 {% csrf_token %}
