@@ -7,7 +7,7 @@
          data-current-player="{{ game.current_player }}"
          data-game-status="{{ game.status }}"
          id="game-board"
-         style="--board-size: {{ game.ruleset.board_size|add:2 }}; --intersection-size: var(--base-intersection-size, 30px); --stone-size: var(--base-stone-size, 24px);">
+         style="--board-size: {{ game.ruleset.board_size|add:2 }}; --board-size-num: {{ game.ruleset.board_size }}; --intersection-size: var(--fluid-intersection-size, 30px); --stone-size: var(--fluid-stone-size, 24px);">
     
     {% with board_size=game.ruleset.board_size %}
     {% with letters="ABCDEFGHIJKLMNOPQRSTUVWXYZ" %}
@@ -23,7 +23,7 @@
     {% for row in game.board_state.board %}
         <div class="coordinate-cell-number">{{ forloop.counter }}</div>
         {% for cell in row %}
-            <div class="board-intersection{% if cell %} occupied{% endif %}"
+            <div class="board-intersection{% if cell %} occupied{% endif %}{% if forloop.counter0 == 0 %} edge-left{% endif %}{% if forloop.counter0 == board_size|sub:1 %} edge-right{% endif %}{% if forloop.parentloop.counter0 == 0 %} edge-top{% endif %}{% if forloop.parentloop.counter0 == board_size|sub:1 %} edge-bottom{% endif %}"
                  data-row="{{ forloop.parentloop.counter0 }}"
                  data-col="{{ forloop.counter0 }}"
                  role="button"
