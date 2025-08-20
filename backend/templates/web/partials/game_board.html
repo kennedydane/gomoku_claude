@@ -7,7 +7,7 @@
          data-current-player="{{ game.current_player }}"
          data-game-status="{{ game.status }}"
          id="game-board"
-         style="--board-size: {{ game.ruleset.board_size|add:2 }}; --board-size-num: {{ game.ruleset.board_size }}; --intersection-size: var(--fluid-intersection-size, 30px); --stone-size: var(--fluid-stone-size, 24px);">
+         style="--board-size: {{ game.ruleset.board_size|add:2 }}; --board-size-num: {{ game.ruleset.board_size }}; --intersection-size: var(--fluid-intersection-size, 40px); --stone-size: var(--fluid-stone-size, 36px);">
     
     {% with board_size=game.ruleset.board_size %}
     {% with letters="ABCDEFGHIJKLMNOPQRSTUVWXYZ" %}

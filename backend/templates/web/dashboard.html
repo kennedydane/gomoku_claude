@@ -431,18 +431,18 @@ function createStoneClickSound() {
     oscillator.connect(gainNode);
     gainNode.connect(audioContext.destination);
     
-    // Configure the sound - short, sharp click
-    oscillator.frequency.setValueAtTime(800, audioContext.currentTime); // Start high
-    oscillator.frequency.exponentialRampToValueAtTime(200, audioContext.currentTime + 0.02); // Drop quickly
+    // Configure the sound - very short, sharp click with high pitch
+    oscillator.frequency.setValueAtTime(1800, audioContext.currentTime); // Start much higher
+    oscillator.frequency.exponentialRampToValueAtTime(500, audioContext.currentTime + 0.015); // Drop to higher end frequency, faster
     
-    // Sharp attack, quick decay
+    // Sharp attack, very quick decay
     gainNode.gain.setValueAtTime(0, audioContext.currentTime);
-    gainNode.gain.linearRampToValueAtTime(0.1, audioContext.currentTime + 0.005); // Quick attack
-    gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.1); // Quick decay
+    gainNode.gain.linearRampToValueAtTime(0.1, audioContext.currentTime + 0.003); // Quicker attack
+    gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.06); // Shorter decay
     
-    // Play the sound
+    // Play the sound - shorter duration
     oscillator.start(audioContext.currentTime);
-    oscillator.stop(audioContext.currentTime + 0.1);
+    oscillator.stop(audioContext.currentTime + 0.06);
 }
 
 function playStoneClickSound() {
