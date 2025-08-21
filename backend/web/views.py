@@ -9,7 +9,7 @@ from django.views import View
 from django.db.models import Q
 from django.http import JsonResponse, HttpResponse
 
-from games.models import Game, Challenge, GameStatus, ChallengeStatus, RuleSet
+from games.models import Game, Challenge, GameStatus, ChallengeStatus, GomokuRuleSet, GoRuleSet
 from games.game_services import GameServiceFactory
 from core.exceptions import InvalidMoveError, GameStateError, PlayerError
 from users.models import User
@@ -137,13 +137,13 @@ class DashboardView(LoginRequiredMixin, UserGamesMixin, TemplateView):
         
         # Active games with optimized queries, ordered by most recent
         active_games = Game.objects.select_related(
-            'black_player', 'white_player', 'ruleset'
-        ).filter(user_games_query, status=GameStatus.ACTIVE).order_by('-created_at')
+            'black_player', 'white_player'
+        ).prefetch_related('ruleset').filter(user_games_query, status=GameStatus.ACTIVE).order_by('-created_at')
         
         # Recent finished games for left panel (limit to 5)
         recent_finished_games = Game.objects.select_related(
-            'black_player', 'white_player', 'winner', 'ruleset'
-        ).filter(
+            'black_player', 'white_player', 'winner'
+        ).prefetch_related('ruleset').filter(
             user_games_query, 
             status=GameStatus.FINISHED
         ).order_by('-finished_at')[:5]
@@ -156,8 +156,8 @@ class DashboardView(LoginRequiredMixin, UserGamesMixin, TemplateView):
             # Try to select specific game from URL parameter
             try:
                 selected_game = Game.objects.select_related(
-                    'black_player', 'white_player', 'winner', 'ruleset'
-                ).filter(
+                    'black_player', 'white_player', 'winner'
+                ).prefetch_related('ruleset').filter(
                     id=game_id_param
                 ).filter(
                     Q(black_player=user) | Q(white_player=user)  # User must be a player
@@ -178,16 +178,16 @@ class DashboardView(LoginRequiredMixin, UserGamesMixin, TemplateView):
         
         # Challenges sent by the current user (pending)
         pending_sent_challenges = Challenge.objects.select_related(
-            'challenger', 'challenged', 'ruleset'
-        ).filter(
+            'challenger', 'challenged'
+        ).prefetch_related('ruleset').filter(
             challenger=user,
             status=ChallengeStatus.PENDING
         )
         
         # Challenges received by the current user (pending)
         pending_received_challenges = Challenge.objects.select_related(
-            'challenger', 'challenged', 'ruleset'
-        ).filter(
+            'challenger', 'challenged'
+        ).prefetch_related('ruleset').filter(
             challenged=user, 
             status=ChallengeStatus.PENDING
         )
@@ -231,8 +231,8 @@ class GamesView(LoginRequiredMixin, UserGamesMixin, TemplateView):
         from django.db.models import Case, When, Value, IntegerField
         
         user_games = Game.objects.select_related(
-            'black_player', 'white_player', 'winner', 'ruleset'
-        ).filter(user_games_query).order_by(
+            'black_player', 'white_player', 'winner'
+        ).prefetch_related('ruleset').filter(user_games_query).order_by(
             # Active games first, then by most recent
             Case(
                 When(status=GameStatus.ACTIVE, then=Value(0)),
@@ -278,8 +278,8 @@ class GameMoveView(LoginRequiredMixin, View):
             
             # Optimize query
             game = Game.objects.select_related(
-                'black_player', 'white_player', 'ruleset'
-            ).get(id=game_id)
+                'black_player', 'white_player'
+            ).prefetch_related('ruleset').get(id=game_id)
             
             # Only allow players to make moves
             if request.user not in [game.black_player, game.white_player]:
@@ -295,7 +295,7 @@ class GameMoveView(LoginRequiredMixin, View):
             
             # Make the move using game-specific service
             try:
-                service = GameServiceFactory.get_service(game.ruleset.game_type)
+                service = game.get_service()
                 move = service.make_move(game, request.user.id, row, col)
                 
                 # Refresh game from database to get updated state
@@ -634,8 +634,8 @@ class GamesModalView(LoginRequiredMixin, TemplateView):
         
         # Get all games for this user
         all_games = Game.objects.select_related(
-            'black_player', 'white_player', 'winner', 'ruleset'
-        ).filter(user_games_query).order_by('-created_at')
+            'black_player', 'white_player', 'winner'
+        ).prefetch_related('ruleset').filter(user_games_query).order_by('-created_at')
         
         # Separate active and finished games
         active_games = all_games.filter(status=GameStatus.ACTIVE)
@@ -666,15 +666,15 @@ class ChallengeFriendView(FriendAPIViewMixin, LoginRequiredMixin, View):
         
         # Get pending challenges
         pending_sent_challenges = Challenge.objects.select_related(
-            'challenger', 'challenged', 'ruleset'
-        ).filter(
+            'challenger', 'challenged'
+        ).prefetch_related('ruleset').filter(
             challenger=user,
             status=ChallengeStatus.PENDING
         )
         
         pending_received_challenges = Challenge.objects.select_related(
-            'challenger', 'challenged', 'ruleset'
-        ).filter(
+            'challenger', 'challenged'
+        ).prefetch_related('ruleset').filter(
             challenged=user, 
             status=ChallengeStatus.PENDING
         )
@@ -698,8 +698,10 @@ class ChallengeFriendView(FriendAPIViewMixin, LoginRequiredMixin, View):
         """Return challenge modal content for HTMX."""
         username = request.GET.get('username', '')
         
-        # Get available rulesets
-        rulesets = RuleSet.objects.all().order_by('board_size', 'name')
+        # Get available rulesets (combine Gomoku and Go rulesets)
+        gomoku_rulesets = list(GomokuRuleSet.objects.all())
+        go_rulesets = list(GoRuleSet.objects.all())
+        rulesets = sorted(gomoku_rulesets + go_rulesets, key=lambda r: (r.board_size, r.name))
         
         return render(request, 'web/partials/challenge_modal.html', {
             'username': username,
@@ -749,13 +751,18 @@ class ChallengeFriendView(FriendAPIViewMixin, LoginRequiredMixin, View):
         
         logger.info(f"✅ Friendship check passed")
         
-        # Check if ruleset exists
+        # Check if ruleset exists (check both Gomoku and Go rulesets)
+        ruleset = None
         try:
-            ruleset = RuleSet.objects.get(id=ruleset_id)
-            logger.info(f"✅ Ruleset found: {ruleset.name} (ID: {ruleset.id})")
-        except RuleSet.DoesNotExist:
-            logger.warning(f"❌ Invalid ruleset ID: {ruleset_id}")
-            return self.handle_error_response(request, 'Invalid ruleset', 400)
+            ruleset = GomokuRuleSet.objects.get(id=ruleset_id)
+            logger.info(f"✅ Gomoku Ruleset found: {ruleset.name} (ID: {ruleset.id})")
+        except GomokuRuleSet.DoesNotExist:
+            try:
+                ruleset = GoRuleSet.objects.get(id=ruleset_id)
+                logger.info(f"✅ Go Ruleset found: {ruleset.name} (ID: {ruleset.id})")
+            except GoRuleSet.DoesNotExist:
+                logger.warning(f"❌ Invalid ruleset ID: {ruleset_id}")
+                return self.handle_error_response(request, 'Invalid ruleset', 400)
         
         # Check for existing pending challenge
         existing = Challenge.objects.filter(
@@ -843,15 +850,15 @@ class RespondChallengeView(FriendAPIViewMixin, LoginRequiredMixin, View):
         
         # Get pending challenges
         pending_sent_challenges = Challenge.objects.select_related(
-            'challenger', 'challenged', 'ruleset'
-        ).filter(
+            'challenger', 'challenged'
+        ).prefetch_related('ruleset').filter(
             challenger=user,
             status=ChallengeStatus.PENDING
         )
         
         pending_received_challenges = Challenge.objects.select_related(
-            'challenger', 'challenged', 'ruleset'
-        ).filter(
+            'challenger', 'challenged'
+        ).prefetch_related('ruleset').filter(
             challenged=user, 
             status=ChallengeStatus.PENDING
         )
@@ -1053,7 +1060,10 @@ class RulesetsListView(FriendAPIViewMixin, LoginRequiredMixin, View):
     
     def get(self, request):
         """Return list of available rulesets."""
-        rulesets = RuleSet.objects.all().order_by('board_size', 'name')
+        # Get available rulesets (combine Gomoku and Go rulesets)
+        gomoku_rulesets = list(GomokuRuleSet.objects.all())
+        go_rulesets = list(GoRuleSet.objects.all())
+        rulesets = sorted(gomoku_rulesets + go_rulesets, key=lambda r: (r.board_size, r.name))
         
         rulesets_data = [{
             'id': ruleset.id,
@@ -1099,7 +1109,7 @@ class GameResignView(FriendAPIViewMixin, LoginRequiredMixin, View):
             
             # Resign the game using game-specific service
             try:
-                service = GameServiceFactory.get_service(game.ruleset.game_type)
+                service = game.get_service()
                 service.resign_game(game, user.id)
                 
                 # Create game event

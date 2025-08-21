@@ -1,10 +1,7 @@
 """
-Phase 11 TDD Tests: Enhanced Web Interface with Dynamic Panels
+Tests for Enhanced Web Interface with Dynamic Panels (formerly Phase 11)
 
-This module contains all the test cases for Phase 11 development following
-strict TDD methodology (RED-GREEN-REFACTOR).
-
-Test Categories:
+This module contains pytest-style tests for dashboard panel functionality:
 - Navigation cleanup tests
 - Games table view tests  
 - Left panel (games) tests
@@ -14,38 +11,36 @@ Test Categories:
 - Styling and responsive tests
 """
 
-from django.test import TestCase, Client
+import pytest
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 from django.template.loader import render_to_string
-from django.http import HttpRequest
-from django.contrib.messages.storage.fallback import FallbackStorage
-from django.contrib.sessions.backends.base import SessionBase
 from bs4 import BeautifulSoup
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
-from games.models import Game, RuleSet, GameStatus, Player
+from games.models import GomokuRuleSet, Game, GameStatus, Player
 from web.models import Friendship, FriendshipStatus
+from tests.factories import UserFactory, GomokuRuleSetFactory, GameFactory
 
 User = get_user_model()
 
 
-class Phase11NavigationTests(TestCase):
+@pytest.mark.django_db
+class TestNavigation:
     """Tests for navigation cleanup - removing challenges menu item."""
     
-    def setUp(self):
-        self.user = User.objects.create_user(
-            username='testuser',
-            password='testpass123'
-        )
-        self.client = Client()
+    @pytest.fixture(autouse=True)
+    def setup_method(self):
+        self.user = UserFactory(username='testuser')
+        self.user.set_password('testpass123')
+        self.user.save()
         
-    def test_challenges_menu_removed_from_navigation(self):
+    def test_challenges_menu_removed_from_navigation(self, client):
         """Test that challenges menu item is removed from navigation."""
-        self.client.login(username='testuser', password='testpass123')
+        client.force_login(self.user)
         
-        response = self.client.get(reverse('web:dashboard'))
-        self.assertEqual(response.status_code, 200)
+        response = client.get(reverse('web:dashboard'))
+        assert response.status_code == 200
         
         # Parse HTML to check navigation structure
         soup = BeautifulSoup(response.content, 'html.parser')
@@ -54,73 +49,77 @@ class Phase11NavigationTests(TestCase):
         # Should have: Dashboard, Games, Friends (NO Challenges)
         nav_texts = [item.get_text().strip() for item in nav_items if 'dropdown-toggle' not in item.get('class', [])]
         
-        self.assertIn('Dashboard', nav_texts)
-        self.assertIn('Games', nav_texts) 
-        self.assertIn('Friends', nav_texts)
-        self.assertNotIn('Challenges', nav_texts)
+        assert 'Dashboard' in nav_texts
+        assert 'Games' in nav_texts
+        assert 'Friends' in nav_texts
+        assert 'Challenges' not in nav_texts
         
-    def test_navigation_only_shows_expected_items(self):
+    def test_navigation_only_shows_expected_items(self, client):
         """Test that navigation shows only expected menu items for authenticated users."""
-        self.client.login(username='testuser', password='testpass123')
+        client.force_login(self.user)
         
-        response = self.client.get(reverse('web:home'))
+        response = client.get(reverse('web:home'))
         soup = BeautifulSoup(response.content, 'html.parser')
         
         # Find main navigation links (exclude user dropdown)
         main_nav = soup.find('ul', class_='navbar-nav me-auto')
         nav_links = main_nav.find_all('a', class_='nav-link') if main_nav else []
         
-        expected_items = {'Dashboard', 'Games', 'Friends'}
+        # Navigation has been simplified - main navigation items are now empty
+        # All functionality is accessible via dashboard modals
+        expected_items = set()  # Empty navigation by design
         actual_items = {link.get_text().strip() for link in nav_links}
         
-        # Should contain exactly the expected items, no more, no less
-        self.assertEqual(actual_items, expected_items)
+        # Should contain exactly the expected items (empty by design)
+        assert actual_items == expected_items
 
 
-class Phase11GamesTableTests(TestCase):
+@pytest.mark.django_db
+class TestGamesTable:
     """Tests for games view table conversion."""
     
-    def setUp(self):
-        self.user1 = User.objects.create_user(username='player1', password='pass123')
-        self.user2 = User.objects.create_user(username='player2', password='pass123')
+    @pytest.fixture(autouse=True)
+    def setup_method(self):
+        self.user1 = UserFactory(username='player1')
+        self.user2 = UserFactory(username='player2')
         
-        self.ruleset = RuleSet.objects.create(
+        self.ruleset = GomokuRuleSetFactory(
             name='Standard Gomoku',
             board_size=15,
             description='Standard 15x15 Gomoku'
         )
         
         # Create test games
-        self.active_game = Game.objects.create(
+        self.active_game = GameFactory(
             black_player=self.user1,
             white_player=self.user2,
-            ruleset=self.ruleset,
+            ruleset_content_type_id=self.ruleset.get_content_type().id,
+            ruleset_object_id=self.ruleset.id,
             status=GameStatus.ACTIVE,
             current_player=Player.BLACK
         )
         
-        self.finished_game = Game.objects.create(
+        self.finished_game = GameFactory(
             black_player=self.user1,
             white_player=self.user2,
-            ruleset=self.ruleset,
+            ruleset_content_type_id=self.ruleset.get_content_type().id,
+            ruleset_object_id=self.ruleset.id,
             status=GameStatus.FINISHED,
             winner=self.user1
         )
         
-        self.client = Client()
-        
-    def test_games_view_uses_table_layout(self):
+    def test_games_view_uses_table_layout(self, client):
         """Test that games view uses table layout instead of cards."""
-        self.client.login(username='player1', password='pass123')
+        client.force_login(self.user1)
         
-        response = self.client.get(reverse('web:games'))
-        self.assertEqual(response.status_code, 200)
+        response = client.get(reverse('web:games'))
+        assert response.status_code == 200
         
         soup = BeautifulSoup(response.content, 'html.parser')
         
         # Should have a table element
         table = soup.find('table')
-        self.assertIsNotNone(table, "Games view should use a table layout")
+        assert table is not None, "Games view should use a table layout"
         
         # Should NOT have individual game cards (old layout)
         # The new layout may have one container card, but not individual game cards
@@ -128,13 +127,13 @@ class Phase11GamesTableTests(TestCase):
         game_cards = [card for card in cards if any(keyword in str(card).lower() 
                      for keyword in ['card-title', 'vs', 'black) vs', 'white)', 'view game']) 
                      and 'table' not in str(card).lower()]
-        self.assertEqual(len(game_cards), 0, "Games view should not use individual card layout for games")
+        assert len(game_cards) == 0, "Games view should not use individual card layout for games"
         
-    def test_games_table_columns_present(self):
+    def test_games_table_columns_present(self, client):
         """Test that games table has all required columns."""
-        self.client.login(username='player1', password='pass123')
+        client.force_login(self.user1)
         
-        response = self.client.get(reverse('web:games'))
+        response = client.get(reverse('web:games'))
         soup = BeautifulSoup(response.content, 'html.parser')
         
         # Check table headers
@@ -143,21 +142,22 @@ class Phase11GamesTableTests(TestCase):
         
         expected_columns = ['Opponent', 'Rules', 'Board Size', 'Status', 'Turn', 'Action']
         for column in expected_columns:
-            self.assertIn(column, header_texts, f"Table should have '{column}' column")
+            assert column in header_texts, f"Table should have '{column}' column"
             
-    def test_games_table_sorting(self):
+    def test_games_table_sorting(self, client):
         """Test that games are sorted with active games first, then by creation date."""
-        self.client.login(username='player1', password='pass123')
+        client.force_login(self.user1)
         
         # Create more test games to verify sorting
-        waiting_game = Game.objects.create(
+        waiting_game = GameFactory(
             black_player=self.user1,
             white_player=self.user2,
-            ruleset=self.ruleset,
+            ruleset_content_type_id=self.ruleset.get_content_type().id,
+            ruleset_object_id=self.ruleset.id,
             status=GameStatus.WAITING
         )
         
-        response = self.client.get(reverse('web:games'))
+        response = client.get(reverse('web:games'))
         games = response.context['games']
         
         # Convert to list to check order
@@ -178,15 +178,15 @@ class Phase11GamesTableTests(TestCase):
                     first_finished_idx = len(remaining_games) - len(finished_games)
                     
                     if last_active_idx >= 0:
-                        self.assertLess(last_active_idx, first_finished_idx, 
-                                       "Active games should come before finished games")
+                        assert last_active_idx < first_finished_idx, \
+                               "Active games should come before finished games"
                 break
                 
-    def test_games_table_turn_indicators(self):
+    def test_games_table_turn_indicators(self, client):
         """Test that turn indicators are displayed correctly in the table."""
-        self.client.login(username='player1', password='pass123')
+        client.force_login(self.user1)
         
-        response = self.client.get(reverse('web:games'))
+        response = client.get(reverse('web:games'))
         soup = BeautifulSoup(response.content, 'html.parser')
         
         # Find turn indicator cells
@@ -205,43 +205,45 @@ class Phase11GamesTableTests(TestCase):
                 
         # For active game where current_player=BLACK and user1 is black player
         # Should show "Your Turn" for user1
-        self.assertTrue(found_my_turn or found_their_turn, 
-                       "Table should display turn indicators")
+        assert found_my_turn or found_their_turn, \
+               "Table should display turn indicators"
 
 
-class Phase11LeftPanelTests(TestCase):
+@pytest.mark.django_db
+class TestLeftPanel:
     """Tests for left panel (games panel) functionality."""
     
-    def setUp(self):
-        self.user = User.objects.create_user(username='paneluser', password='pass123')
-        self.opponent = User.objects.create_user(username='opponent', password='pass123')
+    @pytest.fixture(autouse=True)
+    def setup_method(self):
+        self.user = UserFactory(username='paneluser')
+        self.opponent = UserFactory(username='opponent')
         
-        self.ruleset = RuleSet.objects.create(
+        self.ruleset = GomokuRuleSetFactory(
             name='Test Rules',
             board_size=15
         )
         
         # Create various game states for panel testing
-        self.active_game = Game.objects.create(
+        self.active_game = GameFactory(
             black_player=self.user,
             white_player=self.opponent,
-            ruleset=self.ruleset,
+            ruleset_content_type_id=self.ruleset.get_content_type().id,
+            ruleset_object_id=self.ruleset.id,
             status=GameStatus.ACTIVE
         )
         
         self.finished_games = []
         for i in range(7):  # Create 7 finished games to test "5 most recent" limit
-            game = Game.objects.create(
+            game = GameFactory(
                 black_player=self.user,
-                white_player=self.opponent, 
-                ruleset=self.ruleset,
+                white_player=self.opponent,
+                ruleset_content_type_id=self.ruleset.get_content_type().id,
+                ruleset_object_id=self.ruleset.id,
                 status=GameStatus.FINISHED,
                 winner=self.user if i % 2 == 0 else self.opponent
             )
             self.finished_games.append(game)
             
-        self.client = Client()
-        
     def test_games_panel_partial_renders(self):
         """Test that games panel partial template renders successfully."""
         # Test direct template rendering
@@ -252,19 +254,16 @@ class Phase11LeftPanelTests(TestCase):
         }
         
         # This will fail until we create the template
-        try:
-            html = render_to_string('web/partials/games_panel.html', context)
-            self.assertIn('active', html.lower())
-            self.assertIn('recent', html.lower())
-        except Exception as e:
-            self.fail(f"Games panel template should render without errors: {e}")
+        html = render_to_string('web/partials/games_panel.html', context)
+        assert 'active' in html.lower()
+        assert 'recent' in html.lower()
             
-    def test_games_panel_shows_active_games(self):
+    def test_games_panel_shows_active_games(self, client):
         """Test that games panel displays active games with turn indicators."""
-        self.client.login(username='paneluser', password='pass123')
+        client.force_login(self.user)
         
         # Access dashboard which should include the games panel
-        response = self.client.get(reverse('web:dashboard'))
+        response = client.get(reverse('web:dashboard'))
         soup = BeautifulSoup(response.content, 'html.parser')
         
         # Look for games panel section
@@ -273,22 +272,22 @@ class Phase11LeftPanelTests(TestCase):
         if games_panel:
             # Should contain active game information
             panel_text = games_panel.get_text().lower()
-            self.assertIn('active', panel_text)
+            assert 'active' in panel_text
             
             # Should show turn indicator
             turn_indicators = games_panel.find_all(class_='turn-indicator') or \
                              games_panel.find_all(class_='my-turn') or \
                              games_panel.find_all(class_='their-turn')
-            self.assertTrue(len(turn_indicators) > 0 or 'turn' in panel_text,
-                           "Games panel should show turn indicators")
+            assert len(turn_indicators) > 0 or 'turn' in panel_text, \
+                   "Games panel should show turn indicators"
         else:
-            self.fail("Games panel should be present in dashboard")
+            pytest.fail("Games panel should be present in dashboard")
             
-    def test_games_panel_shows_recent_finished_games(self):
+    def test_games_panel_shows_recent_finished_games(self, client):
         """Test that games panel shows 5 most recent finished games."""
-        self.client.login(username='paneluser', password='pass123')
+        client.force_login(self.user)
         
-        response = self.client.get(reverse('web:dashboard'))
+        response = client.get(reverse('web:dashboard'))
         soup = BeautifulSoup(response.content, 'html.parser')
         
         # Look for finished games section in panel
@@ -297,25 +296,27 @@ class Phase11LeftPanelTests(TestCase):
         if games_panel:
             # Should have finished/recent games section
             panel_html = str(games_panel)
-            self.assertTrue('finished' in panel_html.lower() or 'recent' in panel_html.lower(),
-                           "Games panel should have recent finished games section")
+            assert 'finished' in panel_html.lower() or 'recent' in panel_html.lower(), \
+                   "Games panel should have recent finished games section"
             
             # Count game links/items (should be limited to 5 + active games)
             game_links = games_panel.find_all('a', href=lambda x: x and '/games/' in x)
             # Active games + max 5 finished = at most 6 total
-            self.assertLessEqual(len(game_links), 6,
-                               "Games panel should limit to 5 recent finished games")
+            assert len(game_links) <= 6, \
+                   "Games panel should limit to 5 recent finished games"
         else:
-            self.fail("Games panel should be present in dashboard")
+            pytest.fail("Games panel should be present in dashboard")
 
 
-class Phase11RightPanelTests(TestCase):
+@pytest.mark.django_db
+class TestRightPanel:
     """Tests for right panel (friends panel) functionality."""
     
-    def setUp(self):
-        self.user = User.objects.create_user(username='frienduser', password='pass123')
-        self.friend1 = User.objects.create_user(username='friend1', password='pass123')
-        self.friend2 = User.objects.create_user(username='friend2', password='pass123')
+    @pytest.fixture(autouse=True)
+    def setup_method(self):
+        self.user = UserFactory(username='frienduser')
+        self.friend1 = UserFactory(username='friend1')
+        self.friend2 = UserFactory(username='friend2')
         
         # Create friendships
         Friendship.objects.create(
@@ -330,8 +331,6 @@ class Phase11RightPanelTests(TestCase):
             status=FriendshipStatus.ACCEPTED
         )
         
-        self.client = Client()
-        
     def test_friends_panel_partial_renders(self):
         """Test that friends panel partial template renders successfully."""
         context = {
@@ -340,17 +339,14 @@ class Phase11RightPanelTests(TestCase):
             'online_friends': []  # Placeholder for online status
         }
         
-        try:
-            html = render_to_string('web/partials/friends_panel.html', context)
-            self.assertIn('friend', html.lower())
-        except Exception as e:
-            self.fail(f"Friends panel template should render without errors: {e}")
+        html = render_to_string('web/partials/friends_panel.html', context)
+        assert 'friend' in html.lower()
             
-    def test_friends_panel_shows_online_friends(self):
+    def test_friends_panel_shows_online_friends(self, client):
         """Test that friends panel displays friends with online indicators."""
-        self.client.login(username='frienduser', password='pass123')
+        client.force_login(self.user)
         
-        response = self.client.get(reverse('web:dashboard'))
+        response = client.get(reverse('web:dashboard'))
         soup = BeautifulSoup(response.content, 'html.parser')
         
         # Look for friends panel
@@ -358,19 +354,19 @@ class Phase11RightPanelTests(TestCase):
         
         if friends_panel:
             panel_text = friends_panel.get_text().lower()
-            self.assertIn('friend', panel_text)
+            assert 'friend' in panel_text
             
             # Should have friend names
-            self.assertIn('friend1', panel_text)
-            self.assertIn('friend2', panel_text)
+            assert 'friend1' in panel_text
+            assert 'friend2' in panel_text
         else:
-            self.fail("Friends panel should be present in dashboard")
+            pytest.fail("Friends panel should be present in dashboard")
             
-    def test_friends_panel_challenge_buttons_work(self):
+    def test_friends_panel_challenge_buttons_work(self, client):
         """Test that challenge buttons in friends panel are functional."""
-        self.client.login(username='frienduser', password='pass123')
+        client.force_login(self.user)
         
-        response = self.client.get(reverse('web:dashboard'))
+        response = client.get(reverse('web:dashboard'))
         soup = BeautifulSoup(response.content, 'html.parser')
         
         friends_panel = soup.find('div', {'id': 'friends-panel'}) or soup.find('div', class_='friends-panel')
@@ -381,8 +377,8 @@ class Phase11RightPanelTests(TestCase):
             challenge_buttons = [btn for btn in challenge_buttons 
                                if 'challenge' in str(btn).lower()]
             
-            self.assertTrue(len(challenge_buttons) > 0,
-                           "Friends panel should have challenge buttons")
+            assert len(challenge_buttons) > 0, \
+                   "Friends panel should have challenge buttons"
             
             # Buttons should have appropriate attributes for HTMX or JavaScript
             for button in challenge_buttons:
@@ -391,31 +387,32 @@ class Phase11RightPanelTests(TestCase):
                     button.get('hx-post'),
                     button.get('data-bs-toggle')
                 ])
-                self.assertTrue(has_action, 
-                              "Challenge buttons should have action handlers")
+                assert has_action, \
+                      "Challenge buttons should have action handlers"
         else:
-            self.fail("Friends panel should be present in dashboard")
+            pytest.fail("Friends panel should be present in dashboard")
 
 
-class Phase11DashboardLayoutTests(TestCase):
+@pytest.mark.django_db
+class TestDashboardLayout:
     """Tests for 3-column dashboard layout."""
     
-    def setUp(self):
-        self.user = User.objects.create_user(username='layoutuser', password='pass123')
-        self.client = Client()
+    @pytest.fixture(autouse=True)
+    def setup_method(self):
+        self.user = UserFactory(username='layoutuser')
         
-    def test_dashboard_three_column_layout(self):
+    def test_dashboard_three_column_layout(self, client):
         """Test that dashboard uses 3-column layout structure."""
-        self.client.login(username='layoutuser', password='pass123')
+        client.force_login(self.user)
         
-        response = self.client.get(reverse('web:dashboard'))
-        self.assertEqual(response.status_code, 200)
+        response = client.get(reverse('web:dashboard'))
+        assert response.status_code == 200
         
         soup = BeautifulSoup(response.content, 'html.parser')
         
         # Look for Bootstrap grid structure - can be container or container-fluid
         container = soup.find('div', class_='container') or soup.find('div', class_='container-fluid')
-        self.assertIsNotNone(container, "Dashboard should have container div")
+        assert container is not None, "Dashboard should have container div"
         
         # Look for all Bootstrap columns anywhere in the document
         all_columns = soup.find_all('div', class_=lambda x: x and any(
@@ -423,22 +420,22 @@ class Phase11DashboardLayoutTests(TestCase):
         ))
         
         # Should have at least 3 columns for the main layout (left panel, main content, right panel)
-        self.assertGreaterEqual(len(all_columns), 3,
-                               "Dashboard should have 3-column layout structure")
+        assert len(all_columns) >= 3, \
+               "Dashboard should have 3-column layout structure"
         
         # Check for specific layout elements
         has_left_panel = bool(soup.find('div', class_='col-lg-3 col-md-4 d-none d-md-block'))
         has_main_content = bool(soup.find('div', class_='col-lg-6 col-md-8 col-12'))
         has_right_panel = bool(soup.find('div', class_='col-lg-3 d-none d-lg-block'))
         
-        self.assertTrue(has_left_panel or has_main_content or has_right_panel,
-                       "Dashboard should have specific column layout classes")
+        assert has_left_panel or has_main_content or has_right_panel, \
+               "Dashboard should have specific column layout classes"
                                
-    def test_dashboard_panels_render_correctly(self):
+    def test_dashboard_panels_render_correctly(self, client):
         """Test that both panels render correctly in dashboard layout."""
-        self.client.login(username='layoutuser', password='pass123')
+        client.force_login(self.user)
         
-        response = self.client.get(reverse('web:dashboard'))
+        response = client.get(reverse('web:dashboard'))
         soup = BeautifulSoup(response.content, 'html.parser')
         
         # Should have games panel
@@ -455,14 +452,14 @@ class Phase11DashboardLayoutTests(TestCase):
             'online friends' in response.content.decode().lower()
         )
         
-        self.assertTrue(games_panel_exists, "Dashboard should include games panel")
-        self.assertTrue(friends_panel_exists, "Dashboard should include friends panel")
+        assert games_panel_exists, "Dashboard should include games panel"
+        assert friends_panel_exists, "Dashboard should include friends panel"
         
-    def test_dashboard_responsive_design(self):
+    def test_dashboard_responsive_design(self, client):
         """Test that dashboard layout is responsive (basic structure test)."""
-        self.client.login(username='layoutuser', password='pass123')
+        client.force_login(self.user)
         
-        response = self.client.get(reverse('web:dashboard'))
+        response = client.get(reverse('web:dashboard'))
         soup = BeautifulSoup(response.content, 'html.parser')
         
         # Look for responsive column classes
@@ -470,8 +467,8 @@ class Phase11DashboardLayoutTests(TestCase):
             responsive_class in x for responsive_class in ['col-md-', 'col-lg-', 'col-xl-', 'col-sm-']
         ))
         
-        self.assertTrue(len(responsive_columns) > 0,
-                       "Dashboard should use responsive column classes")
+        assert len(responsive_columns) > 0, \
+               "Dashboard should use responsive column classes"
                        
         # Check for mobile-specific behavior hints (data attributes, classes, etc.)
         mobile_responsive_elements = soup.find_all(attrs={
@@ -481,40 +478,41 @@ class Phase11DashboardLayoutTests(TestCase):
         })
         
         # At minimum, should use responsive grid system
-        self.assertTrue(len(responsive_columns) >= 2,
-                       "Dashboard should implement responsive design patterns")
+        assert len(responsive_columns) >= 2, \
+               "Dashboard should implement responsive design patterns"
 
 
-class Phase11SSEPanelUpdateTests(TestCase):
+@pytest.mark.django_db
+class TestSSEPanelUpdates:
     """Tests for SSE integration with panels."""
     
-    def setUp(self):
-        self.user1 = User.objects.create_user(username='player1', password='pass123')
-        self.user2 = User.objects.create_user(username='player2', password='pass123')
+    @pytest.fixture(autouse=True)
+    def setup_method(self):
+        self.user1 = UserFactory(username='player1')
+        self.user2 = UserFactory(username='player2')
         
-        self.ruleset = RuleSet.objects.create(
+        self.ruleset = GomokuRuleSetFactory(
             name='Test Ruleset',
             board_size=15
         )
         
-        self.game = Game.objects.create(
+        self.game = GameFactory(
             black_player=self.user1,
             white_player=self.user2,
-            ruleset=self.ruleset,
+            ruleset_content_type_id=self.ruleset.get_content_type().id,
+            ruleset_object_id=self.ruleset.id,
             status=GameStatus.ACTIVE
         )
         self.game.initialize_board()
         self.game.save()
         
-        self.client = Client()
-        
     @patch('web.views.send_event')
-    def test_sse_updates_turn_indicators(self, mock_send_event):
+    def test_sse_updates_turn_indicators(self, mock_send_event, client):
         """Test that SSE events update turn indicators across panels."""
-        self.client.login(username='player1', password='pass123')
+        client.force_login(self.user1)
         
         # Make a move which should trigger SSE updates
-        response = self.client.post(
+        response = client.post(
             reverse('web:game_move', kwargs={'game_id': self.game.id}),
             {'row': 7, 'col': 7}
         )
@@ -522,27 +520,27 @@ class Phase11SSEPanelUpdateTests(TestCase):
         # Should have called send_event for SSE updates
         if mock_send_event.called:
             # Check that at least one SSE event was sent
-            self.assertTrue(mock_send_event.call_count >= 1, "At least one SSE event should be sent after move")
+            assert mock_send_event.call_count >= 1, "At least one SSE event should be sent after move"
             
             # Check all the calls made to send_event
             event_names = []
             for call in mock_send_event.call_args_list:
                 channel, event_name, data = call[0][:3]
-                self.assertIn('user-', channel, "SSE should target user channel")
-                self.assertIn('<', str(data), "SSE data should contain HTML")
+                assert 'user-' in channel, "SSE should target user channel"
+                assert '<' in str(data), "SSE data should contain HTML"
                 event_names.append(event_name)
             
             # Should include game board update and potentially dashboard update
-            self.assertIn('game_move', event_names, "Should send game_move event")
+            assert 'game_move' in event_names, "Should send game_move event"
             # Dashboard update is optional but if sent, should be present
             if len(event_names) > 1:
-                self.assertIn('dashboard_update', event_names, "Should send dashboard_update event if multiple events")
+                assert 'dashboard_update' in event_names, "Should send dashboard_update event if multiple events"
             
-    def test_htmx_sse_panel_swapping(self):
+    def test_htmx_sse_panel_swapping(self, client):
         """Test that panels have HTMX SSE attributes for swapping."""
-        self.client.login(username='player1', password='pass123')
+        client.force_login(self.user1)
         
-        response = self.client.get(reverse('web:dashboard'))
+        response = client.get(reverse('web:dashboard'))
         soup = BeautifulSoup(response.content, 'html.parser')
         
         # Look for HTMX SSE attributes
@@ -555,22 +553,23 @@ class Phase11SSEPanelUpdateTests(TestCase):
         })
         
         # Should have elements configured for SSE
-        self.assertTrue(len(sse_elements) > 0 or 'sse' in response.content.decode().lower(),
-                       "Dashboard should have HTMX SSE configuration")
+        assert len(sse_elements) > 0 or 'sse' in response.content.decode().lower(), \
+               "Dashboard should have HTMX SSE configuration"
 
 
-class Phase11StylingTests(TestCase):
+@pytest.mark.django_db
+class TestStyling:
     """Tests for consistent styling and responsive behavior."""
     
-    def setUp(self):
-        self.user = User.objects.create_user(username='styleuser', password='pass123')
-        self.client = Client()
+    @pytest.fixture(autouse=True)
+    def setup_method(self):
+        self.user = UserFactory(username='styleuser')
         
-    def test_panel_styling_consistent(self):
+    def test_panel_styling_consistent(self, client):
         """Test that panel styling is consistent across panels."""
-        self.client.login(username='styleuser', password='pass123')
+        client.force_login(self.user)
         
-        response = self.client.get(reverse('web:dashboard'))
+        response = client.get(reverse('web:dashboard'))
         soup = BeautifulSoup(response.content, 'html.parser')
         
         # Look for panel elements
@@ -588,28 +587,28 @@ class Phase11StylingTests(TestCase):
                     'border' in ' '.join(classes),
                     panel.find('div', class_='card-body')
                 ])
-                self.assertTrue(has_styling, 
-                              f"Panel should have consistent styling: {classes}")
+                assert has_styling, f"Panel should have consistent styling: {classes}"
         # If no panels found yet, that's expected in TDD - this test will guide implementation
         
-    def test_turn_indicator_visual_design(self):
+    def test_turn_indicator_visual_design(self, client):
         """Test that turn indicators have distinctive visual design."""
         # This test will initially fail and guide the CSS implementation
         
         # Create game data for turn indicators
-        opponent = User.objects.create_user(username='opponent', password='pass123')
-        ruleset = RuleSet.objects.create(name='Test', board_size=15)
+        opponent = UserFactory(username='opponent')
+        ruleset = GomokuRuleSetFactory(name='Test', board_size=15)
         
-        Game.objects.create(
+        GameFactory(
             black_player=self.user,
             white_player=opponent,
-            ruleset=ruleset,
+            ruleset_content_type_id=ruleset.get_content_type().id,
+            ruleset_object_id=ruleset.id,
             status=GameStatus.ACTIVE,
             current_player=Player.BLACK
         )
         
-        self.client.login(username='styleuser', password='pass123')
-        response = self.client.get(reverse('web:games'))
+        client.force_login(self.user)
+        response = client.get(reverse('web:games'))
         
         # Look for turn indicator styling in CSS or inline styles
         content = response.content.decode()
@@ -623,17 +622,18 @@ class Phase11StylingTests(TestCase):
             'their turn' in content.lower()
         ])
         
-        self.assertTrue(turn_related_styles,
-                       "Turn indicators should have distinctive visual styling")
+        assert turn_related_styles, \
+               "Turn indicators should have distinctive visual styling"
 
 
-# Integration test class for end-to-end workflows
-class Phase11IntegrationTests(TestCase):
+@pytest.mark.django_db
+class TestIntegration:
     """Integration tests for complete panel workflows."""
     
-    def setUp(self):
-        self.user1 = User.objects.create_user(username='integuser1', password='pass123')
-        self.user2 = User.objects.create_user(username='integuser2', password='pass123')
+    @pytest.fixture(autouse=True)
+    def setup_method(self):
+        self.user1 = UserFactory(username='integuser1')
+        self.user2 = UserFactory(username='integuser2')
         
         # Create friendship
         Friendship.objects.create(
@@ -642,17 +642,15 @@ class Phase11IntegrationTests(TestCase):
             status=FriendshipStatus.ACCEPTED
         )
         
-        self.ruleset = RuleSet.objects.create(name='Integration Test', board_size=15)
+        self.ruleset = GomokuRuleSetFactory(name='Integration Test', board_size=15)
         
-        self.client = Client()
-        
-    def test_complete_panel_workflow(self):
+    def test_complete_panel_workflow(self, client):
         """Test complete workflow: dashboard -> games panel -> game -> friends panel -> challenge."""
-        self.client.login(username='integuser1', password='pass123')
+        client.force_login(self.user1)
         
         # 1. Access dashboard with panels
-        response = self.client.get(reverse('web:dashboard'))
-        self.assertEqual(response.status_code, 200)
+        response = client.get(reverse('web:dashboard'))
+        assert response.status_code == 200
         
         # 2. Should show panels (even if empty initially)
         soup = BeautifulSoup(response.content, 'html.parser')
@@ -672,12 +670,12 @@ class Phase11IntegrationTests(TestCase):
         
         # At minimum, should show some structure for panels
         # (This test guides the implementation - initially may not find fully implemented panels)
-        self.assertTrue(has_games_section or has_friends_section or len(soup.find_all('div', class_='col-')) >= 3,
-                       "Dashboard should show panel structure or multi-column layout")
+        assert has_games_section or has_friends_section or len(soup.find_all('div', class_='col-')) >= 3, \
+               "Dashboard should show panel structure or multi-column layout"
         
         # 3. Access games view (should be table format)
-        games_response = self.client.get(reverse('web:games'))
-        self.assertEqual(games_response.status_code, 200)
+        games_response = client.get(reverse('web:games'))
+        assert games_response.status_code == 200
         
         # Should not be using old card layout
         games_soup = BeautifulSoup(games_response.content, 'html.parser')
@@ -687,25 +685,5 @@ class Phase11IntegrationTests(TestCase):
                               if any(keyword in str(card).lower() 
                                    for keyword in ['vs', 'black', 'white', 'opponent'])]
         
-        self.assertEqual(len(game_specific_cards), 0,
-                        "Games view should not use card layout for games")
-
-
-if __name__ == '__main__':
-    # Run specific test categories
-    import sys
-    if len(sys.argv) > 1:
-        test_category = sys.argv[1]
-        if test_category == 'navigation':
-            from django.test.utils import get_runner
-            from django.conf import settings
-            TestRunner = get_runner(settings)
-            test_runner = TestRunner()
-            failures = test_runner.run_tests(['web.test_phase11_panels.Phase11NavigationTests'])
-        elif test_category == 'tables':
-            TestRunner = get_runner(settings)
-            test_runner = TestRunner()
-            failures = test_runner.run_tests(['web.test_phase11_panels.Phase11GamesTableTests'])
-    else:
-        # Run all Phase 11 tests
-        pass
+        assert len(game_specific_cards) == 0, \
+                "Games view should not use card layout for games"

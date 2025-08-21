@@ -1,12 +1,7 @@
 """
-TDD Tests for Pending Challenges Feature.
+Tests for Pending Challenges Feature
 
-Following Red-Green-Refactor methodology:
-1. RED: Write failing tests for pending challenges functionality
-2. GREEN: Implement minimal code to pass tests  
-3. REFACTOR: Improve code quality while keeping tests green
-
-Tests cover:
+Comprehensive pytest-style tests for pending challenges functionality:
 - Pending challenges display in friends panel
 - Challenge management actions (accept/reject/cancel)
 - SSE real-time updates
@@ -14,29 +9,22 @@ Tests cover:
 """
 
 import pytest
-from django.test import Client
 from django.urls import reverse
 from django.contrib.auth import get_user_model
 from bs4 import BeautifulSoup
 
-from games.models import Challenge, ChallengeStatus, Game, GameStatus, RuleSet
+from games.models import GomokuRuleSet, Challenge, ChallengeStatus, Game, GameStatus
 from web.models import Friendship, FriendshipStatus
-from tests.factories import UserFactory, RuleSetFactory
+from tests.factories import UserFactory, GomokuRuleSetFactory
 
 User = get_user_model()
 
 
 @pytest.fixture
-def authenticated_client():
-    """Authenticated test client."""
-    return Client()
-
-
-@pytest.fixture
 def challenge_users(db):
     """Create users for challenge testing."""
-    challenger = UserFactory(username='challenger')
-    challengee = UserFactory(username='challengee')
+    challenger = UserFactory()
+    challengee = UserFactory()
     challenger.set_password('testpass123')
     challengee.set_password('testpass123')
     challenger.save()
@@ -55,7 +43,7 @@ def challenge_users(db):
 @pytest.fixture  
 def test_ruleset(db):
     """Create test ruleset."""
-    return RuleSetFactory(name='Standard Gomoku', board_size=15)
+    return GomokuRuleSetFactory(name='Standard Gomoku', board_size=15)
 
 
 @pytest.fixture
@@ -65,7 +53,8 @@ def pending_challenge(db, challenge_users, test_ruleset):
     return Challenge.objects.create(
         challenger=challenger,
         challenged=challengee,
-        ruleset=test_ruleset,
+        ruleset_content_type_id=test_ruleset.get_content_type().id,
+        ruleset_object_id=test_ruleset.id,
         status=ChallengeStatus.PENDING
     )
 
@@ -76,7 +65,7 @@ def multiple_challenges(db, challenge_users, test_ruleset):
     challenger, challengee = challenge_users
     
     # Create additional users for more challenge scenarios
-    user3 = UserFactory(username='user3')
+    user3 = UserFactory()
     user3.set_password('testpass123')
     user3.save()
     
@@ -91,15 +80,17 @@ def multiple_challenges(db, challenge_users, test_ruleset):
         # Challenge sent by challenger to challengee
         Challenge.objects.create(
             challenger=challenger,
-            challenged=challengee, 
-            ruleset=test_ruleset,
+            challenged=challengee,
+            ruleset_content_type_id=test_ruleset.get_content_type().id,
+            ruleset_object_id=test_ruleset.id,
             status=ChallengeStatus.PENDING
         ),
         # Challenge sent by user3 to challenger  
         Challenge.objects.create(
             challenger=user3,
             challenged=challenger,
-            ruleset=test_ruleset,
+            ruleset_content_type_id=test_ruleset.get_content_type().id,
+            ruleset_object_id=test_ruleset.id,
             status=ChallengeStatus.PENDING
         ),
     ]
@@ -107,17 +98,17 @@ def multiple_challenges(db, challenge_users, test_ruleset):
     return challenges, (challenger, challengee, user3)
 
 
-@pytest.mark.web
 @pytest.mark.django_db
+@pytest.mark.web
 class TestPendingChallengesDisplay:
     """Test pending challenges display in friends panel."""
     
-    def test_dashboard_shows_sent_pending_challenges(self, authenticated_client, multiple_challenges):
-        """RED: Test dashboard shows challenges sent by current user."""
+    def test_dashboard_shows_sent_pending_challenges(self, client, multiple_challenges):
+        """Test dashboard shows challenges sent by current user."""
         challenges, (challenger, challengee, user3) = multiple_challenges
         
-        authenticated_client.login(username='challenger', password='testpass123')
-        response = authenticated_client.get(reverse('web:dashboard'))
+        client.force_login(challenger)
+        response = client.get(reverse('web:dashboard'))
         
         assert response.status_code == 200
         soup = BeautifulSoup(response.content, 'html.parser')
@@ -147,12 +138,12 @@ class TestPendingChallengesDisplay:
         cancel_btn = sent_challenge.find('button', class_='cancel-challenge-btn')
         assert cancel_btn is not None, "Sent challenge should have cancel button"
     
-    def test_dashboard_shows_received_pending_challenges(self, authenticated_client, multiple_challenges):
-        """RED: Test dashboard shows challenges received by current user."""
+    def test_dashboard_shows_received_pending_challenges(self, client, multiple_challenges):
+        """Test dashboard shows challenges received by current user."""
         challenges, (challenger, challengee, user3) = multiple_challenges
         
-        authenticated_client.login(username='challenger', password='testpass123')
-        response = authenticated_client.get(reverse('web:dashboard'))
+        client.force_login(challenger)
+        response = client.get(reverse('web:dashboard'))
         
         assert response.status_code == 200
         soup = BeautifulSoup(response.content, 'html.parser')
@@ -179,12 +170,12 @@ class TestPendingChallengesDisplay:
         assert accept_btn is not None, "Received challenge should have accept button"
         assert reject_btn is not None, "Received challenge should have reject button"
     
-    def test_no_pending_challenges_shows_empty_state(self, authenticated_client, challenge_users):
-        """RED: Test empty state when no pending challenges."""
+    def test_no_pending_challenges_shows_empty_state(self, client, challenge_users):
+        """Test empty state when no pending challenges."""
         challenger, challengee = challenge_users
         
-        authenticated_client.login(username='challenger', password='testpass123')
-        response = authenticated_client.get(reverse('web:dashboard'))
+        client.force_login(challenger)
+        response = client.get(reverse('web:dashboard'))
         
         assert response.status_code == 200
         soup = BeautifulSoup(response.content, 'html.parser')
@@ -196,19 +187,19 @@ class TestPendingChallengesDisplay:
             assert empty_state is not None, "Should show empty state when no challenges"
 
 
-@pytest.mark.web
-@pytest.mark.django_db  
+@pytest.mark.django_db
+@pytest.mark.web  
 class TestChallengeActions:
     """Test challenge management actions via HTMX."""
     
-    def test_accept_challenge_creates_game_and_updates_panels(self, authenticated_client, pending_challenge):
-        """RED: Test accepting challenge creates game and updates Active Games panel."""
+    def test_accept_challenge_creates_game_and_updates_panels(self, client, pending_challenge):
+        """Test accepting challenge creates game and updates Active Games panel."""
         challengee = pending_challenge.challenged
         
-        authenticated_client.login(username=challengee.username, password='testpass123')
+        client.force_login(challengee)
         
         # Accept the challenge via HTMX
-        response = authenticated_client.post(
+        response = client.post(
             reverse('web:respond_challenge', kwargs={'challenge_id': pending_challenge.id}),
             {'action': 'accept'},
             HTTP_HX_REQUEST='true'
@@ -237,14 +228,14 @@ class TestChallengeActions:
         updated_panel = soup.find('div', id='friends-panel')
         assert updated_panel is not None, "Should return updated friends panel"
     
-    def test_reject_challenge_removes_from_pending_list(self, authenticated_client, pending_challenge):
-        """RED: Test rejecting challenge removes it from pending list."""
+    def test_reject_challenge_removes_from_pending_list(self, client, pending_challenge):
+        """Test rejecting challenge removes it from pending list."""
         challengee = pending_challenge.challenged
         
-        authenticated_client.login(username=challengee.username, password='testpass123')
+        client.force_login(challengee)
         
         # Reject the challenge via HTMX
-        response = authenticated_client.post(
+        response = client.post(
             reverse('web:respond_challenge', kwargs={'challenge_id': pending_challenge.id}),
             {'action': 'reject'},
             HTTP_HX_REQUEST='true'
@@ -268,14 +259,14 @@ class TestChallengeActions:
         updated_panel = soup.find('div', id='friends-panel')
         assert updated_panel is not None, "Should return updated friends panel"
     
-    def test_cancel_sent_challenge_removes_from_pending_list(self, authenticated_client, pending_challenge):
-        """RED: Test cancelling sent challenge removes it from pending list."""
+    def test_cancel_sent_challenge_removes_from_pending_list(self, client, pending_challenge):
+        """Test cancelling sent challenge removes it from pending list."""
         challenger = pending_challenge.challenger
         
-        authenticated_client.login(username=challenger.username, password='testpass123')
+        client.force_login(challenger)
         
         # Cancel the challenge via HTMX
-        response = authenticated_client.post(
+        response = client.post(
             reverse('web:respond_challenge', kwargs={'challenge_id': pending_challenge.id}),
             {'action': 'cancel'},
             HTTP_HX_REQUEST='true'
@@ -294,14 +285,14 @@ class TestChallengeActions:
         )
         assert games.count() == 0, "Should not create a game when cancelled"
     
-    def test_invalid_challenge_action_returns_error(self, authenticated_client, pending_challenge):
-        """RED: Test invalid action returns proper error response."""
+    def test_invalid_challenge_action_returns_error(self, client, pending_challenge):
+        """Test invalid action returns proper error response."""
         challengee = pending_challenge.challenged
         
-        authenticated_client.login(username=challengee.username, password='testpass123')
+        client.force_login(challengee)
         
         # Try invalid action
-        response = authenticated_client.post(
+        response = client.post(
             reverse('web:respond_challenge', kwargs={'challenge_id': pending_challenge.id}),
             {'action': 'invalid_action'},
             HTTP_HX_REQUEST='true'
@@ -314,21 +305,21 @@ class TestChallengeActions:
         assert pending_challenge.status == ChallengeStatus.PENDING
 
 
-@pytest.mark.web
 @pytest.mark.django_db
+@pytest.mark.web
 class TestChallengeSSEIntegration:
     """Test SSE real-time updates for challenges."""
     
-    def test_challenge_response_triggers_sse_update_for_both_users(self, authenticated_client, pending_challenge):
-        """RED: Test challenge response sends SSE updates to both users."""
+    def test_challenge_response_triggers_sse_update_for_both_users(self, client, pending_challenge):
+        """Test challenge response sends SSE updates to both users."""
         # This test will verify that SSE events are sent
         # We'll implement the SSE event sending in the view
         
         challengee = pending_challenge.challenged
-        authenticated_client.login(username=challengee.username, password='testpass123')
+        client.force_login(challengee)
         
         # Accept the challenge
-        response = authenticated_client.post(
+        response = client.post(
             reverse('web:respond_challenge', kwargs={'challenge_id': pending_challenge.id}),
             {'action': 'accept'},
             HTTP_HX_REQUEST='true'
@@ -341,13 +332,13 @@ class TestChallengeSSEIntegration:
         pending_challenge.refresh_from_db()
         assert pending_challenge.status == ChallengeStatus.ACCEPTED
     
-    def test_accepted_challenge_updates_active_games_panel_realtime(self, authenticated_client, pending_challenge):
-        """RED: Test accepted challenge triggers Active Games panel update."""
+    def test_accepted_challenge_updates_active_games_panel_realtime(self, client, pending_challenge):
+        """Test accepted challenge triggers Active Games panel update."""
         challengee = pending_challenge.challenged
-        authenticated_client.login(username=challengee.username, password='testpass123')
+        client.force_login(challengee)
         
         # Accept the challenge
-        response = authenticated_client.post(
+        response = client.post(
             reverse('web:respond_challenge', kwargs={'challenge_id': pending_challenge.id}),
             {'action': 'accept'},
             HTTP_HX_REQUEST='true'
@@ -363,17 +354,17 @@ class TestChallengeSSEIntegration:
         assert games.count() == 1, "Should create game that appears in Active Games"
 
 
-@pytest.mark.web
 @pytest.mark.django_db
+@pytest.mark.web
 class TestChallengeIntegration:
     """Test integration with existing dashboard features."""
     
-    def test_pending_challenges_appear_in_friends_panel_context(self, authenticated_client, multiple_challenges):
-        """RED: Test pending challenges are included in dashboard context."""
+    def test_pending_challenges_appear_in_friends_panel_context(self, client, multiple_challenges):
+        """Test pending challenges are included in dashboard context."""
         challenges, (challenger, challengee, user3) = multiple_challenges
         
-        authenticated_client.login(username='challenger', password='testpass123')
-        response = authenticated_client.get(reverse('web:dashboard'))
+        client.force_login(challenger)
+        response = client.get(reverse('web:dashboard'))
         
         assert response.status_code == 200
         
@@ -391,27 +382,27 @@ class TestChallengeIntegration:
         assert sent_challenges[0].challenged == challengee
         assert received_challenges[0].challenger == user3
     
-    def test_accepted_challenge_removes_from_pending_and_adds_to_active_games(self, authenticated_client, pending_challenge):
-        """RED: Test challenge acceptance updates both pending and active sections."""
+    def test_accepted_challenge_removes_from_pending_and_adds_to_active_games(self, client, pending_challenge):
+        """Test challenge acceptance updates both pending and active sections."""
         challenger = pending_challenge.challenger
         challengee = pending_challenge.challenged
         
         # Check dashboard before accepting
-        authenticated_client.login(username=challengee.username, password='testpass123')
-        response_before = authenticated_client.get(reverse('web:dashboard'))
+        client.force_login(challengee)
+        response_before = client.get(reverse('web:dashboard'))
         
         # Should have pending challenge
         assert len(response_before.context['pending_received_challenges']) == 1
         
         # Accept the challenge
-        authenticated_client.post(
+        client.post(
             reverse('web:respond_challenge', kwargs={'challenge_id': pending_challenge.id}),
             {'action': 'accept'},
             HTTP_HX_REQUEST='true'
         )
         
         # Check dashboard after accepting
-        response_after = authenticated_client.get(reverse('web:dashboard'))
+        response_after = client.get(reverse('web:dashboard'))
         
         # Should no longer have pending challenge
         assert len(response_after.context['pending_received_challenges']) == 0

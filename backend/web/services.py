@@ -211,15 +211,15 @@ class WebSocketNotificationService:
         
         # Get pending challenges
         pending_sent_challenges = Challenge.objects.select_related(
-            'challenger', 'challenged', 'ruleset'
-        ).filter(
+            'challenger', 'challenged'
+        ).prefetch_related('ruleset').filter(
             challenger=user,
             status=ChallengeStatus.PENDING
         )
         
         pending_received_challenges = Challenge.objects.select_related(
-            'challenger', 'challenged', 'ruleset'
-        ).filter(
+            'challenger', 'challenged'
+        ).prefetch_related('ruleset').filter(
             challenged=user, 
             status=ChallengeStatus.PENDING
         )
@@ -255,12 +255,12 @@ class WebSocketNotificationService:
         
         # Get updated active games and recent finished games
         active_games = Game.objects.select_related(
-            'black_player', 'white_player', 'ruleset'
-        ).filter(user_games_query, status=GameStatus.ACTIVE).order_by('-created_at')
+            'black_player', 'white_player'
+        ).prefetch_related('ruleset').filter(user_games_query, status=GameStatus.ACTIVE).order_by('-created_at')
         
         recent_finished_games = Game.objects.select_related(
-            'black_player', 'white_player', 'winner', 'ruleset'
-        ).filter(
+            'black_player', 'white_player', 'winner'
+        ).prefetch_related('ruleset').filter(
             user_games_query, 
             status=GameStatus.FINISHED
         ).order_by('-finished_at')[:5]

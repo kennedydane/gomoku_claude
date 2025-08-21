@@ -1,10 +1,7 @@
 """
-Phase 12 TDD Tests: Single-View Dashboard with Embedded Game Board
+Tests for Single-View Dashboard with Embedded Game Board (formerly Phase 12)
 
-This module contains all the test cases for Phase 12 development following
-strict TDD methodology (RED-GREEN-REFACTOR).
-
-Test Categories:
+This module contains pytest-style tests for embedded game functionality:
 - Dashboard embedded game display tests
 - Game selection via HTMX tests  
 - URL parameter game selection tests
@@ -13,16 +10,14 @@ Test Categories:
 """
 
 import pytest
-from django.test import TestCase, Client
 from django.contrib.auth import get_user_model
 from django.urls import reverse
-from django.template.loader import render_to_string
-from django.http import HttpRequest
 from bs4 import BeautifulSoup
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
-from games.models import Game, RuleSet, GameStatus, Player
+from games.models import GomokuRuleSet, Game, GameStatus, Player
 from web.models import Friendship, FriendshipStatus
+from tests.factories import UserFactory, GomokuRuleSetFactory, GameFactory
 
 User = get_user_model()
 
@@ -30,15 +25,15 @@ User = get_user_model()
 @pytest.fixture
 def users(db):
     """Create test users."""
-    user1 = User.objects.create_user(username='player1', password='pass123')
-    user2 = User.objects.create_user(username='player2', password='pass123')
+    user1 = UserFactory(username='player1')
+    user2 = UserFactory(username='player2')
     return user1, user2
 
 
 @pytest.fixture
 def ruleset(db):
     """Create test ruleset."""
-    return RuleSet.objects.create(
+    return GomokuRuleSetFactory(
         name='Standard Gomoku',
         board_size=15,
         description='Standard 15x15 Gomoku'
@@ -51,10 +46,11 @@ def games(users, ruleset):
     user1, user2 = users
     
     # Active game
-    active_game = Game.objects.create(
+    active_game = GameFactory(
         black_player=user1,
         white_player=user2,
-        ruleset=ruleset,
+        ruleset_content_type_id=ruleset.get_content_type().id,
+        ruleset_object_id=ruleset.id,
         status=GameStatus.ACTIVE,
         current_player=Player.BLACK
     )
@@ -62,10 +58,11 @@ def games(users, ruleset):
     active_game.save()
     
     # Finished game
-    finished_game = Game.objects.create(
+    finished_game = GameFactory(
         black_player=user1,
         white_player=user2,
-        ruleset=ruleset,
+        ruleset_content_type_id=ruleset.get_content_type().id,
+        ruleset_object_id=ruleset.id,
         status=GameStatus.FINISHED,
         winner=user1
     )
@@ -73,6 +70,7 @@ def games(users, ruleset):
     return active_game, finished_game
 
 
+@pytest.mark.django_db
 @pytest.mark.web
 @pytest.mark.integration
 class TestDashboardEmbeddedGames:
@@ -114,7 +112,7 @@ class TestDashboardEmbeddedGames:
     def test_dashboard_shows_placeholder_when_no_active_games(self, client, db):
         """Test that dashboard shows placeholder when user has no active games."""
         # Create user with no active games
-        user_no_games = User.objects.create_user(username='nogames', password='pass123')
+        user_no_games = UserFactory(username='nogames')
         client.force_login(user_no_games)
         
         response = client.get(reverse('web:dashboard'))
@@ -215,50 +213,52 @@ class TestDashboardEmbeddedGames:
         assert csrf_token is not None, "Should have CSRF token for secure interactions"
 
 
-class Phase12GameSelectionTests(TestCase):
+@pytest.mark.django_db
+class TestGameSelection:
     """Tests for game selection via left panel clicks."""
     
-    def setUp(self):
-        self.user = User.objects.create_user(username='testuser', password='pass123')
-        self.opponent = User.objects.create_user(username='opponent', password='pass123')
+    @pytest.fixture(autouse=True)
+    def setup_method(self):
+        self.user = UserFactory(username='testuser')
+        self.opponent = UserFactory(username='opponent')
         
-        self.ruleset = RuleSet.objects.create(name='Test Rules', board_size=15)
+        self.ruleset = GomokuRuleSetFactory(name='Test Rules', board_size=15)
         
         # Create multiple games
-        self.game1 = Game.objects.create(
+        self.game1 = GameFactory(
             black_player=self.user,
             white_player=self.opponent,
-            ruleset=self.ruleset,
+            ruleset_content_type_id=self.ruleset.get_content_type().id,
+            ruleset_object_id=self.ruleset.id,
             status=GameStatus.ACTIVE
         )
         self.game1.initialize_board()
         self.game1.save()
         
-        self.game2 = Game.objects.create(
+        self.game2 = GameFactory(
             black_player=self.user,
             white_player=self.opponent,
-            ruleset=self.ruleset,
+            ruleset_content_type_id=self.ruleset.get_content_type().id,
+            ruleset_object_id=self.ruleset.id,
             status=GameStatus.ACTIVE
         )
         self.game2.initialize_board()
         self.game2.save()
         
-        self.client = Client()
-        
-    def test_games_panel_uses_htmx_for_game_selection(self):
+    def test_games_panel_uses_htmx_for_game_selection(self, client):
         """Test that games in left panel use HTMX to load center panel."""
-        self.client.login(username='testuser', password='pass123')
+        client.force_login(self.user)
         
-        response = self.client.get(reverse('web:dashboard'))
+        response = client.get(reverse('web:dashboard'))
         soup = BeautifulSoup(response.content, 'html.parser')
         
         # Find games panel
         games_panel = soup.find('div', id='games-panel')
-        self.assertIsNotNone(games_panel, "Should have games panel")
+        assert games_panel is not None, "Should have games panel"
         
         # Find game items 
         game_items = games_panel.find_all('div', class_='game-item')
-        self.assertGreater(len(game_items), 0, "Should have game items")
+        assert len(game_items) > 0, "Should have game items"
         
         # Game items should use HTMX for center panel loading
         htmx_items = []
@@ -266,44 +266,45 @@ class Phase12GameSelectionTests(TestCase):
             if item.get('hx-get') or item.find('a', {'hx-get': True}) or item.find('button', {'hx-get': True}):
                 htmx_items.append(item)
         
-        self.assertGreater(len(htmx_items), 0, 
-                          "Game items should use HTMX for loading center panel")
+        assert len(htmx_items) > 0, \
+              "Game items should use HTMX for loading center panel"
         
-    def test_game_selection_via_url_parameter(self):
+    def test_game_selection_via_url_parameter(self, client):
         """Test that specific game can be selected via URL parameter."""
-        self.client.login(username='testuser', password='pass123')
+        client.force_login(self.user)
         
         # Access dashboard with specific game ID
-        response = self.client.get(f"{reverse('web:dashboard')}?game={self.game2.id}")
-        self.assertEqual(response.status_code, 200)
+        response = client.get(f"{reverse('web:dashboard')}?game={self.game2.id}")
+        assert response.status_code == 200
         
         # Should select the specified game
-        self.assertIn('selected_game', response.context)
-        self.assertEqual(response.context['selected_game'], self.game2)
+        assert 'selected_game' in response.context
+        assert response.context['selected_game'] == self.game2
         
-    def test_game_selection_htmx_endpoint(self):
+    def test_game_selection_htmx_endpoint(self, client):
         """Test HTMX endpoint for loading games in center panel."""
-        self.client.login(username='testuser', password='pass123')
+        client.force_login(self.user)
         
         # This will be implemented as part of the view updates
         # For now, test that the concept works through dashboard view
-        response = self.client.get(f"{reverse('web:dashboard')}?game={self.game1.id}")
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context['selected_game'], self.game1)
+        response = client.get(f"{reverse('web:dashboard')}?game={self.game1.id}")
+        assert response.status_code == 200
+        assert response.context['selected_game'] == self.game1
 
 
-class Phase12ResponsiveLayoutTests(TestCase):
+@pytest.mark.django_db
+class TestResponsiveLayout:
     """Tests for responsive behavior of single-view dashboard."""
     
-    def setUp(self):
-        self.user = User.objects.create_user(username='mobileuser', password='pass123')
-        self.client = Client()
+    @pytest.fixture(autouse=True)
+    def setup_method(self):
+        self.user = UserFactory(username='mobileuser')
         
-    def test_mobile_layout_maintains_functionality(self):
+    def test_mobile_layout_maintains_functionality(self, client):
         """Test that mobile layout still provides game access."""
-        self.client.login(username='mobileuser', password='pass123')
+        client.force_login(self.user)
         
-        response = self.client.get(reverse('web:dashboard'))
+        response = client.get(reverse('web:dashboard'))
         soup = BeautifulSoup(response.content, 'html.parser')
         
         # Should still have mobile panels section
@@ -312,44 +313,43 @@ class Phase12ResponsiveLayoutTests(TestCase):
         # Mobile behavior is acceptable if present or if desktop layout is responsive
         desktop_responsive = bool(soup.find_all('div', class_=lambda x: x and 'col-' in x))
         
-        self.assertTrue(
-            mobile_panels is not None or desktop_responsive,
+        assert mobile_panels is not None or desktop_responsive, \
             "Should maintain mobile accessibility"
-        )
 
 
-class Phase12SSEIntegrationTests(TestCase):
+@pytest.mark.django_db
+class TestSSEIntegration:
     """Tests for SSE integration with embedded game board."""
     
-    def setUp(self):
-        self.user1 = User.objects.create_user(username='player1', password='pass123')
-        self.user2 = User.objects.create_user(username='player2', password='pass123')
+    @pytest.fixture(autouse=True)
+    def setup_method(self):
+        self.user1 = UserFactory(username='player1')
+        self.user2 = UserFactory(username='player2')
         
-        self.ruleset = RuleSet.objects.create(name='SSE Test', board_size=15)
+        self.ruleset = GomokuRuleSetFactory(name='SSE Test', board_size=15)
         
-        self.game = Game.objects.create(
+        self.game = GameFactory(
             black_player=self.user1,
             white_player=self.user2,
-            ruleset=self.ruleset,
+            ruleset_content_type_id=self.ruleset.get_content_type().id,
+            ruleset_object_id=self.ruleset.id,
             status=GameStatus.ACTIVE
         )
         self.game.initialize_board()
         self.game.save()
         
-        self.client = Client()
-        
-    def test_embedded_board_has_sse_configuration(self):
+    def test_embedded_board_has_sse_configuration(self, client):
         """Test that embedded board is configured for SSE updates."""
-        self.client.login(username='player1', password='pass123')
+        client.force_login(self.user1)
         
-        response = self.client.get(reverse('web:dashboard'))
+        response = client.get(reverse('web:dashboard'))
         soup = BeautifulSoup(response.content, 'html.parser')
         
         # Should have SSE configuration for game updates
         sse_elements = soup.find_all(attrs={'hx-ext': lambda x: x and 'sse' in x})
         
-        self.assertGreater(len(sse_elements), 0, 
-                          "Dashboard should have SSE configuration")
+        assert len(sse_elements) > 0, \
+              "Dashboard should have SSE configuration"
         
         # Should target appropriate elements for game updates
         game_sse_targets = []
@@ -357,34 +357,36 @@ class Phase12SSEIntegrationTests(TestCase):
             if elem.get('sse-swap') and 'game' in elem.get('sse-swap', '').lower():
                 game_sse_targets.append(elem)
                 
-        self.assertGreater(len(game_sse_targets), 0,
-                          "Should have SSE targets for game updates")
+        assert len(game_sse_targets) > 0, \
+              "Should have SSE targets for game updates"
         
     @patch('web.views.send_event')
-    def test_moves_update_embedded_board(self, mock_send_event):
+    def test_moves_update_embedded_board(self, mock_send_event, client):
         """Test that moves made in embedded board trigger SSE updates."""
-        self.client.login(username='player1', password='pass123')
+        client.force_login(self.user1)
         
         # Make a move (this should work the same as before)
-        response = self.client.post(
+        response = client.post(
             reverse('web:game_move', kwargs={'game_id': self.game.id}),
             {'row': 7, 'col': 7}
         )
         
         # Should still send SSE events
         if mock_send_event.called:
-            self.assertTrue(mock_send_event.call_count >= 1, 
-                           "Should send SSE events for moves")
+            assert mock_send_event.call_count >= 1, \
+                   "Should send SSE events for moves"
 
 
-class Phase12IntegrationTests(TestCase):
+@pytest.mark.django_db
+class TestIntegration:
     """Integration tests for complete single-view dashboard workflow."""
     
-    def setUp(self):
-        self.user1 = User.objects.create_user(username='integuser1', password='pass123')
-        self.user2 = User.objects.create_user(username='integuser2', password='pass123')
+    @pytest.fixture(autouse=True)
+    def setup_method(self):
+        self.user1 = UserFactory(username='integuser1')
+        self.user2 = UserFactory(username='integuser2')
         
-        self.ruleset = RuleSet.objects.create(name='Integration Test', board_size=15)
+        self.ruleset = GomokuRuleSetFactory(name='Integration Test', board_size=15)
         
         # Create friendship
         Friendship.objects.create(
@@ -394,24 +396,23 @@ class Phase12IntegrationTests(TestCase):
         )
         
         # Create test game
-        self.game = Game.objects.create(
+        self.game = GameFactory(
             black_player=self.user1,
             white_player=self.user2,
-            ruleset=self.ruleset,
+            ruleset_content_type_id=self.ruleset.get_content_type().id,
+            ruleset_object_id=self.ruleset.id,
             status=GameStatus.ACTIVE
         )
         self.game.initialize_board()
         self.game.save()
         
-        self.client = Client()
-        
-    def test_complete_single_view_workflow(self):
+    def test_complete_single_view_workflow(self, client):
         """Test complete workflow: dashboard -> embedded game -> friends panel."""
-        self.client.login(username='integuser1', password='pass123')
+        client.force_login(self.user1)
         
         # 1. Access dashboard
-        response = self.client.get(reverse('web:dashboard'))
-        self.assertEqual(response.status_code, 200)
+        response = client.get(reverse('web:dashboard'))
+        assert response.status_code == 200
         
         soup = BeautifulSoup(response.content, 'html.parser')
         
@@ -422,57 +423,36 @@ class Phase12IntegrationTests(TestCase):
         
         # At minimum should have the structure for panels
         panels_found = sum([has_left_panel, has_center_panel, has_right_panel])
-        self.assertGreaterEqual(panels_found, 2, 
-                               "Should have at least 2 of 3 main panels")
+        assert panels_found >= 2, \
+               "Should have at least 2 of 3 main panels"
         
         # 3. Should show selected game
-        self.assertIn('selected_game', response.context)
-        self.assertEqual(response.context['selected_game'], self.game)
+        assert 'selected_game' in response.context
+        assert response.context['selected_game'] == self.game
         
         # 4. Should have game board in center
         if has_center_panel:
             center_panel = soup.find('div', id='center-game-panel')
             board_elements = center_panel.find_all('div', class_='board-intersection')
-            self.assertGreater(len(board_elements), 0, 
-                              "Center panel should contain game board")
+            assert len(board_elements) > 0, \
+                  "Center panel should contain game board"
     
-    def test_dashboard_replaces_separate_game_page_functionality(self):
+    def test_dashboard_replaces_separate_game_page_functionality(self, client):
         """Test that dashboard provides same functionality as separate game page."""
-        self.client.login(username='integuser1', password='pass123')
+        client.force_login(self.user1)
         
         # Access embedded game via dashboard
-        dashboard_response = self.client.get(f"{reverse('web:dashboard')}?game={self.game.id}")
+        dashboard_response = client.get(f"{reverse('web:dashboard')}?game={self.game.id}")
         
         # Access separate game page
-        game_page_response = self.client.get(reverse('web:game_detail', kwargs={'game_id': self.game.id}))
+        game_page_response = client.get(reverse('web:game_detail', kwargs={'game_id': self.game.id}))
         
         # Both should provide game access
-        self.assertEqual(dashboard_response.status_code, 200)
-        self.assertEqual(game_page_response.status_code, 200)
+        assert dashboard_response.status_code == 200
+        assert game_page_response.status_code == 200
         
         # Dashboard should have the game context
-        self.assertEqual(dashboard_response.context['selected_game'], self.game)
+        assert dashboard_response.context['selected_game'] == self.game
         
         # Game page should have game context  
-        self.assertEqual(game_page_response.context['game'], self.game)
-
-
-if __name__ == '__main__':
-    # Run specific test categories  
-    import sys
-    if len(sys.argv) > 1:
-        test_category = sys.argv[1]
-        if test_category == 'embedded':
-            from django.test.utils import get_runner
-            from django.conf import settings
-            TestRunner = get_runner(settings)
-            test_runner = TestRunner()
-            failures = test_runner.run_tests(['web.test_phase12_single_view.Phase12DashboardEmbeddedGameTests'])
-        elif test_category == 'selection':
-            TestRunner = get_runner(settings)
-            test_runner = TestRunner()
-            failures = test_runner.run_tests(['web.test_phase12_single_view.Phase12GameSelectionTests'])
-        elif test_category == 'integration':
-            TestRunner = get_runner(settings)
-            test_runner = TestRunner()
-            failures = test_runner.run_tests(['web.test_phase12_single_view.Phase12IntegrationTests'])
+        assert game_page_response.context['game'] == self.game

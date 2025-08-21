@@ -8,7 +8,7 @@ to support both Gomoku and Go games.
 from django.test import TestCase
 from django.core.exceptions import ValidationError
 
-from .models import RuleSet, Game, GameType, GameStatus, Player
+from .models import GomokuRuleSet, GoRuleSet, Game, GameType, GameStatus, Player, ScoringMethod
 from tests.factories import UserFactory
 
 
@@ -30,13 +30,12 @@ class GameTypeTestCase(TestCase):
 
 
 class RuleSetMultiGameTestCase(TestCase):
-    """Test cases for RuleSet multi-game support."""
+    """Test cases for subclassed RuleSet models."""
 
     def test_create_gomoku_ruleset(self):
-        """Test creating a Gomoku ruleset."""
-        ruleset = RuleSet.objects.create(
+        """Test creating a GomokuRuleSet."""
+        ruleset = GomokuRuleSet.objects.create(
             name="Standard Gomoku",
-            game_type=GameType.GOMOKU,
             board_size=15,
             allow_overlines=False,
             forbidden_moves={"double_three": True}
@@ -47,21 +46,17 @@ class RuleSetMultiGameTestCase(TestCase):
         self.assertEqual(ruleset.board_size, 15)
         self.assertFalse(ruleset.allow_overlines)
         self.assertEqual(ruleset.forbidden_moves, {"double_three": True})
-        
-        # Go-specific fields should have default values
-        self.assertEqual(ruleset.komi, 6.5)
-        self.assertEqual(ruleset.handicap_stones, 0)
-        self.assertEqual(ruleset.scoring_method, 'TERRITORY')
+        self.assertTrue(ruleset.is_gomoku)
+        self.assertFalse(ruleset.is_go)
 
     def test_create_go_ruleset(self):
-        """Test creating a Go ruleset."""
-        ruleset = RuleSet.objects.create(
+        """Test creating a GoRuleSet."""
+        ruleset = GoRuleSet.objects.create(
             name="Standard Go",
-            game_type=GameType.GO,
             board_size=19,
             komi=7.5,
             handicap_stones=2,
-            scoring_method='AREA'
+            scoring_method=ScoringMethod.AREA
         )
         
         self.assertEqual(ruleset.name, "Standard Go")
@@ -69,28 +64,26 @@ class RuleSetMultiGameTestCase(TestCase):
         self.assertEqual(ruleset.board_size, 19)
         self.assertEqual(ruleset.komi, 7.5)
         self.assertEqual(ruleset.handicap_stones, 2)
-        self.assertEqual(ruleset.scoring_method, 'AREA')
-        
-        # Gomoku-specific fields should have default values
-        self.assertFalse(ruleset.allow_overlines)
-        self.assertEqual(ruleset.forbidden_moves, {})
+        self.assertEqual(ruleset.scoring_method, ScoringMethod.AREA)
+        self.assertTrue(ruleset.is_go)
+        self.assertFalse(ruleset.is_gomoku)
+        # Go rulesets don't have forbidden_moves attribute (Gomoku-specific)
 
     def test_ruleset_game_type_required(self):
-        """Test that game_type is required for RuleSet."""
+        """Test that board_size is required for RuleSet."""
         with self.assertRaises(ValidationError):
-            ruleset = RuleSet(
+            # Test with GomokuRuleSet missing required board_size field
+            ruleset = GomokuRuleSet(
                 name="Invalid Ruleset",
-                board_size=15
-                # Missing game_type
+                board_size=0  # Invalid board size
             )
             ruleset.full_clean()
 
     def test_ruleset_komi_validation(self):
         """Test komi field validation."""
         # Valid komi values
-        ruleset = RuleSet.objects.create(
+        ruleset = GoRuleSet.objects.create(
             name="Go with komi",
-            game_type=GameType.GO,
             board_size=19,
             komi=0.5
         )
@@ -102,9 +95,8 @@ class RuleSetMultiGameTestCase(TestCase):
 
     def test_ruleset_handicap_validation(self):
         """Test handicap_stones field validation."""
-        ruleset = RuleSet.objects.create(
+        ruleset = GoRuleSet.objects.create(
             name="Handicap Go",
-            game_type=GameType.GO,
             board_size=19,
             handicap_stones=9
         )
@@ -119,9 +111,8 @@ class RuleSetMultiGameTestCase(TestCase):
         """Test scoring_method field choices."""
         # Valid scoring methods
         for method in ['TERRITORY', 'AREA']:
-            ruleset = RuleSet.objects.create(
+            ruleset = GoRuleSet.objects.create(
                 name=f"Go {method}",
-                game_type=GameType.GO,
                 board_size=19,
                 scoring_method=method
             )
@@ -129,15 +120,13 @@ class RuleSetMultiGameTestCase(TestCase):
 
     def test_ruleset_str_representation(self):
         """Test RuleSet string representation includes game type."""
-        gomoku_rules = RuleSet.objects.create(
+        gomoku_rules = GomokuRuleSet.objects.create(
             name="Standard Gomoku",
-            game_type=GameType.GOMOKU,
             board_size=15
         )
         
-        go_rules = RuleSet.objects.create(
+        go_rules = GoRuleSet.objects.create(
             name="Standard Go",
-            game_type=GameType.GO,
             board_size=19
         )
         
@@ -146,15 +135,13 @@ class RuleSetMultiGameTestCase(TestCase):
 
     def test_is_gomoku_property(self):
         """Test is_gomoku convenience property."""
-        gomoku_rules = RuleSet.objects.create(
+        gomoku_rules = GomokuRuleSet.objects.create(
             name="Gomoku",
-            game_type=GameType.GOMOKU,
             board_size=15
         )
         
-        go_rules = RuleSet.objects.create(
+        go_rules = GoRuleSet.objects.create(
             name="Go",
-            game_type=GameType.GO,
             board_size=19
         )
         
@@ -163,15 +150,13 @@ class RuleSetMultiGameTestCase(TestCase):
 
     def test_is_go_property(self):
         """Test is_go convenience property."""
-        gomoku_rules = RuleSet.objects.create(
+        gomoku_rules = GomokuRuleSet.objects.create(
             name="Gomoku",
-            game_type=GameType.GOMOKU,
             board_size=15
         )
         
-        go_rules = RuleSet.objects.create(
+        go_rules = GoRuleSet.objects.create(
             name="Go",
-            game_type=GameType.GO,
             board_size=19
         )
         
@@ -187,15 +172,13 @@ class GameMultiGameTestCase(TestCase):
         self.black_player = UserFactory()
         self.white_player = UserFactory()
         
-        self.gomoku_ruleset = RuleSet.objects.create(
+        self.gomoku_ruleset = GomokuRuleSet.objects.create(
             name="Test Gomoku",
-            game_type=GameType.GOMOKU,
             board_size=15
         )
         
-        self.go_ruleset = RuleSet.objects.create(
+        self.go_ruleset = GoRuleSet.objects.create(
             name="Test Go",
-            game_type=GameType.GO,
             board_size=19
         )
 
