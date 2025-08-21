@@ -326,33 +326,39 @@ class GoGameService(BaseGameService):
                 }
             )
         
-        # Check board boundaries
-        board_size = game.ruleset.board_size
-        if row < 0 or row >= board_size or col < 0 or col >= board_size:
-            raise InvalidMoveError(
-                f"Move out of bounds. Board size is {board_size}x{board_size}",
-                details={
-                    'row': row, 'col': col, 
-                    'board_size': board_size,
-                    'valid_range': f"0-{board_size-1}"
-                }
-            )
+        # Check for pass move (row=-1, col=-1)
+        is_pass_move = row == -1 and col == -1
         
-        # Check if position is already occupied
-        board = game.board_state.get('board', [])
-        if board and board[row][col] is not None:
-            raise InvalidMoveError(
-                f"Position ({row}, {col}) is already occupied",
-                details={'row': row, 'col': col, 'occupied_by': board[row][col]}
-            )
+        if not is_pass_move:
+            # Check board boundaries for regular moves
+            board_size = game.ruleset.board_size
+            if row < 0 or row >= board_size or col < 0 or col >= board_size:
+                raise InvalidMoveError(
+                    f"Move out of bounds. Board size is {board_size}x{board_size}",
+                    details={
+                        'row': row, 'col': col, 
+                        'board_size': board_size,
+                        'valid_range': f"0-{board_size-1}"
+                    }
+                )
         
-        # Check for Ko rule violation
-        ko_position = game.board_state.get('ko_position')
-        if ko_position and ko_position == [row, col]:
-            raise InvalidMoveError(
-                f"Ko rule violation: Cannot immediately recapture at ({row}, {col})",
-                details={'row': row, 'col': col, 'ko_position': ko_position}
-            )
+        # Check if position is already occupied (only for regular moves)
+        if not is_pass_move:
+            board = game.board_state.get('board', [])
+            if board and board[row][col] is not None:
+                raise InvalidMoveError(
+                    f"Position ({row}, {col}) is already occupied",
+                    details={'row': row, 'col': col, 'occupied_by': board[row][col]}
+                )
+        
+        # Check for Ko rule violation (only for regular moves)
+        if not is_pass_move:
+            ko_position = game.board_state.get('ko_position')
+            if ko_position and ko_position == [row, col]:
+                raise InvalidMoveError(
+                    f"Ko rule violation: Cannot immediately recapture at ({row}, {col})",
+                    details={'row': row, 'col': col, 'ko_position': ko_position}
+                )
         
         # Check for suicide rule (can't play a move that kills your own group unless it captures opponent)
         # TODO: Implement suicide detection after implementing group logic

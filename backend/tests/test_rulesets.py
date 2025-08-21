@@ -4,7 +4,7 @@ Tests for different rulesets and their game mechanics.
 import pytest
 from django.contrib.auth import get_user_model
 from games.models import RuleSet, Game, GameStatus
-from games.services import GameService
+from games.game_services import GameServiceFactory
 from core.exceptions import InvalidMoveError
 
 User = get_user_model()
@@ -16,18 +16,21 @@ def rulesets(db):
     rulesets_data = [
         {
             'name': 'Standard Gomoku',
+            'game_type': 'GOMOKU',
             'board_size': 15,
             'allow_overlines': False,
             'description': 'Classic Gomoku rules on a 15×15 board. First player to get exactly 5 stones in a row wins. Overlines (6+ stones) do not count as wins.'
         },
         {
             'name': 'Freestyle Gomoku',
+            'game_type': 'GOMOKU',
             'board_size': 15,
             'allow_overlines': True,
             'description': 'Freestyle Gomoku on a 15×15 board. First player to get 5 or more stones in a row wins. Overlines count as wins.'
         },
         {
             'name': 'Renju',
+            'game_type': 'GOMOKU',
             'board_size': 15,
             'allow_overlines': False,
             'forbidden_moves': {
@@ -40,12 +43,14 @@ def rulesets(db):
         },
         {
             'name': 'Pro Gomoku',
+            'game_type': 'GOMOKU',
             'board_size': 19,
             'allow_overlines': False,
             'description': 'Professional tournament rules on a 19×19 Go board. Exactly 5 stones in a row wins. Used in international competitions.'
         },
         {
             'name': 'Caro',
+            'game_type': 'GOMOKU',
             'board_size': 15,
             'allow_overlines': True,
             'forbidden_moves': {
@@ -56,12 +61,14 @@ def rulesets(db):
         },
         {
             'name': 'Mini Gomoku',
+            'game_type': 'GOMOKU',
             'board_size': 8,
             'allow_overlines': True,
             'description': 'Quick-play freestyle Gomoku on a compact 8×8 board. Perfect for fast games and learning. First to get 5 or more stones in a row wins.'
         },
         {
             'name': 'Swap2 Tournament',
+            'game_type': 'GOMOKU',
             'board_size': 15,
             'allow_overlines': False,
             'forbidden_moves': {
@@ -72,18 +79,21 @@ def rulesets(db):
         },
         {
             'name': 'Beginner Friendly',
+            'game_type': 'GOMOKU',
             'board_size': 11,
             'allow_overlines': True,
             'description': 'Simplified rules on an 11×11 board perfect for new players. Shorter games with freestyle rules make learning easier and more enjoyable.'
         },
         {
             'name': 'Giant Gomoku',
+            'game_type': 'GOMOKU',
             'board_size': 25,
             'allow_overlines': False,
             'description': 'Epic Gomoku on the maximum 25×25 board. Longer, more strategic games with complex positional play. Exactly 5 stones in a row wins.'
         },
         {
             'name': 'Speed Gomoku',
+            'game_type': 'GOMOKU',
             'board_size': 9,
             'allow_overlines': True,
             'forbidden_moves': {
@@ -144,9 +154,10 @@ class TestRuleSet:
         
         # Test moves on mini board
         # Make alternating moves to get 5 in a row for black player
+        service = GameServiceFactory.get_service(mini_ruleset.game_type)
         for i in range(5):
             # Black player moves
-            move = GameService.make_move(game, user1.id, 0, i)
+            move = service.make_move(game, user1.id, 0, i)
             assert move is not None
             game.refresh_from_db()
             
@@ -155,7 +166,7 @@ class TestRuleSet:
                 
             # White player moves (if game not finished)
             if i < 4:  # Don't need white's last move if black wins
-                move = GameService.make_move(game, user2.id, 1, i)
+                move = service.make_move(game, user2.id, 1, i)
                 assert move is not None
                 game.refresh_from_db()
         
@@ -177,14 +188,15 @@ class TestRuleSet:
         game.initialize_board()
         
         # Fill a row with 6 stones (overline)
+        service = GameServiceFactory.get_service(mini_ruleset.game_type)
         for i in range(6):
             if i < 6:  # Black moves
-                GameService.make_move(game, user1.id, 0, i)
+                service.make_move(game, user1.id, 0, i)
                 game.refresh_from_db()
                 if game.status == GameStatus.FINISHED:
                     break
             if i < 5:  # White moves (to keep game going)
-                GameService.make_move(game, user2.id, 1, i)
+                service.make_move(game, user2.id, 1, i)
                 game.refresh_from_db()
         
         # Should win with 5 stones (before getting to 6)
@@ -253,8 +265,8 @@ class TestRuleSet:
         assert speed.allow_overlines == True
         
         # Different descriptions
-        assert 'compact' in mini.description.lower()
-        assert 'lightning' in speed.description.lower()
+        assert 'smaller' in mini.description.lower()  # Updated to match seed data
+        assert 'fast' in speed.description.lower()    # Updated to match seed data
     
     def test_freestyle_vs_standard_differences(self, rulesets):
         """Test differences between Freestyle and Standard Gomoku."""
@@ -276,6 +288,7 @@ def mini_ruleset(db):
     ruleset, created = RuleSet.objects.get_or_create(
         name='Mini Gomoku',
         defaults={
+            'game_type': 'GOMOKU',
             'board_size': 8,
             'allow_overlines': True,
             'description': 'Quick-play freestyle Gomoku on a compact 8×8 board. Perfect for fast games and learning. First to get 5 or more stones in a row wins.'
@@ -325,9 +338,10 @@ class TestMiniGomokuGameplay:
             (3, 3),   # Center
         ]
         
+        service = GameServiceFactory.get_service(mini_game.ruleset.game_type)
         for i, (row, col) in enumerate(valid_positions):
             player_id = user1.id if i % 2 == 0 else user2.id
-            move = GameService.make_move(mini_game, player_id, row, col)
+            move = service.make_move(mini_game, player_id, row, col)
             assert move is not None
             mini_game.refresh_from_db()
     
@@ -343,9 +357,10 @@ class TestMiniGomokuGameplay:
             (10, 10),  # Way out of bounds
         ]
         
+        service = GameServiceFactory.get_service(mini_game.ruleset.game_type)
         for row, col in invalid_positions:
             with pytest.raises(InvalidMoveError):
-                GameService.make_move(mini_game, user1.id, row, col)
+                service.make_move(mini_game, user1.id, row, col)
     
     def test_mini_quick_game(self, mini_game, mini_game_users):
         """Test a complete quick game on mini board."""
@@ -364,8 +379,9 @@ class TestMiniGomokuGameplay:
             (user1.id, 2, 6),  # Black - should win (5 in a row)
         ]
         
+        service = GameServiceFactory.get_service(mini_game.ruleset.game_type)
         for i, (player_id, row, col) in enumerate(moves):
-            move = GameService.make_move(mini_game, player_id, row, col)
+            move = service.make_move(mini_game, player_id, row, col)
             assert move is not None
             mini_game.refresh_from_db()
             
@@ -392,8 +408,9 @@ class TestMiniGomokuGameplay:
             (user1.id, 4, 4),  # Black - diagonal win
         ]
         
+        service = GameServiceFactory.get_service(mini_game.ruleset.game_type)
         for i, (player_id, row, col) in enumerate(moves):
-            move = GameService.make_move(mini_game, player_id, row, col)
+            move = service.make_move(mini_game, player_id, row, col)
             assert move is not None
             mini_game.refresh_from_db()
             

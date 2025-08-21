@@ -60,9 +60,6 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     
     # Third party apps
-    'rest_framework',
-    'rest_framework.authtoken',
-    'corsheaders',
     'django_extensions',
     'django_eventstream',
     'channels',
@@ -79,7 +76,6 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -172,48 +168,12 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Custom User Model
 AUTH_USER_MODEL = 'users.User'
 
-# REST Framework configuration
-REST_FRAMEWORK = {
-    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': 100,
-    'DEFAULT_RENDERER_CLASSES': [
-        'rest_framework.renderers.JSONRenderer',
-    ],
-    'DEFAULT_PARSER_CLASSES': [
-        'rest_framework.parsers.JSONParser',
-    ],
-    'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.SessionAuthentication',
-        'users.authentication.EnhancedTokenAuthentication',
-        'rest_framework.authentication.TokenAuthentication',  # Fallback for compatibility
-    ],
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
-    ],
-    'EXCEPTION_HANDLER': 'core.exceptions.custom_exception_handler',
-}
-
-# CORS settings
-CORS_ALLOWED_ORIGINS = config(
-    'CORS_ALLOWED_ORIGINS',
-    default='http://localhost:3000,http://127.0.0.1:3000',
-    cast=Csv()
-)
-CORS_ALLOW_CREDENTIALS = True
+# Web-only architecture - no API configuration needed
 
 # Session settings
 SESSION_SERIALIZER = 'django.contrib.sessions.serializers.JSONSerializer'
 
-# Debug settings - more secure CORS configuration
-if DEBUG:
-    # Allow localhost origins for development
-    CORS_ALLOWED_ORIGINS += [
-        'http://localhost:8080',
-        'http://127.0.0.1:8080',
-    ]
-else:
-    # Production should only allow specific origins
-    pass
+# Web-only architecture - no CORS configuration needed
 
 # Fix URL slash issues for development
 APPEND_SLASH = True

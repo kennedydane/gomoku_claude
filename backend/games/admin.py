@@ -5,36 +5,57 @@ Django admin configuration for game models.
 from django.contrib import admin
 from django.utils.html import format_html
 from .models import (
-    RuleSet, Game, GameMove, PlayerSession,
+    GomokuRuleSet, GoRuleSet, Game, GameMove, PlayerSession,
     GameEvent, Challenge
 )
 
 
-@admin.register(RuleSet)
-class RuleSetAdmin(admin.ModelAdmin):
-    """Admin interface for RuleSet model."""
+@admin.register(GomokuRuleSet)
+class GomokuRuleSetAdmin(admin.ModelAdmin):
+    """Admin interface for GomokuRuleSet model."""
     
-    list_display = ['name', 'game_type', 'board_size', 'allow_overlines', 'created_at']
-    list_filter = ['game_type', 'board_size', 'allow_overlines', 'scoring_method', 'created_at']
+    list_display = ['name', 'board_size', 'allow_overlines', 'created_at']
+    list_filter = ['board_size', 'allow_overlines', 'created_at']
     search_fields = ['name', 'description']
     readonly_fields = ['created_at', 'updated_at']
     
     fieldsets = (
         (None, {
-            'fields': ('name', 'game_type', 'description')
+            'fields': ('name', 'description')
         }),
         ('Board Configuration', {
             'fields': ('board_size',)
         }),
         ('Gomoku Rules', {
             'fields': ('allow_overlines', 'forbidden_moves'),
-            'classes': ('collapse',),
-            'description': 'These settings apply only to Gomoku games'
+            'description': 'Gomoku-specific game rules'
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+
+@admin.register(GoRuleSet)
+class GoRuleSetAdmin(admin.ModelAdmin):
+    """Admin interface for GoRuleSet model."""
+    
+    list_display = ['name', 'board_size', 'komi', 'handicap_stones', 'scoring_method', 'created_at']
+    list_filter = ['board_size', 'scoring_method', 'handicap_stones', 'created_at']
+    search_fields = ['name', 'description']
+    readonly_fields = ['created_at', 'updated_at']
+    
+    fieldsets = (
+        (None, {
+            'fields': ('name', 'description')
+        }),
+        ('Board Configuration', {
+            'fields': ('board_size',)
         }),
         ('Go Rules', {
             'fields': ('komi', 'handicap_stones', 'scoring_method'),
-            'classes': ('collapse',),
-            'description': 'These settings apply only to Go games'
+            'description': 'Go-specific game rules'
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at'),

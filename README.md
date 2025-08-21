@@ -2,7 +2,7 @@
 
 ![Go Goban Go Dashboard](Gomoku_Screenshot.png)
 
-A modern, full-stack implementation of Gomoku and Go board games featuring a Django REST Framework backend with PostgreSQL database, responsive web interface, and Dear PyGUI desktop client.
+A modern, full-stack implementation of Gomoku and Go board games featuring a Django web application with PostgreSQL database, responsive Bootstrap 5 + htmx interface, and real-time multiplayer functionality.
 
 ## Supported Games
 
@@ -39,14 +39,14 @@ Gomoku has been played competitively since 1989, with modern tournaments using t
 
 ## Architecture
 
-This implementation consists of four main components:
+This web-only implementation consists of the following components:
 
-- **Backend**: Django REST Framework server providing REST API for game logic and state management
-- **Web Interface**: Responsive Bootstrap 5 + htmx web application with real-time multiplayer via centralized WebSocket notification system
-- **Desktop Frontend**: Dear PyGUI desktop application for native interactive gameplay
+- **Web Application**: Django web application with Bootstrap 5 + htmx responsive interface
+- **Real-Time Features**: Server-Sent Events (SSE) and WebSocket notifications for multiplayer functionality
 - **Database**: PostgreSQL for persistent game storage with Django admin interface
-- **Real-Time Features**: Centralized WebSocket notification system with standardized event handling and CSRF token management
+- **Authentication**: Django session-based authentication (no API tokens)
 - **Containerization**: Docker Compose for easy development and deployment
+- **Game Logic**: Service layer architecture supporting multiple game types (Gomoku, Go)
 
 ## Installation
 
@@ -100,27 +100,16 @@ uv run python manage.py seed_data
 
 ### Development Mode
 
-**Start the Django backend server:**
+**Start the Django web server:**
 ```bash
 cd backend
 uv run python manage.py runserver 8001
 ```
 Services available:
 - **Web Interface**: http://localhost:8001/ (Bootstrap 5 + htmx responsive web app)
-- **REST API**: http://localhost:8001/api/v1/ (Django REST Framework browsable API)  
 - **Admin Interface**: http://localhost:8001/admin/ (admin / admin123)
 
-**Start the desktop frontend (optional):**
-```bash
-cd frontend
-# Basic GUI client
-uv run python simple_gomoku.py
-
-# Enhanced GUI with logging
-uv run python gomoku_gui.py --debug
-```
-
-**Note**: The web interface provides full gameplay functionality through your browser. The desktop frontend is optional for users preferring a native application.
+**Note**: The web interface provides complete gameplay functionality including real-time multiplayer, authentication, and game management.
 
 **Database Access:**
 - PostgreSQL: `localhost:5434` (exposed for development tools)
@@ -134,44 +123,31 @@ uv run python gomoku_gui.py --debug
 docker compose --profile production up -d
 ```
 
-## API Endpoints
+## Web Interface Features
 
-The Django REST API provides the following endpoints:
+The Django web application provides comprehensive game functionality through a modern web interface:
 
-### Users
-- `GET /api/v1/users/` - List all users
-- `POST /api/v1/users/` - Create a new user
-- `GET /api/v1/users/{id}/` - Get user details
-- `GET /api/v1/users/{id}/stats/` - Get user statistics
-- `POST /api/v1/users/{id}/reset_stats/` - Reset user statistics
+### User Management
+- User registration and authentication (Django sessions)
+- User profiles and statistics
+- Password management and security
 
-### Rule Sets
-- `GET /api/v1/rulesets/` - List all rule sets
-- `POST /api/v1/rulesets/` - Create a new rule set
-- `GET /api/v1/rulesets/{id}/` - Get rule set details
+### Game Management  
+- Create and join games with different rulesets
+- Real-time move synchronization via Server-Sent Events
+- Game history and statistics tracking
+- Multiple board sizes: 9×9, 13×13, 15×15, 19×19, 25×25
 
-### Games
-- `GET /api/v1/games/` - List all games
-- `POST /api/v1/games/` - Create a new game
-- `GET /api/v1/games/{id}/` - Get game details
-- `POST /api/v1/games/{id}/start/` - Start a game
-- `POST /api/v1/games/{id}/move/` - Make a move
-- `GET /api/v1/games/{id}/moves/` - Get move history
-- `POST /api/v1/games/{id}/resign/` - Resign from game
+### Social Features
+- Friend system with requests and management
+- Challenge system between friends
+- Real-time notifications for game events
+- Online player tracking
 
-### Sessions & Challenges
-- `GET /api/v1/sessions/` - List player sessions
-- `GET /api/v1/sessions/active/` - Get active sessions only
-- `POST /api/v1/challenges/` - Create a challenge
-- `GET /api/v1/challenges/pending/` - Get pending challenges
-- `POST /api/v1/challenges/{id}/respond/` - Accept/reject challenge
-
-### Friends
-- `POST /api/send-friend-request/` - Send a friend request
-- `POST /api/respond-friend-request/{id}/` - Accept/reject friend request
-- `GET /api/friends-list/` - Get user's friends
-- `GET /api/pending-requests/` - Get pending friend requests
-- `GET /api/search-users/` - Search users to befriend
+### Multi-Game Support
+- **Gomoku**: Traditional 5-in-a-row with multiple rule variations
+- **Go**: Territory control game with komi, handicaps, and standard scoring
+- Extensible architecture for adding new game types
 
 ## Development Features
 
@@ -191,11 +167,9 @@ The game logic is implemented in a service layer that handles:
 
 ### Database Models
 - **User**: Player accounts with game statistics
-- **RuleSet**: Configurable game rule variations
-- **Game**: Individual game sessions with board state
+- **GomokuRuleSet / GoRuleSet**: Configurable game rule variations (subclassed architecture)
+- **Game**: Individual game sessions with board state (supports both game types)
 - **GameMove**: Move history and validation
-- **PlayerSession**: Online player tracking
-- **GameEvent**: Real-time event system
 - **Challenge**: Player-to-player game invitations
 - **Friendship**: Friend relationships and requests between users
 
@@ -240,8 +214,9 @@ uv run python -m pytest -m cross_browser -v
 ```
 
 **Test Coverage:**
-- **API Tests**: 250+ tests covering authentication, game logic, challenges, and centralized notifications
 - **Web Interface Tests**: 80+ comprehensive TDD tests for web functionality (includes friend system, panels, single-view dashboard, and WebSocket integration)
+- **Game Logic Tests**: Multi-game architecture tests for Gomoku and Go service layers
+- **Model Tests**: Database model validation and subclassed RuleSet architecture
 - **Centralized System Tests**: Tests for WebSocketNotificationService, CSRF handling, and race condition fixes
 - **Panel Tests**: 20 TDD tests for Phase 11 enhanced web interface features (navigation, games table, dashboard layout)
 - **Single-View Tests**: 12 TDD tests for Phase 12 embedded game board and dashboard integration
@@ -278,20 +253,21 @@ The application uses PostgreSQL with the following default connection:
 
 ```
 gomoku_claude/
-├── backend/              # Django REST Framework backend
+├── backend/              # Django web application
 │   ├── gomoku/          # Django project settings
 │   ├── users/           # User management app
-│   ├── games/           # Game logic and models
+│   ├── games/           # Game logic and models (multi-game architecture)
 │   ├── web/             # Web interface app (Bootstrap + htmx)
 │   ├── core/            # Shared utilities and commands
 │   ├── templates/       # Django templates (base + web)
 │   ├── static/          # CSS, JavaScript, images
 │   └── manage.py        # Django management script
-├── frontend/            # Dear PyGUI desktop client
-│   ├── simple_gomoku.py # Basic game client
-│   └── gomoku_gui.py    # Enhanced GUI with logging
+├── archived/            # Archived components (API, desktop GUI)
+│   ├── api/             # Archived REST API components
+│   └── frontend/        # Archived Dear PyGUI desktop client
 ├── docker-compose.yml   # Docker services configuration
 ├── data/               # Persistent data volumes
+├── MD.md               # Master documentation index
 └── README.md           # This file
 ```
 
@@ -310,13 +286,14 @@ Key development practices:
 
 ## Recent Major Changes
 
-- ✅ **Phase 14: Centralized WebSocket Notification System** (Latest): Complete consolidation of scattered WebSocket code
-  - **WebSocketNotificationService**: Single service replacing scattered update code across 6+ locations
-  - **EVENT_DEFINITIONS**: Standardized event types with consistent notification patterns
-  - **CSRF Token Client-Side Handling**: JavaScript automatic injection eliminating server-side token issues
-  - **Race Condition Resolution**: Fixed HTMX/WebSocket DOM conflicts using hx-swap="none" pattern
-  - **Code Deduplication**: Eliminated scattered WebSocket update code in GameMoveView, GameResignView, ChallengeFriendView, RespondChallengeView
-  - **Production Verification**: All console errors resolved and real-time updates working seamlessly
+- ✅ **Phase 15: Multi-Game Architecture & Project Cleanup** (Latest): Complete RuleSet subclassing and API removal
+  - **Multi-Game Architecture**: Abstract RuleSet base class with GomokuRuleSet and GoRuleSet subclasses
+  - **Service Layer Abstraction**: GameServiceFactory supporting multiple game types (Gomoku, Go)
+  - **Standardized Board Sizes**: 9×9, 13×13, 15×15, 19×19, 25×25 with proper validation
+  - **REST API Removal**: Archived unused Django REST Framework components for web-only architecture
+  - **Frontend Archival**: Moved unused Dear PyGUI desktop client to archived/ directory
+  - **Documentation Master Index**: Created MD.md for comprehensive documentation navigation
+  - **Clean Web-Only Architecture**: Simplified to Django sessions + htmx with real-time WebSocket notifications
 - ✅ **Phase 13: Challenge System Simplification & Game View Improvements**: Enhanced UX and simplified workflows
   - **Quick Challenge Removal**: Eliminated confusing quick challenge functionality per user request
   - **Enhanced Game Board UX**: Preview stone hover with color indication and smooth animations
@@ -360,7 +337,7 @@ Key development practices:
 - ✅ **Comprehensive Testing**: 350+ tests with Django test framework integration and centralized service testing
 - ✅ **Service Layer**: Clean separation of business logic with centralized WebSocket notification service
 - ✅ **Database Optimization**: Strategic indexing and query optimization
-- ✅ **Production Ready**: All 14 phases complete with centralized architecture and comprehensive error handling
+- ✅ **Production Ready**: All 15 phases complete with multi-game architecture and clean web-only design
 
 ## License
 

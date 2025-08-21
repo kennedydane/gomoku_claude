@@ -5,22 +5,23 @@ DRF serializers for game models.
 from rest_framework import serializers
 from users.serializers import UserSerializer
 from .models import (
-    RuleSet, Game, GameMove, PlayerSession,
+    GomokuRuleSet, GoRuleSet, Game, GameMove, PlayerSession,
     GameEvent, Challenge
 )
 
 
-class RuleSetSerializer(serializers.ModelSerializer):
-    """
-    Serializer for RuleSet model.
-    """
-    class Meta:
-        model = RuleSet
-        fields = [
-            'id', 'name', 'board_size', 'allow_overlines',
-            'forbidden_moves', 'description', 'created_at', 'updated_at'
-        ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
+# TODO: Refactor for subclassed RuleSet models
+# class RuleSetSerializer(serializers.ModelSerializer):
+#     """
+#     Serializer for RuleSet model.
+#     """
+#     class Meta:
+#         model = RuleSet
+#         fields = [
+#             'id', 'name', 'board_size', 'allow_overlines',
+#             'forbidden_moves', 'description', 'created_at', 'updated_at'
+#         ]
+#         read_only_fields = ['id', 'created_at', 'updated_at']
 
 
 class GameMoveSerializer(serializers.ModelSerializer):
@@ -45,7 +46,8 @@ class GameSerializer(serializers.ModelSerializer):
     black_player = UserSerializer(read_only=True)
     white_player = UserSerializer(read_only=True)
     winner = UserSerializer(read_only=True)
-    ruleset = RuleSetSerializer(read_only=True)
+    # TODO: Refactor for subclassed RuleSet models
+    # ruleset = RuleSetSerializer(read_only=True)
     
     black_player_id = serializers.IntegerField(write_only=True)
     white_player_id = serializers.IntegerField(write_only=True)

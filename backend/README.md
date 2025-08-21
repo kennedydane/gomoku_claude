@@ -1,6 +1,6 @@
 # Gomoku Game - Full Stack Django Application
 
-A complete Gomoku (Five in a Row) game with Django backend API and responsive web interface.
+A complete multi-game system (Gomoku and Go) with Django web application and responsive interface.
 
 ## Features
 
@@ -13,11 +13,9 @@ A complete Gomoku (Five in a Row) game with Django backend API and responsive we
 - **Friend System**: Add friends, send/accept friend requests with real-time notifications
 
 ### **🔐 Authentication & Security**
-- **Enhanced Token Authentication**: Extended tokens with expiration, device tracking, and refresh capability
 - **Web Authentication**: Django sessions with login/logout
-- **API Authentication**: Enhanced token-based authentication with fallback support
-- **Token Management**: Token refresh, device-specific tokens, and usage tracking
-- **User Registration**: Full registration API with validation
+- **User Registration**: Full web-based registration with validation
+- **Session Management**: Secure session handling and CSRF protection
 - **CSRF Protection**: Built-in CSRF protection for all forms
 - **Input Validation**: Comprehensive validation across all endpoints
 

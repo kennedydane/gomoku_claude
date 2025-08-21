@@ -8,6 +8,8 @@ PlayerSession, GameEvent, and Challenge models.
 import uuid
 from datetime import timedelta
 from django.conf import settings
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 from django.utils import timezone
@@ -27,16 +29,11 @@ class ScoringMethod(models.TextChoices):
 
 class RuleSet(models.Model):
     """
-    RuleSet model for different game types and their variations.
+    Abstract base class for game rulesets.
     
-    Supports Gomoku (Standard, Renju, Freestyle, Caro) and Go game configurations.
+    Provides common functionality for all game types while allowing
+    game-specific implementations through subclassing.
     """
-    
-    game_type = models.CharField(
-        max_length=10,
-        choices=GameType.choices,
-        help_text="Type of game this ruleset is for"
-    )
     
     name = models.CharField(
         max_length=100,
@@ -54,6 +51,54 @@ class RuleSet(models.Model):
         help_text="Size of the game board (e.g., 15 for 15x15)"
     )
     
+    description = models.TextField(
+        blank=True,
+        help_text="Human-readable description of the rules"
+    )
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        abstract = True
+        ordering = ['name']
+    
+    def __str__(self):
+        return self.name
+    
+    @property
+    def game_type(self):
+        """Get the game type for this ruleset."""
+        # This will be implemented by subclasses
+        raise NotImplementedError("Subclasses must implement game_type property")
+    
+    def get_game_type_display(self):
+        """Get the display name for the game type."""
+        return self.game_type.label
+    
+    @property
+    def is_gomoku(self):
+        """Check if this is a Gomoku ruleset."""
+        return self.game_type == GameType.GOMOKU
+    
+    @property
+    def is_go(self):
+        """Check if this is a Go ruleset."""
+        return self.game_type == GameType.GO
+    
+    def get_content_type(self):
+        """Get the ContentType for this ruleset instance."""
+        from django.contrib.contenttypes.models import ContentType
+        return ContentType.objects.get_for_model(self)
+
+
+class GomokuRuleSet(RuleSet):
+    """
+    RuleSet for Gomoku games.
+    
+    Contains Gomoku-specific fields and validation logic.
+    """
+    
     allow_overlines = models.BooleanField(
         default=False,
         help_text="Whether lines longer than 5 stones count as wins"
@@ -65,51 +110,53 @@ class RuleSet(models.Model):
         help_text="JSON configuration for forbidden move patterns"
     )
     
-    description = models.TextField(
-        blank=True,
-        help_text="Human-readable description of the rules"
-    )
+    class Meta:
+        db_table = 'gomoku_rulesets'
+        verbose_name = 'Gomoku Rule Set'
+        verbose_name_plural = 'Gomoku Rule Sets'
+        ordering = ['name']
     
-    # Go-specific fields
+    @property
+    def game_type(self):
+        """Get the game type for Gomoku rulesets."""
+        return GameType.GOMOKU
+
+
+class GoRuleSet(RuleSet):
+    """
+    RuleSet for Go games.
+    
+    Contains Go-specific fields and validation logic.
+    """
+    
     komi = models.FloatField(
         default=6.5,
-        help_text="Points given to white player to compensate for black's first move advantage (Go only)"
+        help_text="Points given to white player to compensate for black's first move advantage"
     )
     
     handicap_stones = models.PositiveIntegerField(
         default=0,
         validators=[MaxValueValidator(9)],
-        help_text="Number of handicap stones for weaker player (Go only)"
+        help_text="Number of handicap stones for weaker player"
     )
     
     scoring_method = models.CharField(
         max_length=10,
         choices=ScoringMethod.choices,
         default=ScoringMethod.TERRITORY,
-        help_text="Method used for scoring (Go only)"
+        help_text="Method used for scoring"
     )
     
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    
     class Meta:
-        db_table = 'rulesets'
-        verbose_name = 'Rule Set'
-        verbose_name_plural = 'Rule Sets'
+        db_table = 'go_rulesets'
+        verbose_name = 'Go Rule Set'
+        verbose_name_plural = 'Go Rule Sets'
         ordering = ['name']
     
-    def __str__(self):
-        return self.name
-    
     @property
-    def is_gomoku(self):
-        """Check if this is a Gomoku ruleset."""
-        return self.game_type == GameType.GOMOKU
-    
-    @property
-    def is_go(self):
-        """Check if this is a Go ruleset."""
-        return self.game_type == GameType.GO
+    def game_type(self):
+        """Get the game type for Go rulesets."""
+        return GameType.GO
 
 
 class GameStatus(models.TextChoices):
@@ -156,13 +203,10 @@ class Game(models.Model):
         help_text="Player with white stones"
     )
     
-    ruleset = models.ForeignKey(
-        RuleSet,
-        on_delete=models.RESTRICT,
-        related_name='games',
-        db_index=True,  # Index for ruleset queries
-        help_text="Rule set for this game"
-    )
+    # Generic foreign key to reference either GomokuRuleSet or GoRuleSet
+    ruleset_content_type = models.ForeignKey(ContentType, on_delete=models.RESTRICT)
+    ruleset_object_id = models.PositiveIntegerField()
+    ruleset = GenericForeignKey('ruleset_content_type', 'ruleset_object_id')
     
     status = models.CharField(
         max_length=10,
@@ -540,15 +584,10 @@ class Challenge(models.Model):
         help_text="Current challenge status"
     )
     
-    ruleset = models.ForeignKey(
-        RuleSet,
-        on_delete=models.CASCADE,
-        related_name='challenges',
-        db_index=True,
-        null=True,  # Allow null for now, will be required for new challenges
-        blank=True,
-        help_text="Rule set for the proposed game"
-    )
+    # Generic foreign key to reference either GomokuRuleSet or GoRuleSet
+    ruleset_content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE, null=True, blank=True)
+    ruleset_object_id = models.PositiveIntegerField(null=True, blank=True)
+    ruleset = GenericForeignKey('ruleset_content_type', 'ruleset_object_id')
     
     created_at = models.DateTimeField(auto_now_add=True)
     
