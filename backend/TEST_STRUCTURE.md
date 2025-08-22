@@ -232,37 +232,48 @@ def test_notification_error_handling():
 ### For API Functionality
 ```python
 # Add to tests/test_new_feature.py
-class NewFeatureAPITests(APITestCase):
-    def setUp(self):
+@pytest.mark.django_db
+class TestNewFeatureAPI:
+    @pytest.fixture(autouse=True)
+    def setup_method(self):
         self.user = UserFactory()
+        self.client = APIClient()
         self.client.force_authenticate(user=self.user)
     
     def test_new_feature_success(self):
-        # Test implementation
-        pass
+        # Test implementation using pytest assertions
+        assert response.status_code == 200
+        assert 'expected_data' in response.data
 ```
 
 ### For Web Interface  
 ```python
-# Add to web/test_new_feature.py
-class NewFeatureWebTests(TestCase):
-    def setUp(self):
+# Add to tests/test_new_feature.py
+@pytest.mark.django_db
+class TestNewFeatureWeb:
+    @pytest.fixture(autouse=True)
+    def setup_method(self):
         self.client = Client()
         self.user = UserFactory()
     
     def test_new_feature_renders(self):
-        # Test implementation
-        pass
+        # Test implementation using pytest assertions
+        response = self.client.get('/new-feature/')
+        assert response.status_code == 200
+        assert b'expected_content' in response.content
 ```
 
 ### For WebSocket Functionality
 ```python
-# Add to web/test_websocket_consumer.py
+# Add to tests/test_websocket_consumer.py
 @pytest.mark.asyncio
+@pytest.mark.django_db
 class TestNewWebSocketFeature:
     async def test_new_websocket_message(self):
+        # Test implementation using pytest assertions
+        consumer = WebSocketConsumer()
         # Test implementation
-        pass
+        assert consumer is not None
 ```
 
 ## 📈 Continuous Improvement
