@@ -31,7 +31,7 @@ class TestNavigation:
     
     @pytest.fixture(autouse=True)
     def setup_method(self):
-        self.user = UserFactory(username='testuser')
+        self.user = UserFactory()
         self.user.set_password('testpass123')
         self.user.save()
         
@@ -58,7 +58,7 @@ class TestNavigation:
         """Test that navigation shows only expected menu items for authenticated users."""
         client.force_login(self.user)
         
-        response = client.get(reverse('web:home'))
+        response = client.get(reverse('web:dashboard'))
         soup = BeautifulSoup(response.content, 'html.parser')
         
         # Find main navigation links (exclude user dropdown)
@@ -108,18 +108,18 @@ class TestGamesTable:
             winner=self.user1
         )
         
-    def test_games_view_uses_table_layout(self, client):
-        """Test that games view uses table layout instead of cards."""
+    def test_games_modal_uses_table_layout(self, client):
+        """Test that games modal uses table layout instead of cards."""
         client.force_login(self.user1)
         
-        response = client.get(reverse('web:games'))
+        response = client.get(reverse('web:games_modal'))
         assert response.status_code == 200
         
         soup = BeautifulSoup(response.content, 'html.parser')
         
         # Should have a table element
         table = soup.find('table')
-        assert table is not None, "Games view should use a table layout"
+        assert table is not None, "Games modal should use a table layout"
         
         # Should NOT have individual game cards (old layout)
         # The new layout may have one container card, but not individual game cards
@@ -127,13 +127,13 @@ class TestGamesTable:
         game_cards = [card for card in cards if any(keyword in str(card).lower() 
                      for keyword in ['card-title', 'vs', 'black) vs', 'white)', 'view game']) 
                      and 'table' not in str(card).lower()]
-        assert len(game_cards) == 0, "Games view should not use individual card layout for games"
+        assert len(game_cards) == 0, "Games modal should not use individual card layout for games"
         
     def test_games_table_columns_present(self, client):
         """Test that games table has all required columns."""
         client.force_login(self.user1)
         
-        response = client.get(reverse('web:games'))
+        response = client.get(reverse('web:games_modal'))
         soup = BeautifulSoup(response.content, 'html.parser')
         
         # Check table headers
@@ -157,7 +157,7 @@ class TestGamesTable:
             status=GameStatus.WAITING
         )
         
-        response = client.get(reverse('web:games'))
+        response = client.get(reverse('web:games_modal'))
         games = response.context['games']
         
         # Convert to list to check order
@@ -186,7 +186,7 @@ class TestGamesTable:
         """Test that turn indicators are displayed correctly in the table."""
         client.force_login(self.user1)
         
-        response = client.get(reverse('web:games'))
+        response = client.get(reverse('web:games_modal'))
         soup = BeautifulSoup(response.content, 'html.parser')
         
         # Find turn indicator cells
@@ -608,7 +608,7 @@ class TestStyling:
         )
         
         client.force_login(self.user)
-        response = client.get(reverse('web:games'))
+        response = client.get(reverse('web:games_modal'))
         
         # Look for turn indicator styling in CSS or inline styles
         content = response.content.decode()
@@ -673,8 +673,8 @@ class TestIntegration:
         assert has_games_section or has_friends_section or len(soup.find_all('div', class_='col-')) >= 3, \
                "Dashboard should show panel structure or multi-column layout"
         
-        # 3. Access games view (should be table format)
-        games_response = client.get(reverse('web:games'))
+        # 3. Access games modal (should be table format)
+        games_response = client.get(reverse('web:games_modal'))
         assert games_response.status_code == 200
         
         # Should not be using old card layout
@@ -686,4 +686,4 @@ class TestIntegration:
                                    for keyword in ['vs', 'black', 'white', 'opponent'])]
         
         assert len(game_specific_cards) == 0, \
-                "Games view should not use card layout for games"
+                "Games modal should not use card layout for games"

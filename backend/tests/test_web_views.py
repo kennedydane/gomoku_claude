@@ -30,15 +30,22 @@ class TestWebFoundation:
         """Set up test data."""
         self.client = Client()
     
-    def test_home_page_exists(self):
-        """Test that home page URL exists and returns 200."""
-        response = self.client.get('/home/')
-        assert response.status_code == 200
+    def test_root_redirects_to_dashboard_when_authenticated(self):
+        """Test that root URL redirects to dashboard for authenticated users."""
+        # Create and login a user
+        from tests.factories import UserFactory
+        user = UserFactory()
+        self.client.force_login(user)
+        
+        response = self.client.get('/', follow=False)
+        assert response.status_code == 302
+        assert response.url == '/dashboard/'
     
-    def test_home_page_redirects_to_web_home(self):
-        """Test that root URL redirects to web home."""
-        response = self.client.get('/', follow=True)
-        assert b'Gomoku' in response.content
+    def test_root_redirects_to_login_when_unauthenticated(self):
+        """Test that root URL redirects to login for unauthenticated users."""
+        response = self.client.get('/', follow=False)
+        assert response.status_code == 302
+        assert response.url == '/login/'
     
     def test_base_template_exists(self):
         """Test that base template can be loaded."""
@@ -51,7 +58,6 @@ class TestWebFoundation:
     def test_web_urls_are_configured(self):
         """Test that web URLs are properly configured."""
         url_names = [
-            'web:home',
             'web:login', 
             'web:dashboard',
         ]
@@ -114,13 +120,13 @@ class TestAuthenticationViews:
             pass
     
     def test_logout_redirects_properly(self):
-        """Test logout redirects to home."""
+        """Test logout redirects to root (which then redirects to login for unauthenticated users)."""
         # Login first
-        self.client.login(username='testuser', password='testpass123')
+        self.client.login(username=self.user.username, password='testpass123')
         
         response = self.client.post(reverse('web:logout'))
         assert response.status_code == 302
-        assert response.url == reverse('web:home')
+        assert response.url == '/'  # Redirects to root, which then redirects to login
 
 
 @pytest.mark.django_db
@@ -215,9 +221,9 @@ class TestGameViews:
         
         self.client.login(username=self.user.username, password='testpass123')
     
-    def test_games_list_shows_user_games(self):
-        """Test games list shows games where user is a player."""
-        response = self.client.get(reverse('web:games'))
+    def test_games_modal_shows_user_games(self):
+        """Test games modal shows games where user is a player."""
+        response = self.client.get(reverse('web:games_modal'))
         assert response.status_code == 200
         game_id_bytes = str(self.game.id).encode()
         assert game_id_bytes in response.content

@@ -380,19 +380,22 @@ class TestFriendWebViews:
         self.user1.set_password('testpass123')
         self.user1.save()
     
-    def test_friends_page_renders(self, client):
-        """Test friends page renders correctly."""
+    def test_friends_modal_renders(self, client):
+        """Test friends modal renders correctly."""
         client.force_login(self.user1)
         
-        url = reverse('web:friends')
+        url = reverse('web:friends_modal')
         response = client.get(url)
         
         assert response.status_code == 200
-        assert 'Friends' in response.content.decode()
-        assert 'Send Request' in response.content.decode()
+        content = response.content.decode()
+        assert 'Friends' in content
+        assert ('Send Friend Request' in content or 
+                'Send Request' in content or 
+                'Add Friends' in content)
     
-    def test_friends_page_shows_friends(self, client):
-        """Test friends page displays user's friends."""
+    def test_friends_modal_shows_friends(self, client):
+        """Test friends modal displays user's friends."""
         # Create accepted friendship
         Friendship.objects.create(
             requester=self.user1,
@@ -401,14 +404,14 @@ class TestFriendWebViews:
         )
         
         client.force_login(self.user1)
-        url = reverse('web:friends')
+        url = reverse('web:friends_modal')
         response = client.get(url)
         
         assert response.status_code == 200
         assert self.user2.username in response.content.decode()
     
-    def test_friends_page_shows_pending_requests(self, client):
-        """Test friends page shows pending requests."""
+    def test_friends_modal_shows_pending_requests(self, client):
+        """Test friends modal shows pending requests."""
         # Create pending request TO user1
         Friendship.objects.create(
             requester=self.user2,
@@ -417,18 +420,18 @@ class TestFriendWebViews:
         )
         
         client.force_login(self.user1)
-        url = reverse('web:friends')
+        url = reverse('web:friends_modal')
         response = client.get(url)
         
         assert response.status_code == 200
         content = response.content.decode()
         assert self.user2.username in content
-        assert 'Accept' in content
-        assert 'Reject' in content
+        assert 'Accept' in content or 'accept' in content.lower()
+        assert 'Reject' in content or 'reject' in content.lower()
     
-    def test_friends_page_requires_authentication(self, client):
-        """Test friends page requires login."""
-        url = reverse('web:friends')
+    def test_friends_modal_requires_authentication(self, client):
+        """Test friends modal requires login."""
+        url = reverse('web:friends_modal')
         response = client.get(url)
         
         assert response.status_code == 302
