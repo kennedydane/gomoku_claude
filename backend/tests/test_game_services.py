@@ -115,7 +115,10 @@ class TestGomokuGameService:
         move = self.service.make_move(self.game, self.black_player.id, 7, 7)
         assert move is not None
         
-        # Try to move to the same position
+        # Refresh the game to get the updated turn
+        self.game.refresh_from_db()
+        
+        # Try to move to the same position (now it's white's turn)
         with pytest.raises((InvalidMoveError, ValueError)):
             self.service.validate_move(self.game, self.white_player.id, 7, 7)
     
@@ -158,56 +161,86 @@ class TestGomokuGameService:
     
     def test_check_win_horizontal(self):
         """Test horizontal win detection."""
-        # Place 5 stones in a row horizontally
-        positions = [(7, 5), (7, 6), (7, 7), (7, 8), (7, 9)]
+        # Place 5 black stones in a row with white moves in between
+        moves = [
+            ('BLACK', 7, 5),
+            ('WHITE', 6, 0),
+            ('BLACK', 7, 6),
+            ('WHITE', 6, 1),
+            ('BLACK', 7, 7),
+            ('WHITE', 6, 2),
+            ('BLACK', 7, 8),
+            ('WHITE', 6, 3),
+            ('BLACK', 7, 9),  # Winning move
+        ]
         
-        for i, (row, col) in enumerate(positions):
-            if i % 2 == 0:  # Black moves
+        for player_color, row, col in moves:
+            if player_color == 'BLACK':
                 self.service.make_move(self.game, self.black_player.id, row, col)
-            else:  # White moves (different positions)
-                self.service.make_move(self.game, self.white_player.id, row + 1, col)
+            else:
+                self.service.make_move(self.game, self.white_player.id, row, col)
+            self.game.refresh_from_db()
         
-        # Check if black won
-        self.game.refresh_from_db()
-        is_winner = self.service.check_win(self.game, self.black_player.id, 7, 9)
+        # Check if black won on the last move
+        is_winner = self.service.check_win(self.game, 7, 9)
         assert is_winner is True
     
     def test_check_win_vertical(self):
         """Test vertical win detection."""
-        # Place 5 stones in a column vertically
-        positions = [(5, 7), (6, 7), (7, 7), (8, 7), (9, 7)]
+        # Place 5 black stones in a column vertically with white moves in between
+        moves = [
+            ('BLACK', 5, 7),
+            ('WHITE', 5, 0),
+            ('BLACK', 6, 7),
+            ('WHITE', 6, 0),
+            ('BLACK', 7, 7),
+            ('WHITE', 7, 0),
+            ('BLACK', 8, 7),
+            ('WHITE', 8, 0),
+            ('BLACK', 9, 7),  # Winning move
+        ]
         
-        for i, (row, col) in enumerate(positions):
-            if i % 2 == 0:  # Black moves
+        for player_color, row, col in moves:
+            if player_color == 'BLACK':
                 self.service.make_move(self.game, self.black_player.id, row, col)
-            else:  # White moves (different positions)
-                self.service.make_move(self.game, self.white_player.id, row, col + 1)
+            else:
+                self.service.make_move(self.game, self.white_player.id, row, col)
+            self.game.refresh_from_db()
         
         # Check if black won
-        self.game.refresh_from_db()
-        is_winner = self.service.check_win(self.game, self.black_player.id, 9, 7)
+        is_winner = self.service.check_win(self.game, 9, 7)
         assert is_winner is True
     
     def test_check_win_diagonal(self):
         """Test diagonal win detection."""
-        # Place 5 stones diagonally
-        positions = [(5, 5), (6, 6), (7, 7), (8, 8), (9, 9)]
+        # Place 5 black stones diagonally with white moves in between
+        moves = [
+            ('BLACK', 5, 5),
+            ('WHITE', 5, 0),
+            ('BLACK', 6, 6),
+            ('WHITE', 6, 0),
+            ('BLACK', 7, 7),
+            ('WHITE', 7, 0),
+            ('BLACK', 8, 8),
+            ('WHITE', 8, 0),
+            ('BLACK', 9, 9),  # Winning move
+        ]
         
-        for i, (row, col) in enumerate(positions):
-            if i % 2 == 0:  # Black moves
+        for player_color, row, col in moves:
+            if player_color == 'BLACK':
                 self.service.make_move(self.game, self.black_player.id, row, col)
-            else:  # White moves (different positions)
-                self.service.make_move(self.game, self.white_player.id, row, col + 2)
+            else:
+                self.service.make_move(self.game, self.white_player.id, row, col)
+            self.game.refresh_from_db()
         
         # Check if black won
-        self.game.refresh_from_db()
-        is_winner = self.service.check_win(self.game, self.black_player.id, 9, 9)
+        is_winner = self.service.check_win(self.game, 9, 9)
         assert is_winner is True
     
     def test_check_win_no_win(self):
         """Test that non-winning moves return False."""
         move = self.service.make_move(self.game, self.black_player.id, 7, 7)
-        is_winner = self.service.check_win(self.game, self.black_player.id, 7, 7)
+        is_winner = self.service.check_win(self.game, 7, 7)
         assert is_winner is False
     
     def test_get_valid_moves(self):
@@ -222,6 +255,7 @@ class TestGomokuGameService:
         
         # Make a move and check again
         self.service.make_move(self.game, self.black_player.id, 7, 7)
+        self.game.refresh_from_db()  # Refresh to get updated board state
         valid_moves = self.service.get_valid_moves(self.game)
         
         # Should be one less valid move
@@ -353,11 +387,12 @@ class TestGoGameService:
     
     def test_validate_move_pass_always_valid(self):
         """Test that pass moves are always valid (except game state)."""
-        # Pass should be valid
+        # Pass should be valid for the current player
         self.service.validate_move(self.game, self.black_player.id, -1, -1)
         
-        # Fill up a position and pass should still be valid
+        # Make a move and pass should still be valid for the next player
         self.service.make_move(self.game, self.black_player.id, 3, 3)
+        self.game.refresh_from_db()  # Now it's white's turn
         self.service.validate_move(self.game, self.white_player.id, -1, -1)
 
 

@@ -15,8 +15,8 @@ class UserFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = User
     
-    username = factory.Faker('user_name')
-    email = factory.Faker('email')
+    username = factory.Sequence(lambda n: f'user{n}')
+    email = factory.Sequence(lambda n: f'user{n}@example.com')
     display_name = factory.Faker('name')
     games_played = 0
     games_won = 0
@@ -29,7 +29,7 @@ class GomokuRuleSetFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = GomokuRuleSet
     
-    name = factory.Faker('company')
+    name = factory.Sequence(lambda n: f'Gomoku Ruleset {n}')
     board_size = 15
     allow_overlines = True
     forbidden_moves = {}
@@ -42,7 +42,7 @@ class GoRuleSetFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = GoRuleSet
     
-    name = factory.Faker('company')
+    name = factory.Sequence(lambda n: f'Go Ruleset {n}')
     board_size = 19
     komi = 6.5
     handicap_stones = 0

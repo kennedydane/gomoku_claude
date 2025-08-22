@@ -380,32 +380,51 @@ class GoGameService(BaseGameService):
             player_color = Player.WHITE
             player = game.white_player
         
-        # Update board state
-        board = game.board_state.get('board', [])
-        if not board:
-            game.initialize_board()
-            board = game.board_state['board']
+        # Handle pass move
+        is_pass_move = row == -1 and col == -1
         
-        # Place the stone
-        board[row][col] = player_color
-        
-        # Reset consecutive passes since a move was made
-        game.board_state['consecutive_passes'] = 0
+        if is_pass_move:
+            # Increment consecutive passes for pass moves
+            consecutive_passes = game.board_state.get('consecutive_passes', 0) + 1
+        else:
+            # Update board state for regular moves
+            board = game.board_state.get('board', [])
+            if not board:
+                game.initialize_board()
+                board = game.board_state['board']
+            
+            # Place the stone
+            board[row][col] = player_color
+            
+            # Reset consecutive passes since a stone was placed
+            consecutive_passes = 0
         
         # Clear Ko position (will be set if this move creates a Ko situation)
-        game.board_state['ko_position'] = None
+        if not is_pass_move:
+            game.board_state['ko_position'] = None
         
         # TODO: Handle captures - check adjacent opponent groups for liberties
         # TODO: Update captured stones count
         # TODO: Check for Ko situation
         
         # Update board state
+        if is_pass_move:
+            # For pass moves, just update the consecutive passes
+            current_board = game.board_state.get('board', [])
+            if not current_board:
+                game.initialize_board()
+                current_board = game.board_state['board']
+        else:
+            current_board = board
+            
+        # Always update the full board state with current values
         game.board_state = {
+            'game_type': 'GO',
             'size': game.ruleset.board_size, 
-            'board': board,
+            'board': current_board,
             'captured_stones': game.board_state.get('captured_stones', {'black': 0, 'white': 0}),
             'ko_position': game.board_state.get('ko_position'),
-            'consecutive_passes': game.board_state.get('consecutive_passes', 0)
+            'consecutive_passes': consecutive_passes
         }
         
         # Create the move
@@ -423,6 +442,8 @@ class GoGameService(BaseGameService):
         # They end when both players pass consecutively or resign
         # Switch turns
         game.current_player = Player.WHITE if game.current_player == Player.BLACK else Player.BLACK
+        
+        # Save the game with updated board state
         game.save()
         
         return move
@@ -462,6 +483,9 @@ class GoGameService(BaseGameService):
                 # TODO: Check for suicide rule
                 # For now, assume all empty non-Ko positions are valid
                 valid_moves.append((row, col))
+        
+        # Always add pass move as valid
+        valid_moves.append((-1, -1))
         
         return valid_moves
     

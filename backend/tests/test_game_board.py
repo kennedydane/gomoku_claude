@@ -25,8 +25,8 @@ class TestGameBoardRendering:
     def setup_method(self):
         """Set up test data."""
         self.client = Client()
-        self.user1 = UserFactory(username='player1')
-        self.user2 = UserFactory(username='player2')
+        self.user1 = UserFactory()
+        self.user2 = UserFactory()
         self.user1.set_password('testpass123')
         self.user2.set_password('testpass123')
         self.user1.save()
@@ -44,7 +44,7 @@ class TestGameBoardRendering:
     
     def test_game_board_renders_correctly(self):
         """Test game board renders with correct grid structure."""
-        self.client.login(username='player1', password='testpass123')
+        self.client.login(username=self.user1.username, password='testpass123')
         
         url = reverse('web:game_detail', kwargs={'game_id': self.game.id})
         response = self.client.get(url, follow=True)  # Follow redirect to dashboard
@@ -73,7 +73,7 @@ class TestGameBoardRendering:
         large_game.initialize_board()
         large_game.save()
         
-        self.client.login(username='player1', password='testpass123')
+        self.client.login(username=self.user1.username, password='testpass123')
         
         url = reverse('web:game_detail', kwargs={'game_id': large_game.id})
         response = self.client.get(url, follow=True)
@@ -91,7 +91,7 @@ class TestGameBoardRendering:
         service = GameServiceFactory.get_service(self.game.ruleset.game_type)
         service.make_move(self.game, self.user1.id, 7, 7)  # Black stone
         
-        self.client.login(username='player1', password='testpass123')
+        self.client.login(username=self.user1.username, password='testpass123')
         
         url = reverse('web:game_detail', kwargs={'game_id': self.game.id})
         response = self.client.get(url, follow=True)
@@ -107,7 +107,7 @@ class TestGameBoardRendering:
     
     def test_game_board_shows_turn_indicator(self):
         """Test game board shows whose turn it is."""
-        self.client.login(username='player1', password='testpass123')
+        self.client.login(username=self.user1.username, password='testpass123')
         
         url = reverse('web:game_detail', kwargs={'game_id': self.game.id})
         response = self.client.get(url, follow=True)
@@ -123,7 +123,7 @@ class TestGameBoardRendering:
     
     def test_game_board_responsive_design(self):
         """Test game board adapts to different screen sizes."""
-        self.client.login(username='player1', password='testpass123')
+        self.client.login(username=self.user1.username, password='testpass123')
         
         url = reverse('web:game_detail', kwargs={'game_id': self.game.id})
         response = self.client.get(url, follow=True)
@@ -147,8 +147,8 @@ class TestGameBoardInteraction:
     def setup_method(self):
         """Set up test data."""
         self.client = Client()
-        self.user1 = UserFactory(username='player1')
-        self.user2 = UserFactory(username='player2')
+        self.user1 = UserFactory()
+        self.user2 = UserFactory()
         self.user1.set_password('testpass123')
         self.user2.set_password('testpass123')
         self.user1.save()
@@ -166,7 +166,7 @@ class TestGameBoardInteraction:
     
     def test_board_intersections_clickable(self):
         """Test that board intersections are interactive."""
-        self.client.login(username='player1', password='testpass123')
+        self.client.login(username=self.user1.username, password='testpass123')
         
         url = reverse('web:game_detail', kwargs={'game_id': self.game.id})
         response = self.client.get(url, follow=True)
@@ -183,7 +183,7 @@ class TestGameBoardInteraction:
     
     def test_move_endpoint_handles_click(self):
         """Test move endpoint processes board clicks correctly."""
-        self.client.login(username='player1', password='testpass123')
+        self.client.login(username=self.user1.username, password='testpass123')
         
         # Test making a move
         move_url = reverse('web:game_move', kwargs={'game_id': self.game.id})
@@ -201,7 +201,7 @@ class TestGameBoardInteraction:
     
     def test_invalid_move_returns_error(self):
         """Test invalid moves are rejected with error message."""
-        self.client.login(username='player1', password='testpass123')
+        self.client.login(username=self.user1.username, password='testpass123')
         
         # Try invalid coordinates
         move_url = reverse('web:game_move', kwargs={'game_id': self.game.id})
@@ -216,7 +216,7 @@ class TestGameBoardInteraction:
     def test_out_of_turn_move_rejected(self):
         """Test moves by wrong player are rejected."""
         # Login as player2 (white) when it's player1's (black) turn
-        self.client.login(username='player2', password='testpass123')
+        self.client.login(username=self.user2.username, password='testpass123')
         
         move_url = reverse('web:game_move', kwargs={'game_id': self.game.id})
         response = self.client.post(move_url, {
@@ -229,7 +229,7 @@ class TestGameBoardInteraction:
     
     def test_move_updates_board_state(self):
         """Test moves properly update the game board state."""
-        self.client.login(username='player1', password='testpass123')
+        self.client.login(username=self.user1.username, password='testpass123')
         
         initial_state = dict(self.game.board_state)
         
@@ -256,8 +256,8 @@ class TestGameBoardVisualization:
     def setup_method(self):
         """Set up test data."""
         self.client = Client()
-        self.user1 = UserFactory(username='player1')
-        self.user2 = UserFactory(username='player2')
+        self.user1 = UserFactory()
+        self.user2 = UserFactory()
         self.user1.set_password('testpass123')
         self.user2.set_password('testpass123')
         self.user1.save()
@@ -275,7 +275,7 @@ class TestGameBoardVisualization:
     
     def test_game_info_displays_correctly(self):
         """Test game information is displayed correctly."""
-        self.client.login(username='player1', password='testpass123')
+        self.client.login(username=self.user1.username, password='testpass123')
         
         url = reverse('web:game_detail', kwargs={'game_id': self.game.id})
         response = self.client.get(url, follow=True)
@@ -291,7 +291,7 @@ class TestGameBoardVisualization:
     
     def test_game_status_shown(self):
         """Test game status is clearly displayed."""
-        self.client.login(username='player1', password='testpass123')
+        self.client.login(username=self.user1.username, password='testpass123')
         
         url = reverse('web:game_detail', kwargs={'game_id': self.game.id})
         response = self.client.get(url, follow=True)
@@ -312,7 +312,7 @@ class TestGameBoardVisualization:
         self.game.winner = self.user1
         self.game.save()
         
-        self.client.login(username='player1', password='testpass123')
+        self.client.login(username=self.user1.username, password='testpass123')
         
         url = reverse('web:game_detail', kwargs={'game_id': self.game.id})
         response = self.client.get(url, follow=True)
@@ -335,7 +335,7 @@ class TestGameBoardVisualization:
         service.make_move(self.game, self.user1.id, 7, 7)  # Black
         service.make_move(self.game, self.user2.id, 8, 8)  # White
         
-        self.client.login(username='player1', password='testpass123')
+        self.client.login(username=self.user1.username, password='testpass123')
         
         url = reverse('web:game_detail', kwargs={'game_id': self.game.id})
         response = self.client.get(url, follow=True)
@@ -358,8 +358,8 @@ class TestGameBoardAccessibility:
     def setup_method(self):
         """Set up test data."""
         self.client = Client()
-        self.user1 = UserFactory(username='player1')
-        self.user2 = UserFactory(username='player2')
+        self.user1 = UserFactory()
+        self.user2 = UserFactory()
         self.user1.set_password('testpass123')
         self.user2.set_password('testpass123')
         self.user1.save()
@@ -377,7 +377,7 @@ class TestGameBoardAccessibility:
     
     def test_board_has_aria_labels(self):
         """Test game board includes ARIA labels for accessibility."""
-        self.client.login(username='player1', password='testpass123')
+        self.client.login(username=self.user1.username, password='testpass123')
         
         url = reverse('web:game_detail', kwargs={'game_id': self.game.id})
         response = self.client.get(url, follow=True)
@@ -393,7 +393,7 @@ class TestGameBoardAccessibility:
     
     def test_keyboard_navigation_support(self):
         """Test game board supports keyboard navigation."""
-        self.client.login(username='player1', password='testpass123')
+        self.client.login(username=self.user1.username, password='testpass123')
         
         url = reverse('web:game_detail', kwargs={'game_id': self.game.id})
         response = self.client.get(url, follow=True)
@@ -409,7 +409,7 @@ class TestGameBoardAccessibility:
     
     def test_screen_reader_announcements(self):
         """Test game board includes screen reader support."""
-        self.client.login(username='player1', password='testpass123')
+        self.client.login(username=self.user1.username, password='testpass123')
         
         url = reverse('web:game_detail', kwargs={'game_id': self.game.id})
         response = self.client.get(url, follow=True)

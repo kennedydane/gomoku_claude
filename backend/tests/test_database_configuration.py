@@ -5,7 +5,7 @@ Following TDD principles - these tests should pass after configuration is update
 
 import pytest
 import os
-from django.test import TestCase, override_settings
+from django.test import override_settings
 from django.core.management import execute_from_command_line
 from django.db import connection
 from django.conf import settings
@@ -97,7 +97,8 @@ class TestDatabaseConfiguration:
                     assert db_config[field] is not None
 
 
-class TestDatabaseMigrations(TestCase):
+@pytest.mark.django_db
+class TestDatabaseMigrations:
     """Test that database migrations work with both database types."""
     
     def test_migrations_can_be_applied(self):

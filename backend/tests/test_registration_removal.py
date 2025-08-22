@@ -85,14 +85,17 @@ class TestRegistrationRemoval:
     def test_login_still_works(self, client, django_user_model):
         """Test that login functionality remains intact after registration removal."""
         # Create a user directly (simulating admin creation)
+        from faker import Faker
+        fake = Faker()
+        test_username = fake.user_name()
         user = django_user_model.objects.create_user(
-            username='testuser',
+            username=test_username,
             password='testpass123'
         )
         
         # Test login still works
         response = client.post('/login/', {
-            'username': 'testuser',
+            'username': test_username,
             'password': 'testpass123'
         })
         

@@ -53,7 +53,6 @@ class TestWebFoundation:
         url_names = [
             'web:home',
             'web:login', 
-            'web:register',
             'web:dashboard',
         ]
         
@@ -73,7 +72,7 @@ class TestAuthenticationViews:
     def setup_method(self):
         """Set up test data."""
         self.client = Client()
-        self.user = UserFactory(username='testuser')
+        self.user = UserFactory()
         self.user.set_password('testpass123')
         self.user.save()
     
@@ -87,7 +86,7 @@ class TestAuthenticationViews:
     def test_login_post_valid_credentials(self):
         """Test login with valid credentials redirects to dashboard."""
         response = self.client.post(reverse('web:login'), {
-            'username': 'testuser',
+            'username': self.user.username,
             'password': 'testpass123'
         })
         # Should redirect to dashboard after successful login
@@ -97,18 +96,22 @@ class TestAuthenticationViews:
     def test_login_post_invalid_credentials(self):
         """Test login with invalid credentials shows error."""
         response = self.client.post(reverse('web:login'), {
-            'username': 'testuser',
+            'username': self.user.username,
             'password': 'wrongpass'
         })
         assert response.status_code == 200
         # Should render login page again, not redirect
         assert b'login' in response.content.lower()
     
-    def test_register_page_renders(self):
-        """Test register page renders with form."""
-        response = self.client.get(reverse('web:register'))
-        assert response.status_code == 200
-        assert b'register' in response.content.lower()
+    def test_register_functionality_removed(self):
+        """Test that registration functionality has been removed."""
+        # Registration should not be available
+        try:
+            url = reverse('web:register')
+            pytest.fail("Registration URL should not exist")
+        except Exception:
+            # This is expected - registration was removed
+            pass
     
     def test_logout_redirects_properly(self):
         """Test logout redirects to home."""
