@@ -70,21 +70,25 @@ class GameAdmin(admin.ModelAdmin):
     
     list_display = [
         'id_short', 'black_player', 'white_player', 'status',
-        'current_player', 'move_count', 'winner', 'created_at'
+        'current_player', 'move_count', 'winner', 'ruleset_info', 'created_at'
     ]
-    list_filter = ['status', 'created_at', 'ruleset']
+    list_filter = ['status', 'created_at', 'ruleset_content_type']
     search_fields = [
         'id', 'black_player__username', 'white_player__username',
         'winner__username'
     ]
     readonly_fields = [
         'id', 'created_at', 'updated_at', 'started_at', 'finished_at',
-        'board_preview'
+        'board_preview', 'ruleset_info'
     ]
     
     fieldsets = (
         ('Game Info', {
-            'fields': ('id', 'ruleset', 'status')
+            'fields': ('id', 'status', 'ruleset_info')
+        }),
+        ('Ruleset (Generic FK)', {
+            'fields': ('ruleset_content_type', 'ruleset_object_id'),
+            'classes': ('collapse',)
         }),
         ('Players', {
             'fields': ('black_player', 'white_player', 'current_player', 'winner')
@@ -102,6 +106,15 @@ class GameAdmin(admin.ModelAdmin):
         """Display shortened UUID."""
         return str(obj.id)[:8] + '...'
     id_short.short_description = 'Game ID'
+    
+    def ruleset_info(self, obj):
+        """Display ruleset information."""
+        if obj.ruleset:
+            ruleset = obj.ruleset
+            game_type = ruleset.__class__.__name__.replace('RuleSet', '').upper()
+            return f"{ruleset.name} ({game_type} {ruleset.board_size}×{ruleset.board_size})"
+        return "No ruleset"
+    ruleset_info.short_description = 'Ruleset'
     
     def board_preview(self, obj):
         """Display a simple board preview."""
@@ -239,17 +252,21 @@ class ChallengeAdmin(admin.ModelAdmin):
     
     list_display = [
         'id_short', 'challenger', 'challenged', 'status',
-        'is_expired_now', 'created_at', 'expires_at'
+        'ruleset_info_challenge', 'is_expired_now', 'created_at', 'expires_at'
     ]
-    list_filter = ['status', 'created_at', 'expires_at']
+    list_filter = ['status', 'created_at', 'expires_at', 'ruleset_content_type']
     search_fields = [
         'id', 'challenger__username', 'challenged__username'
     ]
-    readonly_fields = ['id', 'created_at', 'responded_at']
+    readonly_fields = ['id', 'created_at', 'responded_at', 'ruleset_info_challenge']
     
     fieldsets = (
         ('Challenge Info', {
-            'fields': ('id', 'status')
+            'fields': ('id', 'status', 'ruleset_info_challenge')
+        }),
+        ('Ruleset (Generic FK)', {
+            'fields': ('ruleset_content_type', 'ruleset_object_id'),
+            'classes': ('collapse',)
         }),
         ('Players', {
             'fields': ('challenger', 'challenged')
@@ -263,6 +280,15 @@ class ChallengeAdmin(admin.ModelAdmin):
         """Display shortened UUID."""
         return str(obj.id)[:8] + '...'
     id_short.short_description = 'Challenge ID'
+    
+    def ruleset_info_challenge(self, obj):
+        """Display ruleset information for challenge."""
+        if obj.ruleset:
+            ruleset = obj.ruleset
+            game_type = ruleset.__class__.__name__.replace('RuleSet', '').upper()
+            return f"{ruleset.name} ({game_type} {ruleset.board_size}×{ruleset.board_size})"
+        return "No ruleset"
+    ruleset_info_challenge.short_description = 'Ruleset'
     
     def is_expired_now(self, obj):
         """Show if challenge is expired."""
