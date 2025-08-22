@@ -104,9 +104,13 @@
                 Start a new game by challenging a friend, or wait for someone to challenge you!
             </p>
             <div class="d-flex justify-content-center gap-3">
-                <a href="{% url 'web:friends' %}" class="btn btn-primary">
+                <button class="btn btn-primary"
+                        hx-get="{% url 'web:friends_modal' %}"
+                        hx-target="#friends-modal-container"
+                        data-bs-toggle="modal"
+                        data-bs-target="#friends-modal">
                     <i class="bi bi-people"></i> Find Friends to Challenge
-                </a>
+                </button>
             </div>
         </div>
     {% endif %}
