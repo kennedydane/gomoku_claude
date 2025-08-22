@@ -289,8 +289,8 @@ class Game(models.Model):
         if self.ruleset.game_type == GameType.GO:
             board_state.update({
                 'captured_stones': {'black': 0, 'white': 0},
-                'ko_position': None,
-                'consecutive_passes': 0
+                'consecutive_passes': 0,
+                'ko_position': None
             })
         
         self.board_state = board_state
@@ -401,14 +401,8 @@ class GameMove(models.Model):
         unique_together = [
             ['game', 'move_number']
         ]
-        constraints = [
-            models.UniqueConstraint(
-                fields=['game', 'row', 'col'],
-                condition=models.Q(row__gte=0, col__gte=0),
-                name='unique_game_position',
-                violation_error_message="This position is already occupied in this game"
-            )
-        ]
+        # Note: Removed unique constraint on (game, row, col) to allow Go stone re-occupation
+        # after captures. Game validation is handled in application logic via board state.
         indexes = [
             models.Index(fields=['game', 'move_number']),
             models.Index(fields=['player', 'created_at']),

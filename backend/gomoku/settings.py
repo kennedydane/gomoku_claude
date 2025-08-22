@@ -164,6 +164,24 @@ USE_I18N = True
 USE_TZ = True
 
 
+# Cache configuration
+# https://docs.djangoproject.com/en/5.2/topics/cache/
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'gomoku-cache',
+        'TIMEOUT': 300,  # 5 minutes default timeout
+        'OPTIONS': {
+            'MAX_ENTRIES': 1000,  # Maximum cache entries
+            'CULL_FREQUENCY': 3,  # Cull 1/3 of entries when MAX_ENTRIES is reached
+        }
+    }
+}
+
+# Game-specific cache timeouts
+GAME_BOARD_CACHE_TIMEOUT = 600  # 10 minutes for board state reconstruction
+
+
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
