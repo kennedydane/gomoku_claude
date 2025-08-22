@@ -18,6 +18,7 @@ class FriendshipStatus(models.TextChoices):
     PENDING = 'PENDING', 'Pending'
     ACCEPTED = 'ACCEPTED', 'Accepted'
     REJECTED = 'REJECTED', 'Rejected'
+    BLOCKED = 'BLOCKED', 'Blocked'
 
 
 class FriendshipManager(models.Manager):
@@ -55,6 +56,36 @@ class FriendshipManager(models.Manager):
             models.Q(requester=user2, addressee=user1),
             status=FriendshipStatus.ACCEPTED
         ).exists()
+    
+    def get_blocked_users(self, user: 'AbstractUser'):
+        """Get all friendships where this user has blocked someone (they are the addressee and status is BLOCKED)."""
+        return self.filter(
+            addressee=user,
+            status=FriendshipStatus.BLOCKED
+        ).select_related('requester', 'addressee')
+    
+    def is_blocked(self, requester: 'AbstractUser', addressee: 'AbstractUser') -> bool:
+        """Check if requester has been blocked by addressee."""
+        return self.filter(
+            requester=requester,
+            addressee=addressee,
+            status=FriendshipStatus.BLOCKED
+        ).exists()
+    
+    def can_send_request(self, requester: 'AbstractUser', addressee: 'AbstractUser') -> bool:
+        """Check if requester can send a friend request to addressee."""
+        # Can't send request if already blocked
+        if self.is_blocked(requester, addressee):
+            return False
+        
+        # Can't send request if there's already a pending request
+        existing = self.filter(
+            requester=requester,
+            addressee=addressee,
+            status=FriendshipStatus.PENDING
+        ).exists()
+        
+        return not existing
 
 
 class Friendship(models.Model):

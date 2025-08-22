@@ -4,7 +4,7 @@ from django.views.generic import TemplateView, RedirectView
 from django.contrib.auth.views import LoginView, LogoutView
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth import login
-from django.urls import reverse_lazy
+from django.urls import reverse_lazy, reverse
 from django.views import View
 from django.db.models import Q
 from django.http import JsonResponse, HttpResponse
@@ -64,14 +64,15 @@ class UserGamesMixin:
         return Q(black_player=user) | Q(white_player=user)
 
 
-class HomeView(TemplateView):
-    """Home page view."""
-    template_name = 'web/home.html'
+class RootRedirectView(RedirectView):
+    """Smart root redirect: dashboard for authenticated users, login for anonymous."""
+    permanent = False  # Use temporary redirect (302)
     
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['title'] = 'Gomoku'
-        return context
+    def get_redirect_url(self, *args, **kwargs):
+        if self.request.user.is_authenticated:
+            return reverse('web:dashboard')
+        else:
+            return reverse('web:login')
 
 
 class WebLoginView(LoginView):
@@ -91,14 +92,14 @@ class WebLogoutView(View):
         if request.user.is_authenticated:
             from django.contrib.auth import logout
             logout(request)
-        return redirect('web:home')
+        return redirect('web:root')
     
     def post(self, request):
         """Handle POST logout."""
         if request.user.is_authenticated:
             from django.contrib.auth import logout
             logout(request)
-        return redirect('web:home')
+        return redirect('web:root')
 
 
 
@@ -200,35 +201,6 @@ class DashboardView(LoginRequiredMixin, UserGamesMixin, TemplateView):
         return super().get(request, *args, **kwargs)
 
 
-class GamesView(LoginRequiredMixin, UserGamesMixin, TemplateView):
-    """List user's games."""
-    template_name = 'web/games.html'
-    login_url = 'web:login'
-    
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        user = self.request.user
-        
-        # Use mixin and optimize queries
-        user_games_query = self.get_user_games_query(user)
-        from django.db.models import Case, When, Value, IntegerField
-        
-        user_games = Game.objects.select_related(
-            'black_player', 'white_player', 'winner'
-        ).prefetch_related('ruleset').filter(user_games_query).order_by(
-            # Active games first, then by most recent
-            Case(
-                When(status=GameStatus.ACTIVE, then=Value(0)),
-                When(status=GameStatus.WAITING, then=Value(1)),
-                When(status=GameStatus.FINISHED, then=Value(2)),
-                When(status=GameStatus.ABANDONED, then=Value(3)),
-                output_field=IntegerField(),
-            ),
-            '-created_at'
-        )
-        
-        context['games'] = user_games
-        return context
 
 
 class GameDetailRedirectView(LoginRequiredMixin, RedirectView):
@@ -401,40 +373,48 @@ class FriendAPIViewMixin:
     
 
 
-class SendFriendRequestView(FriendAPIViewMixin, LoginRequiredMixin, View):
+class SendFriendRequestView(LoginRequiredMixin, View):
     """Send a friend request to another user."""
     login_url = 'web:login'
     
-    def handle_error_response(self, request, message, status=400):
-        """Handle error response for both HTMX and JSON requests."""
-        if request.headers.get('HX-Request'):
-            return render(request, 'web/partials/friend_request_result.html', {
-                'error': message
-            }, status=status)
-        return self.json_error(message, status)
+    def get_user_or_404(self, username):
+        """Get user by username or return None."""
+        try:
+            return User.objects.get(username=username)
+        except User.DoesNotExist:
+            return None
 
     def post(self, request):
         username = request.POST.get('username')
         if not username:
-            return self.handle_error_response(request, 'Username is required', 400)
+            return render(request, 'web/partials/friend_request_result.html', {
+                'error': 'Username is required'
+            }, status=400)
         
         # Check if trying to befriend self
         if username == request.user.username:
-            return self.handle_error_response(request, 'Cannot send friend request to yourself', 400)
+            return render(request, 'web/partials/friend_request_result.html', {
+                'error': 'Cannot send friend request to yourself'
+            }, status=400)
         
         # Check if user exists
         addressee = self.get_user_or_404(username)
         if not addressee:
-            return self.handle_error_response(request, 'User not found', 404)
+            return render(request, 'web/partials/friend_request_result.html', {
+                'error': 'User not found'
+            }, status=404)
         
-        # Check if friendship already exists
-        existing = Friendship.objects.filter(
-            Q(requester=request.user, addressee=addressee) |
-            Q(requester=addressee, addressee=request.user)
-        ).first()
+        # Check if blocked
+        if Friendship.objects.is_blocked(request.user, addressee):
+            return render(request, 'web/partials/friend_request_result.html', {
+                'error': 'You have been blocked by this user'
+            }, status=403)
         
-        if existing:
-            return self.handle_error_response(request, 'Friend request already exists', 400)
+        # Check if can send request (handles existing friendship and pending requests)
+        if not Friendship.objects.can_send_request(request.user, addressee):
+            return render(request, 'web/partials/friend_request_result.html', {
+                'error': 'Cannot send friend request at this time'
+            }, status=400)
         
         # Create friendship
         try:
@@ -443,143 +423,98 @@ class SendFriendRequestView(FriendAPIViewMixin, LoginRequiredMixin, View):
                 addressee=addressee
             )
             
-            # Handle HTMX requests
-            if request.headers.get('HX-Request'):
-                return render(request, 'web/partials/friend_request_result.html', {
-                    'success': True,
-                    'message': f'Friend request sent to {username}!',
-                    'username': username
-                })
+            return render(request, 'web/partials/friend_request_result.html', {
+                'success': True,
+                'message': f'Friend request sent to {username}!',
+                'username': username
+            })
             
-            # Handle JSON API requests
-            return self.json_response({
-                'message': 'Friend request sent',
-                'friendship_id': friendship.id
-            }, 201)
         except ValidationError as e:
-            return self.handle_error_response(request, str(e), 400)
+            return render(request, 'web/partials/friend_request_result.html', {
+                'error': str(e)
+            }, status=400)
 
 
-class RespondFriendRequestView(FriendAPIViewMixin, LoginRequiredMixin, View):
-    """Respond to a friend request (accept/reject)."""
+class RespondFriendRequestView(LoginRequiredMixin, View):
+    """Respond to a friend request (accept/reject/block)."""
     login_url = 'web:login'
-    
-    def handle_error_response(self, request, message, status=400):
-        """Handle error response for both HTMX and JSON requests."""
-        if request.headers.get('HX-Request'):
-            return render(request, 'web/partials/friend_request_error.html', {
-                'error': message
-            }, status=status)
-        return self.json_error(message, status)
     
     def post(self, request, friendship_id):
         action = request.POST.get('action')
-        if action not in ['accept', 'reject']:
-            return self.handle_error_response(request, 'Invalid action', 400)
+        if action not in ['accept', 'reject', 'block']:
+            return render(request, 'web/partials/friend_request_error.html', {
+                'error': 'Invalid action'
+            }, status=400)
         
         try:
             friendship = Friendship.objects.get(id=friendship_id)
         except Friendship.DoesNotExist:
-            return self.handle_error_response(request, 'Friend request not found', 404)
+            return render(request, 'web/partials/friend_request_error.html', {
+                'error': 'Friend request not found'
+            }, status=404)
         
         # Check if user is the addressee
         if friendship.addressee != request.user:
-            return self.handle_error_response(request, 'Access denied', 403)
+            return render(request, 'web/partials/friend_request_error.html', {
+                'error': 'Access denied'
+            }, status=403)
         
         # Check if status is pending
         if friendship.status != FriendshipStatus.PENDING:
-            return self.handle_error_response(request, 'Friend request is no longer pending', 400)
+            return render(request, 'web/partials/friend_request_error.html', {
+                'error': 'Friend request is no longer pending'
+            }, status=400)
         
         # Update status
         if action == 'accept':
             friendship.status = FriendshipStatus.ACCEPTED
-        else:
+        elif action == 'reject':
             friendship.status = FriendshipStatus.REJECTED
+        elif action == 'block':
+            friendship.status = FriendshipStatus.BLOCKED
         
         friendship.save()
         
-        # Handle HTMX requests - return updated pending requests section
-        if request.headers.get('HX-Request'):
-            # Get updated pending requests for current user
-            pending_requests = Friendship.objects.get_pending_requests(request.user)
-            return render(request, 'web/partials/pending_requests.html', {
-                'pending_requests': pending_requests
-            })
-        
-        # Handle JSON API requests
-        return self.json_response({
-            'message': f'Friend request {action}ed',
-            'status': friendship.status
+        # Return updated pending requests section
+        pending_requests = Friendship.objects.get_pending_requests(request.user)
+        return render(request, 'web/partials/pending_requests.html', {
+            'pending_requests': pending_requests
         })
 
 
-class FriendsListView(FriendAPIViewMixin, LoginRequiredMixin, View):
-    """Get user's friends list."""
+
+class PendingRequestsView(LoginRequiredMixin, View):
+    """Get user's pending friend requests as HTML for modal."""
     login_url = 'web:login'
     
     def get(self, request):
-        friends = Friendship.objects.get_friends(request.user)
-        friends_data = [{'username': friend.username} for friend in friends]
-        return self.json_response(friends_data)
+        pending_requests = Friendship.objects.get_pending_requests(request.user)
+        return render(request, 'web/partials/pending_requests.html', {
+            'pending_requests': pending_requests
+        })
 
 
-class PendingRequestsView(FriendAPIViewMixin, LoginRequiredMixin, View):
-    """Get user's pending friend requests."""
-    login_url = 'web:login'
-    
-    def get(self, request):
-        pending = Friendship.objects.get_pending_requests(request.user)
-        requests_data = [{
-            'id': req.id,
-            'requester': {'username': req.requester.username},
-            'created_at': req.created_at.isoformat()
-        } for req in pending]
-        return self.json_response(requests_data)
-
-
-class SearchUsersView(FriendAPIViewMixin, LoginRequiredMixin, View):
+class SearchUsersView(LoginRequiredMixin, View):
     """Search for users to befriend."""
     login_url = 'web:login'
     
     def get(self, request):
         query = request.GET.get('q', '').strip()
         if not query:
-            if request.headers.get('HX-Request'):
-                return render(request, 'web/partials/search_results.html', {'users': []})
-            return self.json_response([])
+            return render(request, 'web/partials/search_results.html', {'users': []})
         
         # Search users by username (excluding self)
         users = User.objects.filter(
             username__icontains=query
         ).exclude(id=request.user.id)[:10]
         
-        # Return HTMX template for HTMX requests
-        if request.headers.get('HX-Request'):
-            return render(request, 'web/partials/search_results.html', {'users': users})
-        
-        # Return JSON for API requests
-        users_data = [{'username': user.username} for user in users]
-        return self.json_response(users_data)
-
-
-class FriendsPageView(LoginRequiredMixin, TemplateView):
-    """Web page for friends management."""
-    template_name = 'web/friends.html'
-    login_url = 'web:login'
+        return render(request, 'web/partials/search_results.html', {'users': users})
     
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        user = self.request.user
-        
-        # Get friends and pending requests
-        friends = Friendship.objects.get_friends(user)
-        pending_requests = Friendship.objects.get_pending_requests(user)
-        
-        context.update({
-            'friends': friends,
-            'pending_requests': pending_requests,
-        })
-        return context
+    def post(self, request):
+        # Handle search form submission (same as GET)
+        return self.get(request)
+
+
 
 
 class FriendsModalView(LoginRequiredMixin, TemplateView):
@@ -734,18 +669,32 @@ class ChallengeFriendView(FriendAPIViewMixin, LoginRequiredMixin, View):
         
         logger.info(f"✅ Friendship check passed")
         
-        # Check if ruleset exists (check both Gomoku and Go rulesets)
-        ruleset = None
+        # Parse ruleset_id which now includes game type prefix (e.g., "gomoku_3" or "go_3")
         try:
-            ruleset = GomokuRuleSet.objects.get(id=ruleset_id)
-            logger.info(f"✅ Gomoku Ruleset found: {ruleset.name} (ID: {ruleset.id})")
-        except GomokuRuleSet.DoesNotExist:
-            try:
-                ruleset = GoRuleSet.objects.get(id=ruleset_id)
+            if '_' not in ruleset_id:
+                logger.warning(f"❌ Invalid ruleset format: {ruleset_id}")
+                return self.handle_error_response(request, 'Invalid ruleset format', 400)
+            
+            game_type_str, actual_id = ruleset_id.split('_', 1)
+            actual_id = int(actual_id)
+            
+            logger.info(f"🎯 Parsed ruleset: type='{game_type_str}', id={actual_id}")
+            
+            # Get the appropriate ruleset based on the game type
+            ruleset = None
+            if game_type_str == 'gomoku':
+                ruleset = GomokuRuleSet.objects.get(id=actual_id)
+                logger.info(f"✅ Gomoku Ruleset found: {ruleset.name} (ID: {ruleset.id})")
+            elif game_type_str == 'go':
+                ruleset = GoRuleSet.objects.get(id=actual_id)
                 logger.info(f"✅ Go Ruleset found: {ruleset.name} (ID: {ruleset.id})")
-            except GoRuleSet.DoesNotExist:
-                logger.warning(f"❌ Invalid ruleset ID: {ruleset_id}")
-                return self.handle_error_response(request, 'Invalid ruleset', 400)
+            else:
+                logger.warning(f"❌ Unknown game type: {game_type_str}")
+                return self.handle_error_response(request, f'Unknown game type: {game_type_str}', 400)
+                
+        except (ValueError, GomokuRuleSet.DoesNotExist, GoRuleSet.DoesNotExist) as e:
+            logger.warning(f"❌ Ruleset lookup failed: {ruleset_id} - {e}")
+            return self.handle_error_response(request, 'Invalid ruleset', 400)
         
         # Check for existing pending challenge
         existing = Challenge.objects.filter(
@@ -764,13 +713,19 @@ class ChallengeFriendView(FriendAPIViewMixin, LoginRequiredMixin, View):
         try:
             logger.info(f"🎯 Creating challenge: {request.user.username} -> {challenged_user.username}")
             
+            # Properly set Generic Foreign Key fields for the challenge
+            from django.contrib.contenttypes.models import ContentType
+            content_type = ContentType.objects.get_for_model(ruleset)
+            
             challenge = Challenge.objects.create(
                 challenger=request.user,
                 challenged=challenged_user,
-                ruleset=ruleset
+                ruleset_content_type=content_type,
+                ruleset_object_id=ruleset.id
             )
             
             logger.info(f"✅ Challenge created successfully: {challenge.id}")
+            logger.info(f"🎯 Challenge ruleset: {challenge.ruleset.name} ({challenge.ruleset.__class__.__name__})")
             
             # Send real-time updates to both users using centralized service
             try:
@@ -915,14 +870,26 @@ class RespondChallengeView(FriendAPIViewMixin, LoginRequiredMixin, View):
                     black_player = challenge.challenged
                     white_player = challenge.challenger
                 
+                # Properly set Generic Foreign Key fields for the game
+                from django.contrib.contenttypes.models import ContentType
+                challenge_ruleset = challenge.ruleset  # Get the ruleset object
+                content_type = ContentType.objects.get_for_model(challenge_ruleset)
+                
                 game = Game.objects.create(
                     black_player=black_player,
                     white_player=white_player,
-                    ruleset=challenge.ruleset,
+                    ruleset_content_type=content_type,
+                    ruleset_object_id=challenge_ruleset.id,
                     status=GameStatus.ACTIVE
                 )
                 game.initialize_board()
                 game.save()
+                
+                # Debug logging for game creation
+                logger.info(f"✅ Game created successfully: {game.id}")
+                logger.info(f"🎯 Game ruleset: {game.ruleset.name} ({game.ruleset.__class__.__name__})")
+                logger.info(f"🎯 Game board size: {game.ruleset.board_size}x{game.ruleset.board_size}")
+                logger.info(f"🎯 Game type: {game.ruleset.game_type}")
                 
                 # Send real-time updates to both users using centralized service
                 try:
@@ -1152,3 +1119,48 @@ class GameResignView(FriendAPIViewMixin, LoginRequiredMixin, View):
                     'error': f'An error occurred: {str(e)}'
                 }, status=500)
             return self.json_error(f'An error occurred: {str(e)}', 500)
+
+
+class BlockedUsersView(LoginRequiredMixin, View):
+    """Get user's blocked users list as HTML for modal."""
+    login_url = 'web:login'
+    
+    def get(self, request):
+        blocked_users = Friendship.objects.get_blocked_users(request.user)
+        return render(request, 'web/partials/blocked_users.html', {
+            'blocked_users': blocked_users
+        })
+
+
+class UnblockUserView(LoginRequiredMixin, View):
+    """Unblock a user."""
+    login_url = 'web:login'
+    
+    def post(self, request, friendship_id):
+        try:
+            friendship = Friendship.objects.get(id=friendship_id)
+        except Friendship.DoesNotExist:
+            return render(request, 'web/partials/friend_request_error.html', {
+                'error': 'Blocked relationship not found'
+            }, status=404)
+        
+        # Check if user is the addressee (the one who blocked)
+        if friendship.addressee != request.user:
+            return render(request, 'web/partials/friend_request_error.html', {
+                'error': 'Access denied'
+            }, status=403)
+        
+        # Check if status is blocked
+        if friendship.status != FriendshipStatus.BLOCKED:
+            return render(request, 'web/partials/friend_request_error.html', {
+                'error': 'User is not blocked'
+            }, status=400)
+        
+        # Remove the blocked relationship completely
+        friendship.delete()
+        
+        # Return updated blocked users section
+        blocked_users = Friendship.objects.get_blocked_users(request.user)
+        return render(request, 'web/partials/blocked_users.html', {
+            'blocked_users': blocked_users
+        })

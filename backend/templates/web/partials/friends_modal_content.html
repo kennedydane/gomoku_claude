@@ -123,7 +123,7 @@
     <!-- Pending Friend Requests -->
     <div class="row">
         <div class="col-12">
-            <div class="card">
+            <div class="card mb-4">
                 <div class="card-header">
                     <h6 class="mb-0">
                         <i class="bi bi-clock me-2"></i>Pending Requests
@@ -140,6 +140,32 @@
                             <span class="visually-hidden">Loading...</span>
                         </div>
                         <small class="text-muted d-block mt-1">Loading pending requests...</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Blocked Users -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="bi bi-ban me-2"></i>Blocked Users
+                    </h6>
+                </div>
+                <div class="card-body p-0" 
+                     hx-get="{% url 'web:blocked_users' %}" 
+                     hx-trigger="load"
+                     hx-swap="innerHTML"
+                     id="blocked-users-container">
+                    <!-- Blocked users loaded via HTMX -->
+                    <div class="text-center py-3">
+                        <div class="spinner-border spinner-border-sm text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <small class="text-muted d-block mt-1">Loading blocked users...</small>
                     </div>
                 </div>
             </div>

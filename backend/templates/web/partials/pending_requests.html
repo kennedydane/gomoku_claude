@@ -1,36 +1,64 @@
-<!-- Pending Requests Card Content -->
-<div class="card" id="pending-requests">
-    <div class="card-body">
-        <h5 class="card-title">Pending Requests ({{ pending_requests.count }})</h5>
-        {% if pending_requests %}
-            <div class="list-group list-group-flush">
-                {% for request in pending_requests %}
-                    <div class="list-group-item">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <span>{{ request.requester.username }}</span>
-                            <div>
-                                <button class="btn btn-sm btn-success me-2" 
-                                        hx-post="{% url 'web:respond_friend_request' friendship_id=request.id %}"
-                                        hx-vals='{"action": "accept"}'
-                                        hx-target="#pending-requests"
-                                        hx-swap="outerHTML">
-                                    Accept
-                                </button>
-                                <button class="btn btn-sm btn-danger" 
-                                        hx-post="{% url 'web:respond_friend_request' friendship_id=request.id %}"
-                                        hx-vals='{"action": "reject"}'
-                                        hx-target="#pending-requests"
-                                        hx-swap="outerHTML">
-                                    Reject
-                                </button>
-                            </div>
+<!-- Enhanced Pending Requests Content -->
+{% if pending_requests %}
+    <div class="list-group list-group-flush" id="pending-requests">
+        {% for request in pending_requests %}
+            <div class="list-group-item">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                        <!-- User Avatar -->
+                        <div class="rounded-circle bg-warning text-white d-flex align-items-center justify-content-center me-3" 
+                             style="width: 40px; height: 40px;">
+                            {{ request.requester.username|first|upper }}
                         </div>
-                        <small class="text-muted">Sent {{ request.created_at|timesince }} ago</small>
+                        
+                        <div>
+                            <div class="fw-semibold">{{ request.requester.username }}</div>
+                            <small class="text-muted">
+                                <i class="bi bi-clock me-1"></i>Sent {{ request.created_at|timesince }} ago
+                            </small>
+                        </div>
                     </div>
-                {% endfor %}
+                    
+                    <div class="d-flex gap-2">
+                        <!-- Accept Button -->
+                        <button class="btn btn-sm btn-success" 
+                                hx-post="{% url 'web:respond_friend_request' friendship_id=request.id %}"
+                                hx-vals='{"action": "accept"}'
+                                hx-target="#pending-requests-container"
+                                hx-swap="innerHTML"
+                                title="Accept friend request">
+                            <i class="bi bi-check-lg me-1"></i>Accept
+                        </button>
+                        
+                        <!-- Reject Button -->
+                        <button class="btn btn-sm btn-outline-secondary" 
+                                hx-post="{% url 'web:respond_friend_request' friendship_id=request.id %}"
+                                hx-vals='{"action": "reject"}'
+                                hx-target="#pending-requests-container"
+                                hx-swap="innerHTML"
+                                title="Reject friend request">
+                            <i class="bi bi-x-lg me-1"></i>Reject
+                        </button>
+                        
+                        <!-- Block Button -->
+                        <button class="btn btn-sm btn-danger" 
+                                hx-post="{% url 'web:respond_friend_request' friendship_id=request.id %}"
+                                hx-vals='{"action": "block"}'
+                                hx-target="#pending-requests-container"
+                                hx-swap="innerHTML"
+                                hx-confirm="Are you sure you want to block {{ request.requester.username }}? This will prevent them from sending future friend requests."
+                                title="Block user and reject request">
+                            <i class="bi bi-ban me-1"></i>Block
+                        </button>
+                    </div>
+                </div>
             </div>
-        {% else %}
-            <p class="text-muted">No pending requests.</p>
-        {% endif %}
+        {% endfor %}
     </div>
-</div>
+{% else %}
+    <div class="text-center py-4" id="pending-requests">
+        <i class="bi bi-clock-history display-6 text-muted mb-3"></i>
+        <h6 class="text-muted">No Pending Requests</h6>
+        <p class="text-muted small">You're all caught up! No friend requests waiting for your response.</p>
+    </div>
+{% endif %}
