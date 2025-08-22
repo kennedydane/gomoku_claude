@@ -8,71 +8,64 @@ The test suite is organized by functionality and scope, with clear separation be
 
 ```
 backend/
-├── tests/                          # Core API and Integration Tests
-│   ├── conftest.py                 # Shared test configurations and fixtures
-│   ├── factories.py                # Test data factories (Factory Boy)
-│   ├── test_auth_endpoints.py      # Authentication API tests
-│   ├── test_challenge_system.py    # Challenge API tests
-│   ├── test_game_crud.py          # Game CRUD API tests
-│   ├── test_move_validation.py     # Move validation and game logic tests
-│   ├── test_rulesets.py           # Ruleset API tests
-│   ├── test_user_management.py     # User management API tests
-│   ├── test_websocket_integration.py # WebSocket integration tests
-│   └── test_websocket_performance.py # WebSocket performance tests
-│
-├── web/                            # Web Interface Tests (TDD)
-│   ├── test_challenge_system.py   # Web challenge interface tests
-│   ├── test_friend_system.py      # Friend system web tests
-│   ├── test_game_board.py         # Interactive game board tests
-│   ├── test_pending_challenges.py  # Challenge notifications tests
-│   ├── test_phase11_panels.py     # Dashboard panels tests
-│   ├── test_phase12_single_view.py # Single view interface tests
-│   ├── test_views.py              # General web view tests
-│   └── test_websocket_consumer.py  # WebSocket consumer tests
-│
-├── users/                          # User App Tests
-│   ├── test_enhanced_auth.py       # Enhanced authentication tests
-│   └── test_models.py             # User model tests
-│
-├── games/                          # Game App Tests
-│   ├── test_models.py             # Game model tests
-│   └── test_services.py           # Game service layer tests
-│
-└── core/                           # Core App Tests
-    └── tests.py                   # Core functionality tests
+└── tests/                          # Centralized Test Directory (pytest-based)
+    ├── conftest.py                 # Shared test configurations and fixtures
+    ├── factories.py                # Test data factories (Factory Boy with Faker)
+    │
+    ├── test_challenge_system.py    # Challenge system integration tests
+    ├── test_dashboard_panels.py    # Dashboard panel functionality tests
+    ├── test_database_configuration.py # Database configuration tests
+    ├── test_embedded_game_dashboard.py # Embedded game dashboard tests
+    ├── test_friend_system.py       # Friend system integration tests
+    ├── test_game_board.py          # Interactive game board tests
+    ├── test_game_services.py       # Game service layer tests
+    ├── test_games_models.py        # Game model tests
+    ├── test_pending_challenges.py   # Challenge notification tests
+    ├── test_registration_removal.py # Registration functionality removal tests
+    ├── test_rulesets.py            # Ruleset validation tests
+    ├── test_services.py            # Core service layer tests
+    ├── test_standardized_rulesets.py # Standardized ruleset tests
+    ├── test_subclassed_rulesets.py  # Multi-game architecture tests
+    ├── test_users_models.py        # User model tests
+    ├── test_web_views.py           # Web interface view tests
+    ├── test_websocket_consumer.py  # WebSocket consumer tests
+    ├── test_websocket_integration.py # WebSocket integration tests
+    └── test_websocket_performance.py # WebSocket performance tests
 ```
 
 ## 🧪 Test Categories
 
-### 1. API Tests (`tests/`)
-**Purpose**: Test REST API endpoints, business logic, and data validation
-- **Authentication**: Token-based auth, user registration, login/logout
-- **Game CRUD**: Game creation, retrieval, updates, validation
-- **Move Validation**: Game mechanics, win detection, turn management
-- **Challenge System**: Player-to-player challenges and responses
-- **User Management**: User profiles, statistics, management
-- **Rulesets**: Game rule configurations and validation
+### 1. Core System Tests
+**Purpose**: Test fundamental game mechanics, models, and business logic
+- **Game Models**: Game creation, board initialization, move validation (`test_games_models.py`)
+- **User Models**: User statistics, authentication, profile management (`test_users_models.py`) 
+- **Game Services**: Win detection, move processing, game state management (`test_game_services.py`)
+- **Service Layer**: Core business logic and domain services (`test_services.py`)
+- **Rulesets**: Multi-game architecture, Gomoku/Go rule validation (`test_rulesets.py`, `test_standardized_rulesets.py`, `test_subclassed_rulesets.py`)
 
-### 2. Web Interface Tests (`web/`)
-**Purpose**: Test Django views, templates, and HTMX interactions
-- **TDD Methodology**: Red-Green-Refactor development cycle
-- **Template Rendering**: HTML generation and context validation
-- **HTMX Integration**: Dynamic updates and partial rendering
-- **Form Handling**: User input validation and error handling
-- **Real-time Features**: WebSocket integration and SSE functionality
+### 2. Web Interface Tests  
+**Purpose**: Test Django views, templates, and user interactions
+- **Web Views**: Dashboard, authentication, game views (`test_web_views.py`)
+- **Game Board**: Interactive board rendering and move handling (`test_game_board.py`)
+- **Dashboard Panels**: Game lists, user statistics, navigation (`test_dashboard_panels.py`)
+- **Embedded Game Dashboard**: Single-view game interface (`test_embedded_game_dashboard.py`)
 
-### 3. WebSocket Tests
-**Purpose**: Test real-time communication infrastructure and centralized notifications
-- **Consumer Tests** (`web/test_websocket_consumer.py`): WebSocket message handling
-- **Integration Tests** (`tests/test_websocket_integration.py`): End-to-end WebSocket functionality
-- **Performance Tests** (`tests/test_websocket_performance.py`): Connection optimization validation
-- **Centralized Service Tests**: WebSocketNotificationService testing for consistent notification patterns
+### 3. Social Features Tests
+**Purpose**: Test player-to-player interactions and challenges
+- **Friend System**: Friend requests, management, social features (`test_friend_system.py`)
+- **Challenge System**: Game challenges, acceptance, notifications (`test_challenge_system.py`)
+- **Pending Challenges**: Challenge notifications and real-time updates (`test_pending_challenges.py`)
 
-### 4. App-Specific Tests
-**Purpose**: Test individual Django app components
-- **Model Tests**: Database models, relationships, validation
-- **Service Tests**: Business logic, domain services
-- **Authentication Tests**: Enhanced token system, security
+### 4. Real-Time Communication Tests
+**Purpose**: Test WebSocket infrastructure and live game updates
+- **WebSocket Consumer**: Message routing, authentication, connection handling (`test_websocket_consumer.py`)
+- **WebSocket Integration**: End-to-end real-time functionality (`test_websocket_integration.py`)
+- **WebSocket Performance**: Connection optimization and scalability (`test_websocket_performance.py`)
+
+### 5. Configuration and System Tests
+**Purpose**: Test system configuration and architectural decisions
+- **Database Configuration**: SQLite/PostgreSQL compatibility (`test_database_configuration.py`)
+- **Registration Removal**: Verification of removed registration functionality (`test_registration_removal.py`)
 
 ## 🎯 Test Execution
 
@@ -83,67 +76,74 @@ uv run python manage.py test
 
 ### Run by Category
 ```bash
-# API and Integration Tests
-uv run python manage.py test tests
+# All pytest-based tests (current structure)
+uv run python -m pytest tests/ -v
 
-# Web Interface Tests  
-uv run python manage.py test web
+# Core system tests
+uv run python -m pytest tests/test_games_models.py tests/test_users_models.py tests/test_game_services.py -v
 
-# WebSocket Tests
-uv run python -m pytest web/test_websocket_consumer.py -v
-uv run python -m pytest tests/test_websocket_integration.py -v
-uv run python -m pytest tests/test_websocket_performance.py -v
+# Web interface tests
+uv run python -m pytest tests/test_web_views.py tests/test_game_board.py tests/test_dashboard_panels.py -v
 
-# App-Specific Tests
-uv run python manage.py test users
-uv run python manage.py test games
-uv run python manage.py test core
+# Social features tests  
+uv run python -m pytest tests/test_friend_system.py tests/test_challenge_system.py -v
+
+# Real-time communication tests
+uv run python -m pytest tests/test_websocket_consumer.py tests/test_websocket_integration.py -v
+
+# Configuration and system tests
+uv run python -m pytest tests/test_database_configuration.py tests/test_registration_removal.py -v
 ```
 
 ### Run Specific Test Files
 ```bash
-# API Tests
-uv run python -m pytest tests/test_challenge_system.py -v
-uv run python -m pytest tests/test_move_validation.py -v
+# Core functionality
+uv run python -m pytest tests/test_games_models.py -v
+uv run python -m pytest tests/test_game_services.py -v
 
-# Web Tests
-uv run python -m pytest web/test_friend_system.py -v
-uv run python -m pytest web/test_game_board.py -v
+# Multi-game architecture
+uv run python -m pytest tests/test_rulesets.py tests/test_standardized_rulesets.py -v
+
+# WebSocket functionality
+uv run python -m pytest tests/test_websocket_consumer.py -v
+uv run python -m pytest tests/test_websocket_integration.py -v
 ```
 
 ## 📊 Test Coverage
 
-### Current Test Metrics
-- **Total Test Files**: 18 files
-- **API Tests**: 8 files (Core REST API functionality)
-- **Web Tests**: 8 files (Django views, HTMX, and centralized services)
-- **WebSocket Tests**: 3 files (Real-time communication and centralized notifications)
-- **App Tests**: 5 files (Individual app components)
+### Current Test Metrics (Updated)
+- **Total Test Files**: 19 files (all in centralized `tests/` directory)
+- **Core System Tests**: 6 files (Models, services, business logic)
+- **Web Interface Tests**: 4 files (Views, dashboard, game board)
+- **Social Features Tests**: 3 files (Friends, challenges, notifications)
+- **WebSocket Tests**: 3 files (Consumer, integration, performance)
+- **System Configuration Tests**: 3 files (Database, registration removal, multi-game architecture)
 
-### Test Distribution
+### Test Distribution (Estimated)
 ```
-API Tests (tests/):           ~170 tests
-Web Interface Tests (web/):   ~140 tests (includes centralized service tests)
-WebSocket Tests:              ~40 tests (includes centralized notification tests)
-App-Specific Tests:           ~50 tests
+Core System Tests:           ~120 tests (Models, services, game logic)
+Web Interface Tests:         ~80 tests (Views, templates, interactions)
+Social Features Tests:       ~60 tests (Friends, challenges)
+WebSocket Tests:             ~40 tests (Real-time communication)
+System Configuration Tests:  ~30 tests (Architecture, configuration)
 ────────────────────────────────────────
-Total:                        ~400 tests
+Total:                       ~330 tests
 ```
 
 ## 🛠️ Test Infrastructure
 
 ### Shared Test Utilities
 - **`tests/conftest.py`**: Pytest fixtures and configurations
-- **`tests/factories.py`**: Factory Boy test data generation
-- **Django Test Framework**: Database transactions and test client
-- **Factory Boy**: Realistic test data generation
-- **Pytest**: Advanced test discovery and execution
+- **`tests/factories.py`**: Factory Boy test data generation with Faker integration
+- **Pytest Framework**: Advanced test discovery, fixtures, and parametrization
+- **Factory Boy + Faker**: Realistic test data generation with dynamic values
+- **Django Test Database**: Isolated test database for each test run
 
 ### Test Data Management
-- **Fixtures**: Reusable test data setups
-- **Factories**: Dynamic test object creation
-- **Database Isolation**: Each test gets clean database state
-- **Mock Objects**: External service simulation
+- **Factories**: Dynamic test object creation using Factory Boy and Faker
+- **Fixtures**: Reusable test data setups via pytest fixtures
+- **Database Isolation**: Each test gets clean database state via Django test framework
+- **Mock Objects**: External service simulation where needed
 
 ### Coverage Reporting
 ```bash
