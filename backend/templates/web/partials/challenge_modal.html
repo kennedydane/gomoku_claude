@@ -40,7 +40,7 @@
             <select class="form-select" id="challenge-ruleset" name="ruleset_id" required>
                 <option value="">Choose game rules...</option>
                 {% for ruleset in rulesets %}
-                    <option value="{{ ruleset.id }}">
+                    <option value="{{ ruleset.game_type|lower }}_{{ ruleset.id }}">
                         {{ ruleset.name }} ({{ ruleset.board_size }}×{{ ruleset.board_size }})
                         {% if ruleset.description %} - {{ ruleset.description }}{% endif %}
                     </option>
