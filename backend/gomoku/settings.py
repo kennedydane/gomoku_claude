@@ -108,16 +108,29 @@ WSGI_APPLICATION = 'gomoku.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': config('DB_NAME', default='gomoku_db'),
-        'USER': config('DB_USER', default='gomoku_user'),
-        'PASSWORD': config('DB_PASSWORD', default='gomoku_password'),
-        'HOST': config('DB_HOST', default='localhost'),
-        'PORT': config('DB_PORT', default='5434'),
+# Use SQLite for development by default, PostgreSQL for production
+USE_SQLITE = config('USE_SQLITE', default=True, cast=bool)
+
+if USE_SQLITE:
+    # SQLite configuration for easy development setup
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
     }
-}
+else:
+    # PostgreSQL configuration for production
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': config('DB_NAME', default='gomoku_db'),
+            'USER': config('DB_USER', default='gomoku_user'),
+            'PASSWORD': config('DB_PASSWORD', default='gomoku_password'),
+            'HOST': config('DB_HOST', default='localhost'),
+            'PORT': config('DB_PORT', default='5434'),
+        }
+    }
 
 
 # Password validation
@@ -195,6 +208,6 @@ CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
 CRISPY_TEMPLATE_PACK = "bootstrap5"
 
 # Login/Logout URLs for web interface
-LOGIN_URL = '/web/login/'
-LOGIN_REDIRECT_URL = '/web/dashboard/'
-LOGOUT_REDIRECT_URL = '/web/'
+LOGIN_URL = '/login/'
+LOGIN_REDIRECT_URL = '/dashboard/'
+LOGOUT_REDIRECT_URL = '/'

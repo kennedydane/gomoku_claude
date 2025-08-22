@@ -13,7 +13,6 @@ from games.models import Game, Challenge, GameStatus, ChallengeStatus, GomokuRul
 from games.game_services import GameServiceFactory
 from core.exceptions import InvalidMoveError, GameStateError, PlayerError
 from users.models import User
-from .forms import CustomUserCreationForm
 from .models import Friendship, FriendshipStatus
 
 try:
@@ -102,22 +101,6 @@ class WebLogoutView(View):
         return redirect('web:home')
 
 
-class RegisterView(View):
-    """User registration view."""
-    template_name = 'web/register.html'
-    form_class = CustomUserCreationForm
-    
-    def get(self, request):
-        form = self.form_class()
-        return render(request, self.template_name, {'form': form})
-    
-    def post(self, request):
-        form = self.form_class(request.POST)
-        if form.is_valid():
-            user = form.save()
-            login(request, user)
-            return redirect('web:dashboard')
-        return render(request, self.template_name, {'form': form})
 
 
 class DashboardView(LoginRequiredMixin, UserGamesMixin, TemplateView):

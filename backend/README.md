@@ -1,6 +1,6 @@
-# Gomoku Game - Full Stack Django Application
+# Go Goban Go - Multi-Game Web Application
 
-A complete multi-game system (Gomoku and Go) with Django web application and responsive interface.
+A complete multi-game system supporting both Gomoku and Go with a modern Django web application and real-time multiplayer features.
 
 ## Features
 
@@ -13,8 +13,8 @@ A complete multi-game system (Gomoku and Go) with Django web application and res
 - **Friend System**: Add friends, send/accept friend requests with real-time notifications
 
 ### **🔐 Authentication & Security**
-- **Web Authentication**: Django sessions with login/logout
-- **User Registration**: Full web-based registration with validation
+- **Web Authentication**: Django sessions with secure login/logout
+- **Manual User Management**: Admin-created users (registration removed for security)
 - **Session Management**: Secure session handling and CSRF protection
 - **CSRF Protection**: Built-in CSRF protection for all forms
 - **Input Validation**: Comprehensive validation across all endpoints
@@ -28,10 +28,10 @@ A complete multi-game system (Gomoku and Go) with Django web application and res
 
 ### **Backend**
 - Django 5.2 with ASGI (Daphne)
-- Django REST Framework
-- PostgreSQL with optimized queries
+- SQLite (development) / PostgreSQL (production)
+- Real-time WebSocket support
 - Django-eventstream for SSE
-- Comprehensive test suite (226 tests, 86% coverage)
+- Comprehensive test suite with pytest
 
 ### **Frontend** 
 - HTMX for dynamic interactions
@@ -39,37 +39,79 @@ A complete multi-game system (Gomoku and Go) with Django web application and res
 - CSS Grid for game board
 - Server-Sent Events for real-time updates
 
-## Setup
+## Quick Start 🚀
+
+Get up and running in under 2 minutes!
 
 1. **Install dependencies:**
    ```bash
    uv sync
    ```
 
-2. **Start PostgreSQL (Docker):**
+2. **Setup database and create admin user:**
    ```bash
-   docker compose up postgres -d
-   ```
-
-3. **Run migrations:**
-   ```bash
+   # Run migrations (creates SQLite database automatically)
    uv run python manage.py migrate
-   ```
-
-4. **Create admin user:**
-   ```bash
+   
+   # Load game rulesets (Gomoku and Go variants)
+   uv run python manage.py create_initial_rulesets
+   
+   # Create admin user (interactive)
    uv run python manage.py createsuperuser
+   
+   # Or create regular users
+   uv run python manage.py createuser --username player1 --email player1@example.com
    ```
 
-5. **Collect static files:**
-   ```bash
-   uv run python manage.py collectstatic --noinput
-   ```
-
-6. **Start ASGI server (required for SSE):**
+3. **Start the server:**
    ```bash
    uv run daphne -p 8001 gomoku.asgi:application
    ```
+
+4. **Open your browser:**
+   Visit **http://localhost:8001/** and login!
+
+That's it! The SQLite database (`db.sqlite3`) will be created automatically with all necessary tables and game rulesets.
+
+## User Management
+
+Since public registration has been removed for security, users are created via management commands:
+
+### Create Admin User (Superuser)
+```bash
+# Interactive creation
+uv run python manage.py createsuperuser
+
+# Non-interactive (for scripts)
+uv run python manage.py createsuperuser --username admin --email admin@example.com --noinput
+```
+
+### Create Regular Users
+```bash
+# Interactive creation
+uv run python manage.py createuser
+
+# Non-interactive with details
+uv run python manage.py createuser --username player1 --email player1@example.com --noinput
+
+# Interactive with username only
+uv run python manage.py createuser --username player2
+```
+
+**Note**: Users created with `--noinput` will need passwords set manually via the admin interface or Django shell.
+
+## Production Setup (PostgreSQL)
+
+For production deployment, set environment variables:
+
+```bash
+export USE_SQLITE=False
+export DB_NAME=your_production_db
+export DB_USER=your_user
+export DB_PASSWORD=your_password
+export DB_HOST=your_host
+export DB_PORT=5432
+```
 
 ## Web Interface
 
@@ -81,17 +123,16 @@ Access the complete web interface at: **http://localhost:8001/**
 - **Games**: Table view of all games with quick access links
 
 ### **Web Authentication**
-- Register new account or login with existing credentials
+- Login with admin-created credentials (no public registration)
 - Session-based authentication for web interface
-- Token-based authentication for API access
+- Users created via management commands for security
 
 ## API Endpoints
 
-### Enhanced Authentication
-- `POST /api/v1/auth/token/` - Get enhanced authentication token (with device tracking)
+### Authentication
+- `POST /api/v1/auth/token/` - Get authentication token (with device tracking)
 - `POST /api/v1/auth/token/refresh/` - Refresh authentication token
-- `POST /api/v1/auth/register/` - Register new user account
-- `POST /api/v1/auth/token/legacy/` - Legacy token authentication (fallback)
+- Note: User accounts created via management commands only
 
 ### Games
 - `GET /api/v1/games/` - List games
@@ -130,20 +171,6 @@ curl -H "Authorization: Token YOUR_TOKEN_HERE" http://localhost:8001/api/v1/game
 - **Multiple Tokens**: Users can have multiple active tokens for different devices
 
 ### **API Examples**
-
-**User Registration:**
-```bash
-curl -X POST http://localhost:8001/api/v1/auth/register/ \
-  -H "Content-Type: application/json" \
-  -d '{
-    "username": "newuser",
-    "email": "user@example.com",
-    "password": "securepass123",
-    "display_name": "New User",
-    "device_name": "Mobile App",
-    "device_info": {"os": "iOS", "version": "15.0"}
-  }'
-```
 
 **Token Obtain:**
 ```bash
@@ -255,10 +282,10 @@ web/
 - **SSE Endpoint**: http://localhost:8001/api/v1/events/
 
 ### **Development Stack** 
-- **ASGI Server**: Daphne (required for SSE)
-- **Database**: PostgreSQL on localhost:5434
-- **Frontend**: HTMX + Bootstrap 5 + SSE
-- **Testing**: pytest framework with 226 tests (86% coverage)
+- **ASGI Server**: Daphne (required for real-time features)
+- **Database**: SQLite (development) / PostgreSQL (production)
+- **Frontend**: HTMX + Bootstrap 5 + WebSockets
+- **Testing**: pytest framework with comprehensive coverage
 
 ## Security Features
 
