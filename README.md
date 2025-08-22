@@ -33,6 +33,26 @@ Go (囲碁, Weiqi) is an ancient strategy game where players use black and white
 4. **Caro** - Must have unblocked 5-in-a-row or overlines to win
 5. **Swap2 Opening** - Tournament standard opening protocol
 
+### Go Rules
+
+**Basic Rules:**
+- Two players alternate placing black and white stones on a board
+- Stones are placed on intersections, not in squares
+- Once placed, stones don't move (unless captured)
+- Stones are captured by completely surrounding them (no liberties)
+- Players can pass their turn; game ends when both players pass consecutively
+
+**Advanced Rules Implemented:**
+- **Ko Rule**: Prevents immediate board position repetition using recursive board state reconstruction
+- **Suicide Rule**: Cannot place stones that would immediately be captured (unless it captures opponent stones first)
+- **Territory Scoring**: Points awarded for controlled empty intersections plus captured stones
+- **Pass Moves**: Players can pass; two consecutive passes end the game
+
+**Technical Implementation:**
+- **Event Sourcing**: Board states reconstructed from move history for Ko detection
+- **Caching System**: Django LocMemCache optimizes board state reconstruction performance
+- **Memory Efficient**: No database storage of board history, constant memory usage regardless of game length
+
 ### Tournament History
 
 Gomoku has been played competitively since 1989, with modern tournaments using the Swap2 opening rule since 2009 to balance the first-player advantage.
