@@ -40,9 +40,12 @@
             </div>
             
             <!-- Current Turn or Game Result -->
+            {% include 'web/partials/game_display.html' %}
+            
+            <!-- Current Turn Display -->
             <div class="game-status-info text-center" 
                  id="game-turn-display">
-                {% include 'web/partials/game_turn_display.html' with game=selected_game user=user %}
+                {% include 'web/partials/game_turn_display.html' %}
             </div>
         </div>
         
@@ -75,18 +78,7 @@
         <!-- Game Actions (minimal) -->
         <div class="card-footer py-2">
             <div class="d-flex justify-content-between align-items-center">
-                <div class="game-actions">
-                    {% if selected_game.status == 'ACTIVE' %}
-                        <button class="btn btn-outline-danger btn-sm" 
-                                hx-post="{% url 'web:game_resign' selected_game.id %}"
-                                hx-confirm="Are you sure you want to resign this game?"
-                                hx-swap="none"
-                                hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-                                hx-indicator="#board-loading">
-                            <i class="bi bi-flag"></i> Resign
-                        </button>
-                    {% endif %}
-                </div>
+                {% include 'web/partials/game_actions.html' %}
                 
                 <div class="view-actions">
                     <!-- Full view is no longer needed since dashboard is the primary interface -->
@@ -221,6 +213,83 @@
 .dashboard-game-panel .htmx-request .game-board-container {
     opacity: 0.6;
     pointer-events: none;
+}
+
+/* Go-specific styling */
+.go-game-info {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-radius: 8px;
+    padding: 0.75rem;
+    margin: 0.5rem 0;
+}
+
+.captured-stones-display h6 {
+    color: #495057;
+    font-size: 0.85rem;
+    margin-bottom: 0.5rem;
+}
+
+.capture-count {
+    flex: 1;
+    padding: 0.25rem;
+}
+
+.capture-count .stone-black {
+    background: radial-gradient(circle at 30% 30%, #444, #000);
+    border-radius: 50%;
+    border: 1px solid #333;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+
+.capture-count .stone-white {
+    background: radial-gradient(circle at 30% 30%, #fff, #ddd);
+    border-radius: 50%;
+    border: 1px solid #333;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+
+.capture-count strong {
+    font-size: 1.1rem;
+    color: #495057;
+}
+
+.capture-count small {
+    font-size: 0.75rem;
+}
+
+/* Pass button styling */
+.btn-outline-info.btn-sm {
+    border-color: #17a2b8;
+    color: #17a2b8;
+}
+
+.btn-outline-info.btn-sm:hover {
+    background-color: #17a2b8;
+    border-color: #17a2b8;
+    color: #fff;
+}
+
+/* Responsive adjustments for Go elements */
+@media (max-width: 768px) {
+    .go-game-info {
+        padding: 0.5rem;
+        margin: 0.25rem 0;
+    }
+    
+    .captured-stones-display h6 {
+        font-size: 0.8rem;
+        margin-bottom: 0.25rem;
+    }
+    
+    .capture-count {
+        padding: 0.125rem;
+    }
+    
+    .capture-count .stone-black, 
+    .capture-count .stone-white {
+        width: 14px;
+        height: 14px;
+    }
 }
 </style>
 

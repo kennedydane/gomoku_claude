@@ -1,0 +1,33 @@
+{% comment %}
+Game-specific action buttons template.
+Renders different actions based on game type (Gomoku vs Go).
+Handles both 'game' and 'selected_game' context variables.
+{% endcomment %}
+
+{% with current_game=game|default:selected_game %}
+<div class="game-actions">
+    {% if current_game.status == 'ACTIVE' %}
+        {% if current_game.ruleset.is_go %}
+            {# Go-specific actions: Pass and Resign #}
+            <button class="btn btn-outline-info btn-sm me-2" 
+                    hx-post="{% url 'web:game_pass' current_game.id %}"
+                    hx-confirm="Are you sure you want to pass your turn?"
+                    hx-swap="none"
+                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                    hx-indicator="#board-loading">
+                <i class="bi bi-skip-forward"></i> Pass
+            </button>
+        {% endif %}
+        
+        {# Resign button available for all game types #}
+        <button class="btn btn-outline-danger btn-sm" 
+                hx-post="{% url 'web:game_resign' current_game.id %}"
+                hx-confirm="Are you sure you want to resign this game?"
+                hx-swap="none"
+                hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                hx-indicator="#board-loading">
+            <i class="bi bi-flag"></i> Resign
+        </button>
+    {% endif %}
+</div>
+{% endwith %}

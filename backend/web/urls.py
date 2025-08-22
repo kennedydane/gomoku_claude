@@ -21,6 +21,7 @@ urlpatterns = [
     path('games/modal/', views.GamesModalView.as_view(), name='games_modal'),
     path('games/<uuid:game_id>/', views.GameDetailRedirectView.as_view(), name='game_detail'),
     path('games/<uuid:game_id>/move/', views.GameMoveView.as_view(), name='game_move'),
+    path('games/<uuid:game_id>/pass/', views.GamePassView.as_view(), name='game_pass'),
     path('games/<uuid:game_id>/resign/', views.GameResignView.as_view(), name='game_resign'),
     
     # Friends - Modal View

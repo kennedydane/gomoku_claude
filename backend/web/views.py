@@ -282,6 +282,8 @@ class GameMoveView(LoginRequiredMixin, View):
                     from django.middleware.csrf import get_token
                     return render(request, 'web/partials/game_board.html', {
                         'game': game,
+                        'selected_game': game,  # For template compatibility
+                        'user': request.user,
                         'csrf_token': get_token(request)
                     })
                 
@@ -1024,6 +1026,121 @@ class RulesetsListView(FriendAPIViewMixin, LoginRequiredMixin, View):
         } for ruleset in rulesets]
         
         return self.json_response(rulesets_data)
+
+
+class GamePassView(FriendAPIViewMixin, LoginRequiredMixin, View):
+    """Handle game pass moves through web interface (Go games only)."""
+    login_url = 'web:login'
+    
+    def post(self, request, game_id):
+        """Make a pass move in a Go game."""
+        try:
+            from games.models import Game
+            from games.game_services import GameServiceFactory
+            from games.models import GameEvent
+            from games.serializers import GameSerializer
+            
+            # Get the game
+            try:
+                game = Game.objects.get(id=game_id)
+            except Game.DoesNotExist:
+                if request.headers.get('HX-Request'):
+                    return render(request, 'web/partials/error_message.html', {
+                        'error': 'Game not found'
+                    }, status=404)
+                return self.json_error('Game not found', 404)
+            
+            # Check if this is a Go game
+            if not game.ruleset.is_go:
+                if request.headers.get('HX-Request'):
+                    return render(request, 'web/partials/error_message.html', {
+                        'error': 'Pass moves are only allowed in Go games'
+                    }, status=400)
+                return self.json_error('Pass moves are only allowed in Go games', 400)
+            
+            # Check if authenticated user is a player in this game
+            user = request.user
+            if user.id not in [game.black_player_id, game.white_player_id]:
+                if request.headers.get('HX-Request'):
+                    return render(request, 'web/partials/error_message.html', {
+                        'error': 'You are not a player in this game'
+                    }, status=403)
+                return self.json_error('You are not a player in this game', 403)
+            
+            # Check if it's the user's turn
+            if user != game.get_current_player_user():
+                if request.headers.get('HX-Request'):
+                    return render(request, 'web/partials/error_message.html', {
+                        'error': 'It is not your turn'
+                    }, status=400)
+                return self.json_error('It is not your turn', 400)
+            
+            # Make the pass move using game-specific service
+            try:
+                service = game.get_service()
+                move = service.pass_turn(game, user.id)
+                
+                # Create game event
+                for player in [game.black_player, game.white_player]:
+                    GameEvent.objects.create(
+                        user=player,
+                        event_type='pass',
+                        event_data={
+                            'game_id': str(game.id),
+                            'player_id': user.id,
+                            'move_number': move.move_number
+                        }
+                    )
+                
+                # Send real-time updates to both players using centralized service
+                try:
+                    from .services import WebSocketNotificationService
+                    
+                    WebSocketNotificationService.notify_game_event(
+                        event_type='game_move',
+                        game=game,
+                        triggering_user=user,
+                        request=request,
+                        metadata={'pass_move': True, 'move_number': move.move_number}
+                    )
+                    
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.info(f"📤 WebSocket: Pass move notifications sent via centralized service")
+                    
+                except Exception as ws_error:
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.warning(f"⚠️ WebSocket pass move notification failed: {ws_error}")
+                
+                # For HTMX requests, return minimal response since WebSocket handles updates
+                if request.headers.get('HX-Request'):
+                    return HttpResponse(status=204)  # No Content - WebSocket will handle updates
+                
+                # For non-HTMX requests, return JSON
+                return self.json_response({
+                    'success': True,
+                    'message': 'Pass move made successfully',
+                    'game': GameSerializer(game).data,
+                    'move': {
+                        'move_number': move.move_number,
+                        'is_pass': True
+                    }
+                })
+                
+            except Exception as e:
+                if request.headers.get('HX-Request'):
+                    return render(request, 'web/partials/error_message.html', {
+                        'error': f'Failed to make pass move: {str(e)}'
+                    }, status=500)
+                return self.json_error(f'Failed to make pass move: {str(e)}', 500)
+                
+        except Exception as e:
+            if request.headers.get('HX-Request'):
+                return render(request, 'web/partials/error_message.html', {
+                    'error': f'An error occurred: {str(e)}'
+                }, status=500)
+            return self.json_error(f'An error occurred: {str(e)}', 500)
 
 
 class GameResignView(FriendAPIViewMixin, LoginRequiredMixin, View):

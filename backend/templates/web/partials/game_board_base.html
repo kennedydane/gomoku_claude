@@ -1,0 +1,79 @@
+{% load board_filters %}
+{% comment %}
+Base game board template with shared grid logic for all game types.
+Handles: coordinate system, board intersections, stone rendering, HTMX move integration.
+Handles both 'game' and 'selected_game' context variables.
+{% endcomment %}
+
+{% with current_game=game|default:selected_game %}
+{% if current_game.board_state and current_game.board_state.board %}
+<div class="game-board-container board-responsive">
+    <div class="game-board-grid" 
+         data-game-id="{{ current_game.id }}"
+         data-board-size="{{ current_game.ruleset.board_size }}"
+         data-current-player="{{ current_game.current_player }}"
+         data-game-status="{{ current_game.status }}"
+         id="game-board"
+         style="--board-size: {{ current_game.ruleset.board_size|add:2 }}; --board-size-num: {{ current_game.ruleset.board_size }}; --intersection-size: var(--fluid-intersection-size, 40px); --stone-size: var(--fluid-stone-size, 38px);">
+    
+    {% with board_size=current_game.ruleset.board_size %}
+    {% with letters="ABCDEFGHIJKLMNOPQRSTUVWXYZ" %}
+    
+    {# Row 1: Top coordinate row with empty corner + letters + empty corner #}
+    <div class="coordinate-cell-letter"></div>
+    {% for i in board_size|range_filter %}
+        <div class="coordinate-cell-letter">{{ letters|get_letter:i }}</div>
+    {% endfor %}
+    <div class="coordinate-cell-letter"></div>
+    
+    {# Rows 2 to board_size+1: Game rows with left number + intersections + right number #}
+    {% for row in current_game.board_state.board %}
+        <div class="coordinate-cell-number">{{ forloop.counter }}</div>
+        {% for cell in row %}
+            <div class="board-intersection{% if cell %} occupied{% endif %}{% if forloop.counter0 == 0 %} edge-left{% endif %}{% if forloop.counter0 == board_size|sub:1 %} edge-right{% endif %}{% if forloop.parentloop.counter0 == 0 %} edge-top{% endif %}{% if forloop.parentloop.counter0 == board_size|sub:1 %} edge-bottom{% endif %}"
+                 data-row="{{ forloop.parentloop.counter0 }}"
+                 data-col="{{ forloop.counter0 }}"
+                 role="button"
+                 tabindex="0"
+                 aria-label="Intersection {{ forloop.parentloop.counter0 }}, {{ forloop.counter0 }}{% if cell %} - {{ cell }} stone{% else %} - empty{% endif %}"
+                 {% if not cell and current_game.status == 'ACTIVE' and user == current_game.get_current_player_user %}
+                 {% include 'web/partials/game_move_htmx.html' with row=forloop.parentloop.counter0 col=forloop.counter0 %}
+                 {% endif %}>
+                
+                {# Preview stone element (only for empty intersections) #}
+                {% if not cell %}
+                    <div class="preview-stone"></div>
+                {% endif %}
+                
+                {# Actual stones #}
+                {% if cell == 'BLACK' or cell == 'black' %}
+                    <div class="stone-black" 
+                         data-stone-row="{{ forloop.parentloop.counter0 }}" 
+                         data-stone-col="{{ forloop.counter0 }}"></div>
+                {% elif cell == 'WHITE' or cell == 'white' %}
+                    <div class="stone-white" 
+                         data-stone-row="{{ forloop.parentloop.counter0 }}" 
+                         data-stone-col="{{ forloop.counter0 }}"></div>
+                {% endif %}
+            </div>
+        {% endfor %}
+        <div class="coordinate-cell-number">{{ forloop.counter }}</div>
+    {% endfor %}
+    
+    {# Row board_size+2: Bottom coordinate row with empty corner + letters + empty corner #}
+    <div class="coordinate-cell-letter"></div>
+    {% for i in board_size|range_filter %}
+        <div class="coordinate-cell-letter">{{ letters|get_letter:i }}</div>
+    {% endfor %}
+    <div class="coordinate-cell-letter"></div>
+    
+    {% endwith %}
+    {% endwith %}
+    </div>
+</div>
+{% else %}
+<div class="alert alert-warning">
+    Board state not initialized. <button hx-get="{{ request.path }}" hx-target="body" hx-swap="outerHTML" class="btn btn-sm btn-primary">Reload Page</button>
+</div>
+{% endif %}
+{% endwith %}

@@ -1,0 +1,37 @@
+{% comment %}
+Game-specific information display template.
+Shows different information based on game type (captured stones for Go, etc.).
+Handles both 'game' and 'selected_game' context variables.
+{% endcomment %}
+
+{% with current_game=game|default:selected_game %}
+{% if current_game.ruleset.is_go %}
+    {# Go-specific display: Captured stones #}
+    <div class="go-game-info mt-2">
+        <div class="captured-stones-display">
+            <h6 class="mb-2"><i class="bi bi-trophy"></i> Captured Stones</h6>
+            <div class="d-flex justify-content-around">
+                <div class="capture-count text-center">
+                    <div class="stone-black d-inline-block mb-1" style="width: 16px; height: 16px;"></div>
+                    <div><strong>{{ current_game.board_state.captured_stones.white|default:0 }}</strong></div>
+                    <small class="text-muted">by Black</small>
+                </div>
+                <div class="capture-count text-center">
+                    <div class="stone-white d-inline-block mb-1" style="width: 16px; height: 16px;"></div>
+                    <div><strong>{{ current_game.board_state.captured_stones.black|default:0 }}</strong></div>
+                    <small class="text-muted">by White</small>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endif %}
+{% endwith %}
+
+{% comment %}
+Future game-specific displays can be added here:
+{% if game.ruleset.is_chess %}
+    <!-- Chess-specific information -->
+{% elif game.ruleset.is_checkers %}
+    <!-- Checkers-specific information -->
+{% endif %}
+{% endcomment %}

@@ -1,0 +1,15 @@
+{% comment %}
+HTMX configuration for game moves. Used by board intersections to handle move placement.
+Parameters: row, col (from parent template context)
+Handles both 'game' and 'selected_game' context variables.
+{% endcomment %}
+
+{% with current_game=game|default:selected_game %}
+hx-post="{% url 'web:game_move' game_id=current_game.id %}"
+hx-vals='{"row": {{ row }}, "col": {{ col }}}'
+hx-target="#{% if wrapper_id %}{{ wrapper_id }}{% else %}game-board-wrapper{% endif %}"
+hx-swap="innerHTML"
+hx-disabled-elt="this"
+hx-indicator="#board-loading"
+hx-include="[name='csrfmiddlewaretoken']"
+{% endwith %}

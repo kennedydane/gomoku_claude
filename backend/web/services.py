@@ -306,6 +306,7 @@ class WebSocketNotificationService:
         """Send game board update to user."""
         board_html = render_to_string('web/partials/game_board.html', {
             'game': game,
+            'selected_game': game,  # For template compatibility
             'user': user,
             'wrapper_id': 'dashboard-game-board-content'
         }, request=request).strip()

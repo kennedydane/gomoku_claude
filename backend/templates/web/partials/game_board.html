@@ -1,77 +1,10 @@
-{% load board_filters %}
-{% if game.board_state and game.board_state.board %}
-<div class="game-board-container board-responsive">
-    <div class="game-board-grid" 
-         data-game-id="{{ game.id }}"
-         data-board-size="{{ game.ruleset.board_size }}"
-         data-current-player="{{ game.current_player }}"
-         data-game-status="{{ game.status }}"
-         id="game-board"
-         style="--board-size: {{ game.ruleset.board_size|add:2 }}; --board-size-num: {{ game.ruleset.board_size }}; --intersection-size: var(--fluid-intersection-size, 40px); --stone-size: var(--fluid-stone-size, 38px);">
-    
-    {% with board_size=game.ruleset.board_size %}
-    {% with letters="ABCDEFGHIJKLMNOPQRSTUVWXYZ" %}
-    
-    {# Row 1: Top coordinate row with empty corner + letters + empty corner #}
-    <div class="coordinate-cell-letter"></div>
-    {% for i in board_size|range_filter %}
-        <div class="coordinate-cell-letter">{{ letters|get_letter:i }}</div>
-    {% endfor %}
-    <div class="coordinate-cell-letter"></div>
-    
-    {# Rows 2 to board_size+1: Game rows with left number + intersections + right number #}
-    {% for row in game.board_state.board %}
-        <div class="coordinate-cell-number">{{ forloop.counter }}</div>
-        {% for cell in row %}
-            <div class="board-intersection{% if cell %} occupied{% endif %}{% if forloop.counter0 == 0 %} edge-left{% endif %}{% if forloop.counter0 == board_size|sub:1 %} edge-right{% endif %}{% if forloop.parentloop.counter0 == 0 %} edge-top{% endif %}{% if forloop.parentloop.counter0 == board_size|sub:1 %} edge-bottom{% endif %}"
-                 data-row="{{ forloop.parentloop.counter0 }}"
-                 data-col="{{ forloop.counter0 }}"
-                 role="button"
-                 tabindex="0"
-                 aria-label="Intersection {{ forloop.parentloop.counter0 }}, {{ forloop.counter0 }}{% if cell %} - {{ cell }} stone{% else %} - empty{% endif %}"
-                 {% if not cell and game.status == 'ACTIVE' and user == game.get_current_player_user %}
-                 hx-post="{% url 'web:game_move' game_id=game.id %}"
-                 hx-vals='{"row": {{ forloop.parentloop.counter0 }}, "col": {{ forloop.counter0 }}}'
-                 hx-target="#{% if wrapper_id %}{{ wrapper_id }}{% else %}game-board-wrapper{% endif %}"
-                 hx-swap="innerHTML"
-                 hx-disabled-elt="this"
-                 hx-indicator="#board-loading"
-                 hx-include="[name='csrfmiddlewaretoken']"
-                 {% endif %}>
-                
-                {# Preview stone element (only for empty intersections) #}
-                {% if not cell %}
-                    <div class="preview-stone"></div>
-                {% endif %}
-                
-                {# Actual stones #}
-                {% if cell == 'BLACK' or cell == 'black' %}
-                    <div class="stone-black" 
-                         data-stone-row="{{ forloop.parentloop.counter0 }}" 
-                         data-stone-col="{{ forloop.counter0 }}"></div>
-                {% elif cell == 'WHITE' or cell == 'white' %}
-                    <div class="stone-white" 
-                         data-stone-row="{{ forloop.parentloop.counter0 }}" 
-                         data-stone-col="{{ forloop.counter0 }}"></div>
-                {% endif %}
-            </div>
-        {% endfor %}
-        <div class="coordinate-cell-number">{{ forloop.counter }}</div>
-    {% endfor %}
-    
-    {# Row board_size+2: Bottom coordinate row with empty corner + letters + empty corner #}
-    <div class="coordinate-cell-letter"></div>
-    {% for i in board_size|range_filter %}
-        <div class="coordinate-cell-letter">{{ letters|get_letter:i }}</div>
-    {% endfor %}
-    <div class="coordinate-cell-letter"></div>
-    
-    {% endwith %}
-    {% endwith %}
-    </div>
-</div>
-{% else %}
-<div class="alert alert-warning">
-    Board state not initialized. <button hx-get="{{ request.path }}" hx-target="body" hx-swap="outerHTML" class="btn btn-sm btn-primary">Reload Page</button>
-</div>
-{% endif %}
+{% comment %}
+Main game board template that orchestrates shared and game-specific components.
+Uses composition pattern to minimize code duplication while supporting game-specific features.
+{% endcomment %}
+
+{# Include the shared board grid logic #}
+{% include 'web/partials/game_board_base.html' %}
+
+{# Include game-specific display information if needed #}
+{% include 'web/partials/game_display.html' %}
