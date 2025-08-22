@@ -192,10 +192,12 @@ curl -X POST http://localhost:8001/api/v1/auth/token/refresh/ \
 
 ## Testing
 
+**IMPORTANT: This project exclusively uses pytest for all testing. Django's `manage.py test` command is not supported.**
+
 Run the comprehensive test suite with **86% code coverage**:
 
 ```bash
-# Run all tests with pytest (226 tests, 84.5% pass rate)
+# Run all tests with pytest (330+ tests)
 uv run pytest
 
 # Run with coverage reporting
@@ -204,15 +206,12 @@ uv run coverage report
 uv run coverage html  # Generate HTML report
 
 # Run specific test modules
-uv run pytest tests/test_game_crud.py      # Game CRUD API tests (15 tests)
-uv run pytest tests/test_user_management.py # User management tests (34 tests)
-uv run pytest tests/test_rulesets.py       # Ruleset validation tests (12 tests)
-uv run pytest tests/test_auth_endpoints.py # Authentication tests (12 tests)
-uv run pytest tests/test_challenge_system.py # Challenge system tests (25 tests)
-
-# Run web interface tests (focus on backend for now)
-uv run pytest web/test_friend_system.py    # Friend system tests (25 tests)
-uv run pytest web/test_views.py           # Web view tests (18 tests)
+uv run pytest tests/test_games_models.py        # Game model tests
+uv run pytest tests/test_game_services.py       # Game service layer tests
+uv run pytest tests/test_users_models.py        # User model tests
+uv run pytest tests/test_web_views.py          # Web interface view tests
+uv run pytest tests/test_challenge_system.py   # Challenge system tests
+uv run pytest tests/test_websocket_consumer.py # WebSocket consumer tests
 
 # Generate test reports
 uv run pytest --html=test_reports/pytest_report.html --self-contained-html

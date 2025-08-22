@@ -176,22 +176,29 @@ The game logic is implemented in a service layer that handles:
 ## Testing
 
 ### Unit and Integration Tests
-Run the Django test suite:
+
+**IMPORTANT: This project strictly uses pytest for all testing. Do not use Django's `manage.py test` command.**
+
+Run the pytest test suite:
 ```bash
 cd backend
-# Run all tests (350+ total including centralized notifications)
-uv run python manage.py test
+# Run all tests (330+ total including centralized notifications)
+uv run pytest
 
-# Run web interface tests (80+ tests, including panel and centralized system tests)
-uv run python manage.py test web
+# Run with coverage reporting
+uv run coverage run -m pytest
+uv run coverage report
+uv run coverage html
 
-# Run specific test categories
-uv run python manage.py test web.test_phase11_panels      # Panel tests
-uv run python manage.py test web.test_phase12_single_view # Single-view dashboard tests
-uv run python manage.py test web.test_websocket_consumer  # WebSocket tests
+# Run specific test modules
+uv run pytest tests/test_games_models.py        # Game model tests
+uv run pytest tests/test_game_services.py       # Game service layer tests
+uv run pytest tests/test_web_views.py          # Web interface view tests
+uv run pytest tests/test_challenge_system.py   # Challenge system tests
+uv run pytest tests/test_websocket_consumer.py # WebSocket tests
 
 # Run with verbose output
-uv run python manage.py test --verbosity=2
+uv run pytest -v
 ```
 
 ### Selenium End-to-End Tests

@@ -431,12 +431,16 @@
 ## 🛠️ **Development Commands**
 
 ### **Backend Development**
+
+**IMPORTANT: This project uses pytest exclusively for testing. Do not use `manage.py test`.**
+
 ```bash
 cd backend
 uv run daphne -p 8001 gomoku.asgi:application  # Start WebSocket server
-uv run python manage.py test                   # Run all Django tests
-uv run python manage.py test web              # Run web interface tests
-uv run python manage.py test tests            # Run API and integration tests
+uv run pytest                                  # Run all tests (pytest only)
+uv run pytest tests/test_games_models.py       # Run specific test modules
+uv run pytest tests/test_web_views.py          # Run web interface tests
+uv run coverage run -m pytest                  # Run tests with coverage
 uv run python manage.py migrate               # Apply database migrations
 uv run python manage.py seed_data             # Create test data
 ```
@@ -445,24 +449,24 @@ uv run python manage.py seed_data             # Create test data
 ```bash
 cd backend
 # Run WebSocket consumer tests  
-uv run python -m pytest web/test_websocket_consumer.py -v
+uv run pytest tests/test_websocket_consumer.py -v
 
 # Run WebSocket integration and performance tests
-uv run python -m pytest tests/test_websocket_integration.py -v
-uv run python -m pytest tests/test_websocket_performance.py -v
+uv run pytest tests/test_websocket_integration.py -v
+uv run pytest tests/test_websocket_performance.py -v
 ```
 
 ### **Selenium E2E Testing**
 ```bash
 cd backend
 # Run all Selenium tests
-uv run python -m pytest tests/test_selenium_multiplayer.py -v
-uv run python -m pytest tests/test_sse_real_time.py -v
-uv run python -m pytest tests/test_cross_browser_sse.py -v
+uv run pytest tests/test_selenium_multiplayer.py -v
+uv run pytest tests/test_sse_real_time.py -v
+uv run pytest tests/test_cross_browser_sse.py -v
 
 # Run specific test categories
-uv run python -m pytest -m selenium -v
-uv run python -m pytest -m cross_browser -v
+uv run pytest -m selenium -v
+uv run pytest -m cross_browser -v
 ```
 
 ### **Web Interface Access**

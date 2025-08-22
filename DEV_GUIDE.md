@@ -1075,23 +1075,26 @@ finally:
 
 ### TDD Development Cycle
 
+**IMPORTANT: This project exclusively uses pytest. Do not use Django's `manage.py test` command.**
+
 ```bash
 # 1. Write failing test (RED)
-uv run pytest tests/test_game_crud.py::TestGameCRUD::test_new_feature -v
+uv run pytest tests/test_games_models.py::TestGameModel::test_new_feature -v
 
 # 2. Run test to confirm failure
-uv run pytest tests/test_game_crud.py -v
+uv run pytest tests/test_games_models.py -v
 
 # 3. Write minimal implementation (GREEN)
 # Edit views.py, models.py, etc.
 
 # 4. Run test to confirm pass
-uv run pytest tests/test_game_crud.py::TestGameCRUD::test_new_feature -v
+uv run pytest tests/test_games_models.py::TestGameModel::test_new_feature -v
 
 # 5. Refactor and run all tests (REFACTOR)
 uv run pytest
 
 # 6. Check coverage and update documentation
+uv run coverage run -m pytest
 uv run coverage report
 ```
 
@@ -1128,8 +1131,10 @@ uv run python manage.py runserver 8001
 
 ### Testing
 
+**IMPORTANT: All testing uses pytest exclusively. Do not use `manage.py test`.**
+
 ```bash
-# All tests with pytest (226 tests, 86% coverage)
+# All tests with pytest (330+ tests, 86% coverage)
 uv run pytest
 
 # Run with coverage reporting
@@ -1137,14 +1142,13 @@ uv run coverage run -m pytest
 uv run coverage report
 uv run coverage html
 
-# Specific test modules
-uv run pytest tests/test_game_crud.py          # Game CRUD API tests
-uv run pytest tests/test_user_management.py    # User management tests
-uv run pytest tests/test_rulesets.py          # Ruleset validation tests
-
-# Web interface tests
-uv run pytest web/test_friend_system.py       # Friend system tests
-uv run pytest web/test_views.py              # Web view tests
+# Specific test modules (current centralized structure)
+uv run pytest tests/test_games_models.py        # Game model tests
+uv run pytest tests/test_game_services.py       # Game service layer tests
+uv run pytest tests/test_users_models.py        # User model tests
+uv run pytest tests/test_web_views.py          # Web interface view tests
+uv run pytest tests/test_challenge_system.py   # Challenge system tests
+uv run pytest tests/test_websocket_consumer.py # WebSocket consumer tests
 
 # Generate HTML reports
 uv run pytest --html=test_reports/pytest_report.html --self-contained-html
