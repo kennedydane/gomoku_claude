@@ -53,8 +53,8 @@ class WebSocketNotificationService:
         'game_move_made': {
             'description': 'A move was made in a game',
             'updates': {
-                'current_player': ['game_board', 'games_panel'],
-                'other_player': ['game_board', 'turn_display', 'games_panel']
+                'current_player': ['game_board', 'games_panel', 'move_history'],
+                'other_player': ['game_board', 'turn_display', 'games_panel', 'move_history']
             }
         },
         'game_resigned': {
@@ -189,6 +189,9 @@ class WebSocketNotificationService:
             elif update_type == 'turn_display':
                 return cls._send_turn_display_update(user, game, request, csrf_token, context)
             
+            elif update_type == 'move_history':
+                return cls._send_move_history_update(user, game, request, csrf_token, context)
+            
             else:
                 logger.warning(f"Unknown update type: {update_type}")
                 return False
@@ -318,16 +321,17 @@ class WebSocketNotificationService:
             metadata=context.get('metadata', {})
         )
         
-        # Also send move history update
-        cls._send_move_history_update(user, game, request, csrf_token, context)
-        
         return True
     
     @classmethod
     def _send_move_history_update(cls, user: User, game: Game, request, csrf_token: str, context: Dict) -> bool:
-        """Send move history update to user."""
+        """Send optimized move history update to user (recent moves only)."""
+        # Only show last 20 moves to prevent exponential payload growth
+        recent_moves = game.moves.select_related('player').order_by('-move_number')[:20]
+        
         history_html = render_to_string('web/partials/move_history.html', {
             'game': game,
+            'recent_moves': list(reversed(recent_moves))  # Show in chronological order
         }, request=request).strip()
         
         WebSocketMessageSender.send_to_user_sync(
@@ -353,7 +357,6 @@ class WebSocketNotificationService:
             metadata=context.get('metadata', {})
         )
         
-        # Also send move history update when turn changes (indicating a move was made)
-        cls._send_move_history_update(user, game, request, csrf_token, context)
+        # Move history update removed - handled centrally to avoid duplicates
         
         return True

@@ -24,32 +24,67 @@ function initializeHTMXSSEIntegration() {
 
     // Store references to elements that need SSE updates
     const sseElements = new Map();
+    
+    // Global throttling functions
+    let reregistrationTimeout = null;
+    const REREGISTRATION_DELAY = 100; // ms
+
+    const throttledReregistration = function() {
+        if (reregistrationTimeout) {
+            clearTimeout(reregistrationTimeout);
+        }
+        reregistrationTimeout = setTimeout(() => {
+            registerSSEElements();
+            reregistrationTimeout = null;
+        }, REREGISTRATION_DELAY);
+    };
 
     /**
      * Register SSE elements and their swap configurations
      */
     function registerSSEElements() {
+        // Clear existing registrations and reset tracking attributes
+        sseElements.clear();
+        
+        // Remove all existing tracking attributes to start fresh
+        const existingTracked = document.querySelectorAll('[data-sse-registered]');
+        existingTracked.forEach(el => el.removeAttribute('data-sse-registered'));
+        
         // Find all elements with sse-swap attributes
         const elements = document.querySelectorAll('[sse-swap]');
+        
+        if (elements.length === 0) {
+            console.log(`[HTMX SSE Integration] No SSE elements found to register`);
+            return;
+        }
+        
+        let registeredCount = 0;
         
         elements.forEach(element => {
             const swapEvent = element.getAttribute('sse-swap');
             const target = element.getAttribute('hx-target') || element;
             const swapMethod = element.getAttribute('hx-swap') || 'innerHTML';
             
+            // Mark element as registered to track it
+            element.setAttribute('data-sse-registered', 'true');
+            
             if (!sseElements.has(swapEvent)) {
                 sseElements.set(swapEvent, []);
             }
             
+            const targetElement = typeof target === 'string' ? document.querySelector(target) : target;
+            
             sseElements.get(swapEvent).push({
                 element: element,
-                target: typeof target === 'string' ? document.querySelector(target) : target,
+                target: targetElement,
                 swapMethod: swapMethod,
                 swapEvent: swapEvent
             });
             
-            console.log(`[HTMX SSE Integration] Registered element for ${swapEvent}:`, element);
+            registeredCount++;
         });
+        
+        console.log(`[HTMX SSE Integration] Registered ${registeredCount} SSE elements for ${sseElements.size} event types`);
     }
 
     /**
@@ -78,68 +113,83 @@ function initializeHTMXSSEIntegration() {
     function performHTMXUpdate(registration, data) {
         const { element, target, swapMethod, swapEvent } = registration;
         
+        // Ensure element is still in the DOM
+        if (!document.contains(element)) {
+            console.warn(`[HTMX SSE Integration] Stale element reference for ${swapEvent}, scheduling cleanup`);
+            // Mark for cleanup on next registration cycle
+            return;
+        }
+        
         // Ensure we have a valid target
         const updateTarget = target || element;
-        if (!updateTarget) {
+        if (!updateTarget || !document.contains(updateTarget)) {
             console.warn(`[HTMX SSE Integration] No valid target for ${swapEvent}`);
             return;
         }
 
         console.log(`[HTMX SSE Integration] Updating ${swapEvent} via ${swapMethod}:`, updateTarget);
 
-        // Handle different swap methods
-        switch (swapMethod) {
-            case 'innerHTML':
-                updateTarget.innerHTML = data;
-                break;
-                
-            case 'outerHTML':
-                updateTarget.outerHTML = data;
-                // Re-register elements since DOM changed
-                setTimeout(registerSSEElements, 0);
-                break;
-                
-            case 'beforeend':
-                updateTarget.insertAdjacentHTML('beforeend', data);
-                break;
-                
-            case 'afterend':
-                updateTarget.insertAdjacentHTML('afterend', data);
-                break;
-                
-            case 'beforebegin':
-                updateTarget.insertAdjacentHTML('beforebegin', data);
-                break;
-                
-            case 'afterbegin':
-                updateTarget.insertAdjacentHTML('afterbegin', data);
-                break;
-                
-            case 'textContent':
-                updateTarget.textContent = data;
-                break;
-                
-            default:
-                // Default to innerHTML
-                updateTarget.innerHTML = data;
-        }
+        // Use requestAnimationFrame to prevent DOM thrashing
+        requestAnimationFrame(() => {
+            try {
+                // Handle different swap methods
+                switch (swapMethod) {
+                    case 'innerHTML':
+                        updateTarget.innerHTML = data;
+                        break;
+                        
+                    case 'outerHTML':
+                        updateTarget.outerHTML = data;
+                        // Re-register elements since DOM changed (throttled)
+                        throttledReregistration();
+                        break;
+                        
+                    case 'beforeend':
+                        updateTarget.insertAdjacentHTML('beforeend', data);
+                        break;
+                        
+                    case 'afterend':
+                        updateTarget.insertAdjacentHTML('afterend', data);
+                        break;
+                        
+                    case 'beforebegin':
+                        updateTarget.insertAdjacentHTML('beforebegin', data);
+                        break;
+                        
+                    case 'afterbegin':
+                        updateTarget.insertAdjacentHTML('afterbegin', data);
+                        break;
+                        
+                    case 'textContent':
+                        updateTarget.textContent = data;
+                        break;
+                        
+                    default:
+                        // Default to innerHTML
+                        updateTarget.innerHTML = data;
+                }
 
-        // Trigger HTMX processing for any new elements
-        if (typeof htmx.process === 'function') {
-            htmx.process(updateTarget);
-        }
+                // Trigger HTMX processing for any new elements (throttled)
+                if (typeof htmx.process === 'function') {
+                    htmx.process(updateTarget);
+                }
 
-        // Dispatch custom event for additional processing
-        const updateEvent = new CustomEvent('htmx:sse:updated', {
-            detail: {
-                eventType: swapEvent,
-                target: updateTarget,
-                element: element,
-                data: data
-            },
-            bubbles: true
+                // Dispatch custom event for additional processing
+                const updateEvent = new CustomEvent('htmx:sse:updated', {
+                    detail: {
+                        eventType: swapEvent,
+                        target: updateTarget,
+                        element: element,
+                        data: data
+                    },
+                    bubbles: true
+                });
+                updateTarget.dispatchEvent(updateEvent);
+                
+            } catch (error) {
+                console.error(`[HTMX SSE Integration] Failed to update DOM for ${swapEvent}:`, error);
+            }
         });
-        updateTarget.dispatchEvent(updateEvent);
     }
 
     /**
@@ -212,35 +262,56 @@ function initializeHTMXSSEIntegration() {
      * Monitor for dynamic content and re-register elements
      */
     function setupDynamicContentMonitoring() {
+
         // Watch for HTMX after swap events to re-register SSE elements
-        document.addEventListener('htmx:afterSwap', () => {
-            setTimeout(registerSSEElements, 0);
+        document.addEventListener('htmx:afterSwap', (event) => {
+            // Only re-register if the swapped content actually has SSE elements
+            const target = event.target;
+            if (target.hasAttribute && target.hasAttribute('sse-swap')) {
+                throttledReregistration();
+            } else if (target.querySelectorAll && target.querySelectorAll('[sse-swap]').length > 0) {
+                throttledReregistration();
+            }
         });
 
-        // Watch for general DOM changes
+        // Use a more efficient MutationObserver with throttling
+        let mutationTimeout = null;
+        const MUTATION_THROTTLE = 250; // ms
+
         const observer = new MutationObserver((mutations) => {
-            let shouldReregister = false;
-            
-            mutations.forEach(mutation => {
-                if (mutation.type === 'childList') {
-                    // Check if any added nodes have sse-swap attributes
-                    mutation.addedNodes.forEach(node => {
-                        if (node.nodeType === 1) { // Element node
-                            if (node.hasAttribute && node.hasAttribute('sse-swap')) {
-                                shouldReregister = true;
-                            }
-                            // Check descendants
-                            if (node.querySelectorAll && node.querySelectorAll('[sse-swap]').length > 0) {
-                                shouldReregister = true;
-                            }
-                        }
-                    });
-                }
-            });
-            
-            if (shouldReregister) {
-                setTimeout(registerSSEElements, 0);
+            // Clear existing timeout
+            if (mutationTimeout) {
+                clearTimeout(mutationTimeout);
             }
+
+            // Throttle mutation processing
+            mutationTimeout = setTimeout(() => {
+                let shouldReregister = false;
+                
+                mutations.forEach(mutation => {
+                    if (mutation.type === 'childList' && !shouldReregister) {
+                        // Check if any added nodes have sse-swap attributes
+                        mutation.addedNodes.forEach(node => {
+                            if (node.nodeType === 1 && !shouldReregister) { // Element node
+                                if (node.hasAttribute && node.hasAttribute('sse-swap')) {
+                                    shouldReregister = true;
+                                    return;
+                                }
+                                // Only check descendants if we haven't already found SSE elements
+                                if (node.querySelectorAll && node.querySelectorAll('[sse-swap]').length > 0) {
+                                    shouldReregister = true;
+                                    return;
+                                }
+                            }
+                        });
+                    }
+                });
+                
+                if (shouldReregister) {
+                    registerSSEElements();
+                }
+                mutationTimeout = null;
+            }, MUTATION_THROTTLE);
         });
 
         observer.observe(document.body, {

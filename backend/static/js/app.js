@@ -115,14 +115,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 const originalText = submitBtn.innerHTML;
                 submitBtn.innerHTML = '<div class="spinner-border spinner-border-sm me-1" role="status"><span class="visually-hidden">Loading...</span></div> Loading...';
                 
-                // Reset on completion
-                document.addEventListener('htmx:afterRequest', function resetBtn(resetEvent) {
+                // Reset on completion with proper cleanup
+                const resetBtn = function(resetEvent) {
                     if (resetEvent.target === element) {
                         submitBtn.disabled = false;
                         submitBtn.innerHTML = originalText;
                         document.removeEventListener('htmx:afterRequest', resetBtn);
                     }
-                }, { once: false });
+                };
+                document.addEventListener('htmx:afterRequest', resetBtn, { once: false });
             }
         }
     });

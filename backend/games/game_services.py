@@ -370,14 +370,8 @@ class GoGameService(BaseGameService):
                 # Determine player color
                 player_color = Player.BLACK if player_id == game.black_player_id else Player.WHITE
                 
-                # Check for Ko violation first (takes precedence over suicide)
-                if self.is_ko_violation(game, row, col, player_color):
-                    raise InvalidMoveError(
-                        f"Ko rule violation at ({row}, {col})",
-                        details={'row': row, 'col': col, 'player_color': player_color}
-                    )
-                
                 # Check if this move would be suicide (only if it doesn't capture opponent stones)
+                # Ko rule was already checked above, no need to check again
                 if self.check_suicide_rule(board, row, col, player_color):
                     raise InvalidMoveError(
                         f"Suicide move not allowed at ({row}, {col})",
