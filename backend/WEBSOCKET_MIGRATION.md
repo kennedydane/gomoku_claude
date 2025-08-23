@@ -26,7 +26,11 @@ Successfully migrated from multiple HTMX Server-Sent Events (SSE) connections to
 - Single connection handles all message types via routing
 - Total: **1 connection per active user**
 
-**Performance Improvement:** 75% reduction in connection overhead
+**Performance Improvements:**
+- **75% reduction in connection overhead**
+- **Targeted move updates** (1KB vs 85KB for full board)
+- **Capture detection** automatically uses full updates when needed
+- **Turn switching fixes** enable seamless real-time gameplay
 
 ### Real-world Impact
 - **10 users on dashboard**: 40 connections → 10 connections (30 saved)
@@ -370,6 +374,56 @@ WebSocketMessageSender.send_to_user_sync(
 - Smart panel updates maintain user's current game context
 - Enhanced turn indicators with real-time updates
 - Optional toast notifications for non-intrusive alerts
+
+---
+
+## 🎮 Real-time Gameplay Optimizations (Phase 16)
+
+### Critical Fixes for Turn-based Gameplay
+
+**Problems Solved:**
+
+1. **Template Logic Error** - Stone rendering was broken:
+   - **Issue**: `single_move_update.html` checked `move.player` (username) instead of `move.player_color` ('BLACK'/'WHITE')
+   - **Fix**: Corrected template conditions to use `move.player_color`
+   - **Impact**: Moves now render correctly as visual stone elements
+
+2. **Turn Switching Bug** - Second player couldn't make moves:
+   - **Issue**: Targeted updates only updated single intersection, other intersections retained old turn permissions
+   - **Fix**: Added `game_panel` updates to `other_player` in WebSocket event definitions
+   - **Impact**: Both players can now make moves without page reloads
+
+3. **Capture Rendering Issue** - Captured stones didn't disappear:
+   - **Issue**: Targeted updates only showed placed stone, not captured stone removals
+   - **Fix**: Implemented capture detection to automatically use full board updates for capture moves
+   - **Impact**: All players see captured stones disappear correctly
+
+**Implementation Details:**
+
+```python
+# Capture detection in web/services.py
+def _move_involved_captures(cls, game: Game, move) -> bool:
+    """Detect captures by comparing captured_stones counts."""
+    prev_captures = previous_board_state.get('captured_stones', {'black': 0, 'white': 0})
+    curr_captures = current_board_state.get('captured_stones', {'black': 0, 'white': 0})
+    
+    return (curr_captures.get('black', 0) > prev_captures.get('black', 0) or
+            curr_captures.get('white', 0) > prev_captures.get('white', 0))
+
+# Event definition fix for turn switching
+'game_move_made': {
+    'updates': {
+        'current_player': ['game_board', 'games_panel', 'move_history'],
+        'other_player': ['game_board', 'game_panel', 'turn_display', 'games_panel', 'move_history']
+    }
+}
+```
+
+**Performance Results:**
+- **No slowdown** from optimization fixes
+- **Efficient targeted updates** for regular moves (1KB)
+- **Automatic fallback** to full board updates for captures
+- **Real-time turn switching** without page reloads
 
 ---
 

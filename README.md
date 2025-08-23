@@ -145,7 +145,21 @@ docker compose --profile production up -d
 
 ## Web Interface Features
 
-The Django web application provides comprehensive game functionality through a modern web interface:
+The Django web application provides comprehensive game functionality through a modern web interface with advanced performance optimizations:
+
+### Performance Optimizations
+- **45.1% asset size reduction** through optimized build pipeline
+- **Targeted WebSocket updates** for efficient real-time gameplay (1KB vs 85KB)
+- **Capture detection system** automatically switches to full board updates when needed
+- **Critical CSS inlining** for faster First Contentful Paint
+- **Service worker** for offline capability and asset caching
+- **Progressive Web App (PWA)** ready with manifest.json
+
+### Real-time Features
+- **Turn-by-turn gameplay** with instant move updates
+- **Capture rendering** shows removed stones immediately for all players
+- **Rule validation** prevents illegal moves (suicide, Ko violations)
+- **WebSocket notifications** for challenges, game updates, and status changes
 
 ### User Management
 - User registration and authentication (Django sessions)
@@ -284,11 +298,15 @@ gomoku_claude/
 │   ├── gomoku/          # Django project settings
 │   ├── users/           # User management app
 │   ├── games/           # Game logic and models (multi-game architecture)
-│   ├── web/             # Web interface app (Bootstrap + htmx)
+│   ├── web/             # Web interface app (Bootstrap + htmx + WebSocket)
 │   ├── core/            # Shared utilities and commands
-│   ├── templates/       # Django templates (base + web)
-│   ├── static/          # CSS, JavaScript, images
+│   ├── templates/       # Django templates (base + web + optimized variants)
+│   ├── static/          # CSS, JavaScript, optimized assets, PWA manifest
 │   └── manage.py        # Django management script
+├── scripts/             # Build automation (production builds, development watch)
+├── package.json         # Node.js build system dependencies
+├── build.config.js      # Asset optimization configuration
+├── CLIENT_OPTIMIZATION.md  # Performance optimization documentation
 ├── archived/            # Archived components (API, desktop GUI)
 │   ├── api/             # Archived REST API components
 │   └── frontend/        # Archived Dear PyGUI desktop client

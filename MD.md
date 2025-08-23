@@ -7,6 +7,7 @@ This file serves as the master index for all documentation in the Gomoku Claude 
 ### Primary Documentation
 - **[README.md](README.md)** - Main project overview, installation, usage, and features
 - **[DEV_GUIDE.md](DEV_GUIDE.md)** - Developer guide for contributing and development setup
+- **[CLIENT_OPTIMIZATION.md](CLIENT_OPTIMIZATION.md)** - Client-side performance optimization guide (45.1% size reduction)
 - **[TODO.md](TODO.md)** - Project-wide todo items and future enhancements
 - **[DOCKER_README.md](DOCKER_README.md)** - Docker-specific setup and deployment guide
 
@@ -27,6 +28,10 @@ This file serves as the master index for all documentation in the Gomoku Claude 
 - **[archived/frontend/TODO.md](archived/frontend/TODO.md)** - Archived frontend todo items
 
 ### Development Tools Documentation
+- **[scripts/build.js](scripts/build.js)** - Production build script for asset optimization
+- **[scripts/watch.js](scripts/watch.js)** - Development file watcher for automatic rebuilds
+- **[build.config.js](build.config.js)** - Build system configuration and optimization settings
+- **[package.json](package.json)** - Node.js dependencies and build automation scripts
 - **[.claude/agents/docker-compose-expert.md](.claude/agents/docker-compose-expert.md)** - Claude Code agent for Docker Compose assistance
 - **[.claude/agents/python-quality-guardian.md](.claude/agents/python-quality-guardian.md)** - Claude Code agent for Python code quality
 
@@ -87,19 +92,27 @@ The Gomoku Claude project has evolved through several major phases:
 - Centralized WebSocket notification system
 - Race condition fixes and CSRF handling
 
-### Phase 15: Multi-Game Architecture (Current)
+### Phase 15: Multi-Game Architecture
 - RuleSet subclassing (GomokuRuleSet, GoRuleSet)
 - Service layer abstraction for multiple game types
 - Standardized board sizes and validation
 - Project cleanup and API removal
 
+### Phase 16: Performance Optimization & Real-time Fixes (Current)
+- Fixed turn switching and capture rendering bugs
+- Implemented 45.1% asset size reduction through build optimization
+- Added client-side build system with Node.js toolchain
+- Created targeted WebSocket updates with capture detection
+- Established Progressive Web App (PWA) foundation
+
 ## 🏛️ Current Architecture
 
-**Web-Only Architecture** (as of Phase 15):
-- **Backend**: Django web application with htmx integration
-- **Frontend**: Bootstrap 5 responsive web interface
+**Web-Only Architecture** (as of Phase 16):
+- **Backend**: Django web application with optimized WebSocket system
+- **Frontend**: Bootstrap 5 responsive web interface with PWA capabilities
+- **Build System**: Node.js-based asset optimization pipeline (45.1% size reduction)
 - **Database**: PostgreSQL with Django ORM
-- **Real-time**: Server-Sent Events (SSE) + WebSocket notifications
+- **Real-time**: Centralized WebSocket notifications with targeted updates
 - **Authentication**: Django sessions (no API tokens)
 - **Deployment**: Docker Compose for development and production
 
@@ -109,11 +122,11 @@ The Gomoku Claude project has evolved through several major phases:
 
 ## 📊 Documentation Statistics
 
-- **Total .md files**: 18
-- **Primary documentation**: 4 files
+- **Total .md files**: 19
+- **Primary documentation**: 5 files (added CLIENT_OPTIMIZATION.md)
 - **Backend documentation**: 6 files  
 - **Archived documentation**: 6 files
-- **Development tools**: 2 files
+- **Development tools**: 6 files (added build system documentation)
 
 ## 🔄 Maintenance
 
@@ -123,4 +136,4 @@ This documentation index should be updated whenever:
 - Major architectural changes affect documentation structure
 - New phases or major features are implemented
 
-Last updated: Phase 15 (Multi-Game Architecture Implementation)
+Last updated: Phase 16 (Performance Optimization & Real-time Gameplay Fixes)
