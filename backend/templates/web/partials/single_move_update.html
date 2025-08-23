@@ -1,0 +1,31 @@
+{% comment %}
+Minimal template for sending only the specific intersection that changed.
+This replaces the 85KB full board re-renders with targeted ~1KB updates.
+{% endcomment %}
+
+{% if move %}
+<div class="board-intersection occupied"
+     data-row="{{ move.row }}"
+     data-col="{{ move.col }}"
+     role="button"
+     tabindex="0"
+     aria-label="Intersection {{ move.row }}, {{ move.col }} - {{ move.player }} stone"
+     hx-target="this"
+     hx-swap="outerHTML">
+    
+    {# The actual stone that was just placed #}
+    {% if move.player_color == 'BLACK' %}
+        <div class="stone-black" 
+             data-stone-row="{{ move.row }}" 
+             data-stone-col="{{ move.col }}"
+             data-move-number="{{ move.move_number }}">
+        </div>
+    {% elif move.player_color == 'WHITE' %}
+        <div class="stone-white" 
+             data-stone-row="{{ move.row }}" 
+             data-stone-col="{{ move.col }}"
+             data-move-number="{{ move.move_number }}">
+        </div>
+    {% endif %}
+</div>
+{% endif %}

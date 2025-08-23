@@ -54,7 +54,7 @@ class WebSocketNotificationService:
             'description': 'A move was made in a game',
             'updates': {
                 'current_player': ['game_board', 'games_panel', 'move_history'],
-                'other_player': ['game_board', 'turn_display', 'games_panel', 'move_history']
+                'other_player': ['game_board', 'game_panel', 'turn_display', 'games_panel', 'move_history']
             }
         },
         'game_resigned': {
@@ -227,10 +227,6 @@ class WebSocketNotificationService:
             status=ChallengeStatus.PENDING
         )
         
-        # DEBUG: Log CSRF token details
-        logger.info(f"🔐 CSRF DEBUG for user {user.username}: no CSRF token in WebSocket HTML")
-        logger.info(f"📋 Pending received challenges: {pending_received_challenges.count()}")
-        
         # Don't include CSRF tokens in WebSocket-delivered HTML
         # Let the client-side JavaScript handle CSRF tokens from the page context
         friends_html = render_to_string('web/partials/friends_panel.html', {
@@ -240,8 +236,6 @@ class WebSocketNotificationService:
             'pending_received_challenges': pending_received_challenges,
             # No csrf_token - handled by JavaScript
         }, request=request).strip()
-        
-        logger.info(f"✅ Friends panel rendered without server-side CSRF token")
         
         WebSocketMessageSender.send_to_user_sync(
             user.id,
@@ -306,20 +300,52 @@ class WebSocketNotificationService:
     
     @classmethod
     def _send_game_board_update(cls, user: User, game: Game, request, csrf_token: str, context: Dict) -> bool:
-        """Send game board update to user."""
-        board_html = render_to_string('web/partials/game_board.html', {
-            'game': game,
-            'selected_game': game,  # For template compatibility
-            'user': user,
-            'wrapper_id': 'dashboard-game-board-content'
-        }, request=request).strip()
+        """Send optimized move update to user (targeted intersection only)."""
+        # Get the most recent move for targeted updates
+        latest_move = game.moves.order_by('-move_number').first()
         
-        WebSocketMessageSender.send_to_user_sync(
-            user.id,
-            'game_move',
-            board_html,
-            metadata=context.get('metadata', {})
-        )
+        # For Go games, detect capture moves and use full board update
+        use_targeted_update = context.get('use_targeted_update', True)
+        if latest_move and game.ruleset.is_go and use_targeted_update:
+            # Check if this move involved captures by comparing stone counts
+            if cls._move_involved_captures(game, latest_move):
+                logger.info(f"🎯 Capture move detected - using full board update for move #{latest_move.move_number}")
+                use_targeted_update = False
+        
+        if latest_move and use_targeted_update:
+            # Send minimal targeted update (~1KB instead of 85KB)
+            move_html = render_to_string('web/partials/single_move_update.html', {
+                'move': latest_move,
+                'game': game
+            }, request=request).strip()
+            
+            # Send as targeted DOM update
+            WebSocketMessageSender.send_to_user_sync(
+                user.id,
+                'targeted_move_update',
+                move_html,
+                metadata={
+                    'target_selector': f'.board-intersection[data-row="{latest_move.row}"][data-col="{latest_move.col}"]',
+                    'move_number': latest_move.move_number,
+                    'player': str(latest_move.player),
+                    **context.get('metadata', {})
+                }
+            )
+        else:
+            # Fallback to full board update if needed
+            board_html = render_to_string('web/partials/game_board.html', {
+                'game': game,
+                'selected_game': game,
+                'user': user,
+                'wrapper_id': 'dashboard-game-board-content'
+            }, request=request).strip()
+            
+            WebSocketMessageSender.send_to_user_sync(
+                user.id,
+                'game_move',
+                board_html,
+                metadata=context.get('metadata', {})
+            )
         
         return True
     
@@ -341,6 +367,58 @@ class WebSocketNotificationService:
             metadata={'target': 'dashboard-move-history', **context.get('metadata', {})}
         )
         return True
+    
+    @classmethod
+    def _move_involved_captures(cls, game: Game, move) -> bool:
+        """
+        Detect if a move involved captures by checking if opponent stones were removed.
+        
+        Args:
+            game: Game instance
+            move: GameMove instance
+            
+        Returns:
+            bool: True if captures occurred, False otherwise
+        """
+        try:
+            if not game.ruleset.is_go:
+                return False
+            
+            # For Go games, check captured_stones tracking in board_state
+            captured_stones = game.board_state.get('captured_stones', {'black': 0, 'white': 0})
+            
+            # Get the move before this one to compare captures
+            previous_move = game.moves.filter(move_number__lt=move.move_number).order_by('-move_number').first()
+            
+            if not previous_move:
+                # First move cannot involve captures
+                return False
+            
+            # Reconstruct board state at previous move to compare
+            service = game.get_service()
+            previous_board_state = service.reconstruct_board_state_at_move(game, previous_move.move_number)
+            current_board_state = game.board_state
+            
+            # Compare captured stone counts
+            prev_captures = previous_board_state.get('captured_stones', {'black': 0, 'white': 0})
+            curr_captures = current_board_state.get('captured_stones', {'black': 0, 'white': 0})
+            
+            # If captured counts increased, this move involved captures
+            captures_occurred = (
+                curr_captures.get('black', 0) > prev_captures.get('black', 0) or
+                curr_captures.get('white', 0) > prev_captures.get('white', 0)
+            )
+            
+            if captures_occurred:
+                logger.info(f"🎯 Capture detected for move #{move.move_number}: "
+                           f"Previous captures: {prev_captures}, Current: {curr_captures}")
+            
+            return captures_occurred
+            
+        except Exception as e:
+            logger.error(f"Error detecting captures for move #{move.move_number}: {e}")
+            # On error, assume captures occurred to be safe (use full update)
+            return True
     
     @classmethod
     def _send_turn_display_update(cls, user: User, game: Game, request, csrf_token: str, context: Dict) -> bool:
