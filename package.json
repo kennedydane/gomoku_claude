@@ -1,0 +1,34 @@
+{
+  "name": "go-goban-go-optimization",
+  "version": "1.0.0",
+  "description": "Advanced client-side optimization build system for Go Goban Go game",
+  "scripts": {
+    "build": "node scripts/build.js",
+    "dev": "node scripts/watch.js",
+    "build:legacy": "npm run build:css && npm run build:js",
+    "build:css": "npm run build:css:concat && npm run build:css:minify",
+    "build:js": "npm run build:js:concat && npm run build:js:minify",
+    "build:css:concat": "cat backend/static/css/critical.css backend/static/css/style.css > backend/static/dist/app.bundle.css",
+    "build:css:minify": "cleancss -o backend/static/dist/app.min.css backend/static/dist/app.bundle.css",
+    "build:js:concat": "cat backend/static/js/app.optimized.js backend/static/js/sse-manager.optimized.js backend/static/js/htmx-sse-integration.optimized.js > backend/static/dist/app.bundle.js",
+    "build:js:minify": "uglifyjs backend/static/dist/app.bundle.js -o backend/static/dist/app.min.js -c drop_console=true,drop_debugger=true -m toplevel=true --comments false",
+    "watch:legacy": "npm run build:legacy && chokidar 'backend/static/css/**/*.css' 'backend/static/js/**/*.optimized.js' -c 'npm run build:legacy'",
+    "clean": "rm -rf backend/static/dist/",
+    "preinstall": "mkdir -p scripts backend/static/dist",
+    "postinstall": "echo '✅ Build system ready! Run npm run build for production or npm run dev for development'",
+    "analyze": "npm run build && du -sh backend/static/dist/* && echo 'Build analysis complete'",
+    "test:build": "npm run build && node -e \"console.log('Testing minified assets...'); require('fs').readdirSync('backend/static/dist').forEach(f => console.log('✓', f));\""
+  },
+  "devDependencies": {
+    "clean-css-cli": "^5.6.3",
+    "uglify-js": "^3.17.4",
+    "chokidar-cli": "^3.0.0",
+    "chokidar": "^3.5.3"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "keywords": ["gomoku", "go", "optimization", "performance", "build"],
+  "author": "Dane & Claude",
+  "license": "MIT"
+}
