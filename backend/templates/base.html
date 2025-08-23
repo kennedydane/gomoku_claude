@@ -124,6 +124,26 @@
     <!-- Custom JavaScript -->
     <script src="{% static 'js/app.js' %}"></script>
     
+    <!-- Performance Debugging Scripts (load when ?debug_performance=true or DEBUG=True) -->
+    {% if request.GET.debug_performance or debug %}
+    <script src="{% static 'js/performance-debug.js' %}"></script>
+    <script src="{% static 'js/websocket-analyzer.js' %}"></script>
+    <script>
+        console.log('🔧 Performance debugging enabled - starting monitors...');
+        
+        // Wait for page to be fully loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(() => {
+                window.performanceDebugger.start();
+                window.webSocketAnalyzer.start();
+                
+                console.log('✅ Performance debugging active');
+                console.log('🎮 Make some moves to see accumulation analysis');
+                console.log('📊 Use debugReport() for detailed analysis');
+            }, 500);
+        });
+    </script>
+    {% endif %}
     
     {% block extra_js %}{% endblock %}
 </body>

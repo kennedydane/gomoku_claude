@@ -164,11 +164,23 @@ class UserWebSocketConsumer(AsyncWebsocketConsumer):
     
     # Channel group message handlers (called when messages are sent to the group)
     
+    async def targeted_move_update_message(self, event):
+        """
+        Handle optimized targeted move update messages sent to this user's channel group.
+        
+        Forwards small (~1KB) targeted intersection updates instead of full board re-renders.
+        """
+        await self.send_htmx_message(
+            event_type='targeted_move_update',
+            content=event['content'],
+            metadata=event.get('metadata', {})
+        )
+    
     async def game_move_message(self, event):
         """
         Handle game move messages sent to this user's channel group.
         
-        Forwards game board updates to the WebSocket client.
+        Forwards game board updates to the WebSocket client (fallback for full board updates).
         """
         await self.send_htmx_message(
             event_type='game_move',

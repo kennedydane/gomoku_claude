@@ -97,6 +97,9 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'web.context_processors.optimized_assets',
+                'web.context_processors.performance_context',
+                'web.context_processors.pwa_context',
             ],
         },
     },
@@ -229,3 +232,8 @@ CRISPY_TEMPLATE_PACK = "bootstrap5"
 LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/dashboard/'
 LOGOUT_REDIRECT_URL = '/'
+
+# Asset optimization settings
+USE_OPTIMIZED_ASSETS = config('USE_OPTIMIZED_ASSETS', default=False, cast=bool)
+TRACK_CORE_WEB_VITALS = True
+APP_VERSION = '1.0.0'
