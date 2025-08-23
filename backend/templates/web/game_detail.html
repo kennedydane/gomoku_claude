@@ -284,8 +284,12 @@
 <script>
 // WebSocket Message Routing for Game Detail
 document.addEventListener('DOMContentLoaded', function() {
-    // Listen for WebSocket messages
-    document.addEventListener('htmx:wsAfterMessage', function(event) {
+    // Prevent duplicate WebSocket listeners from accumulating
+    if (!window.gameDetailWebSocketHandlerRegistered) {
+        window.gameDetailWebSocketHandlerRegistered = true;
+        
+        // Listen for WebSocket messages
+        document.addEventListener('htmx:wsAfterMessage', function(event) {
         const message = event.detail.message;
         let data;
         
@@ -300,12 +304,33 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Route messages based on type
         switch(data.type) {
+            case 'targeted_move_update':
+                // Optimized targeted move update (~1KB instead of 85KB)
+                const targetSelector = data.metadata?.target_selector;
+                if (targetSelector && data.content) {
+                    const targetElement = document.querySelector(targetSelector);
+                    if (targetElement) {
+                        targetElement.outerHTML = data.content;
+                        
+                        // Re-process HTMX for the new element
+                        const newElement = document.querySelector(targetSelector);
+                        if (newElement) {
+                            htmx.process(newElement);
+                        }
+                        
+                        console.log(`✅ Game targeted move update: ${data.metadata?.player} at (${data.metadata?.move_number})`);
+                    }
+                }
+                break;
+                
             case 'game_move':
-                // Update game board
+                // Fallback: Full game board update (only when targeted update fails)
                 const gameBoard = document.getElementById('game-board-wrapper');
                 if (gameBoard && data.content) {
                     gameBoard.innerHTML = data.content;
                     htmx.process(gameBoard);
+                    
+                    console.log('⚠️ Game using full board update fallback');
                 }
                 break;
                 
@@ -316,16 +341,21 @@ document.addEventListener('DOMContentLoaded', function() {
             default:
                 console.log('Unknown game WebSocket message type:', data.type);
         }
-    });
+        });
+    }
     
-    // Handle WebSocket connection events
-    document.addEventListener('htmx:wsOpen', function(event) {
-        console.log('Game WebSocket connected');
-    });
-    
-    document.addEventListener('htmx:wsClose', function(event) {
-        console.log('Game WebSocket disconnected');
-    });
+    // Handle WebSocket connection events (deduplicated)
+    if (!window.gameDetailWebSocketConnectionHandlersRegistered) {
+        window.gameDetailWebSocketConnectionHandlersRegistered = true;
+        
+        document.addEventListener('htmx:wsOpen', function(event) {
+            console.log('Game WebSocket connected');
+        });
+        
+        document.addEventListener('htmx:wsClose', function(event) {
+            console.log('Game WebSocket disconnected');
+        });
+    }
 });
 </script>
 
