@@ -130,4 +130,12 @@ class ChallengeFactory(factory.django.DjangoModelFactory):
     
     challenger = factory.SubFactory(UserFactory)
     challenged = factory.SubFactory(UserFactory)
+    ruleset = factory.SubFactory(GomokuRuleSetFactory)  # Default to Gomoku
     status = 'PENDING'
+    
+    @factory.post_generation
+    def set_generic_foreign_key(self, create, extracted, **kwargs):
+        if create:
+            self.ruleset_content_type = self.ruleset.get_content_type()
+            self.ruleset_object_id = self.ruleset.id
+            self.save()

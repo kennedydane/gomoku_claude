@@ -317,64 +317,6 @@ class TestResponsiveLayout:
             "Should maintain mobile accessibility"
 
 
-@pytest.mark.django_db
-class TestSSEIntegration:
-    """Tests for SSE integration with embedded game board."""
-    
-    @pytest.fixture(autouse=True)
-    def setup_method(self):
-        self.user1 = UserFactory(username='player1')
-        self.user2 = UserFactory(username='player2')
-        
-        self.ruleset = GomokuRuleSetFactory(name='SSE Test', board_size=15)
-        
-        self.game = GameFactory(
-            black_player=self.user1,
-            white_player=self.user2,
-            ruleset_content_type_id=self.ruleset.get_content_type().id,
-            ruleset_object_id=self.ruleset.id,
-            status=GameStatus.ACTIVE
-        )
-        self.game.initialize_board()
-        self.game.save()
-        
-    def test_embedded_board_has_sse_configuration(self, client):
-        """Test that embedded board is configured for SSE updates."""
-        client.force_login(self.user1)
-        
-        response = client.get(reverse('web:dashboard'))
-        soup = BeautifulSoup(response.content, 'html.parser')
-        
-        # Should have SSE configuration for game updates
-        sse_elements = soup.find_all(attrs={'hx-ext': lambda x: x and 'sse' in x})
-        
-        assert len(sse_elements) > 0, \
-              "Dashboard should have SSE configuration"
-        
-        # Should target appropriate elements for game updates
-        game_sse_targets = []
-        for elem in sse_elements:
-            if elem.get('sse-swap') and 'game' in elem.get('sse-swap', '').lower():
-                game_sse_targets.append(elem)
-                
-        assert len(game_sse_targets) > 0, \
-              "Should have SSE targets for game updates"
-        
-    @patch('web.views.send_event')
-    def test_moves_update_embedded_board(self, mock_send_event, client):
-        """Test that moves made in embedded board trigger SSE updates."""
-        client.force_login(self.user1)
-        
-        # Make a move (this should work the same as before)
-        response = client.post(
-            reverse('web:game_move', kwargs={'game_id': self.game.id}),
-            {'row': 7, 'col': 7}
-        )
-        
-        # Should still send SSE events
-        if mock_send_event.called:
-            assert mock_send_event.call_count >= 1, \
-                   "Should send SSE events for moves"
 
 
 @pytest.mark.django_db

@@ -88,7 +88,7 @@ class GoStateManager(BaseStateManager):
             'last_move': None,
             'move_count': 0,
             'consecutive_passes': 0,
-            'captured_stones': {'BLACK': 0, 'WHITE': 0},
+            'captured_stones': {'black': 0, 'white': 0},
             'board_history': [],  # For ko rule detection
             'game_over': False,
             'winner': None

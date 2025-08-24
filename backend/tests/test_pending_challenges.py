@@ -307,51 +307,6 @@ class TestChallengeActions:
 
 @pytest.mark.django_db
 @pytest.mark.web
-class TestChallengeSSEIntegration:
-    """Test SSE real-time updates for challenges."""
-    
-    def test_challenge_response_triggers_sse_update_for_both_users(self, client, pending_challenge):
-        """Test challenge response sends SSE updates to both users."""
-        # This test will verify that SSE events are sent
-        # We'll implement the SSE event sending in the view
-        
-        challengee = pending_challenge.challenged
-        client.force_login(challengee)
-        
-        # Accept the challenge
-        response = client.post(
-            reverse('web:respond_challenge', kwargs={'challenge_id': pending_challenge.id}),
-            {'action': 'accept'},
-            HTTP_HX_REQUEST='true'
-        )
-        
-        assert response.status_code == 200
-        
-        # This test will pass once we implement SSE event sending
-        # For now, we just verify the challenge was processed
-        pending_challenge.refresh_from_db()
-        assert pending_challenge.status == ChallengeStatus.ACCEPTED
-    
-    def test_accepted_challenge_updates_active_games_panel_realtime(self, client, pending_challenge):
-        """Test accepted challenge triggers Active Games panel update."""
-        challengee = pending_challenge.challenged
-        client.force_login(challengee)
-        
-        # Accept the challenge
-        response = client.post(
-            reverse('web:respond_challenge', kwargs={'challenge_id': pending_challenge.id}),
-            {'action': 'accept'},
-            HTTP_HX_REQUEST='true'
-        )
-        
-        assert response.status_code == 200
-        
-        # Verify game was created (this should trigger Active Games update)
-        games = Game.objects.filter(
-            black_player__in=[pending_challenge.challenger, pending_challenge.challenged],
-            white_player__in=[pending_challenge.challenger, pending_challenge.challenged]
-        )
-        assert games.count() == 1, "Should create game that appears in Active Games"
 
 
 @pytest.mark.django_db

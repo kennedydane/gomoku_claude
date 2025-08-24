@@ -277,23 +277,12 @@ class Game(models.Model):
         return f"{game_type} Game {self.id}: {self.black_player} vs {self.white_player}"
     
     def initialize_board(self):
-        """Initialize empty board based on ruleset size and game type."""
-        size = self.ruleset.board_size
-        board_state = {
-            'game_type': self.ruleset.game_type,
-            'size': size,
-            'board': [[None for _ in range(size)] for _ in range(size)]
-        }
+        """Initialize board using the appropriate state manager."""
+        from .state_managers import StateManagerFactory
         
-        # Add game-specific fields
-        if self.ruleset.game_type == GameType.GO:
-            board_state.update({
-                'captured_stones': {'black': 0, 'white': 0},
-                'consecutive_passes': 0,
-                'ko_position': None
-            })
-        
-        self.board_state = board_state
+        # Use the state manager to initialize the board
+        state_manager = StateManagerFactory.get_manager(self.ruleset.game_type)
+        self.board_state = state_manager.initialize_board(self)
     
     def start_game(self):
         """Start the game."""
