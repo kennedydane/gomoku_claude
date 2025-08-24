@@ -61,7 +61,7 @@ INSTALLED_APPS = [
     
     # Third party apps
     'django_extensions',
-    'django_eventstream',
+# 'django_eventstream',  # Removed - migrated to WebSocket
     'channels',
     'crispy_forms',
     'crispy_bootstrap5',
@@ -212,9 +212,7 @@ SESSION_SERIALIZER = 'django.contrib.sessions.serializers.JSONSerializer'
 # Fix URL slash issues for development
 APPEND_SLASH = True
 
-# SSE configuration
-EVENTSTREAM_ALLOW_ORIGIN = '*'
-EVENTSTREAM_CHANNELS_BACKEND = 'django_eventstream.channelsbackend.ChannelsBackend'
+# SSE configuration removed - migrated to WebSocket
 
 # Channels configuration for async support
 ASGI_APPLICATION = 'gomoku.asgi.application'

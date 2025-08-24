@@ -1,3 +1,1 @@
-from django.shortcuts import render
-
-# Create your views here.
+# Core views module - currently no views needed

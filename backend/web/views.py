@@ -15,45 +15,10 @@ from core.exceptions import InvalidMoveError, GameStateError, PlayerError
 from users.models import User
 from .models import Friendship, FriendshipStatus
 
-try:
-    from django_eventstream import send_event
-    HAS_EVENTSTREAM = True
-except ImportError:
-    HAS_EVENTSTREAM = False
-    send_event = None
+# SSE functionality removed - project migrated to WebSocket
+# Real-time updates now handled by web/consumers.py WebSocket consumer
 
 from loguru import logger
-
-
-def send_structured_sse_event(user_id, event_type, content, metadata=None):
-    """
-    Send a structured SSE event with optional metadata for better client routing.
-    
-    Args:
-        user_id: Target user ID
-        event_type: Event type (game_move, dashboard_update, etc.)
-        content: HTML content or data to send
-        metadata: Optional dictionary with additional routing/context info
-    """
-    if not HAS_EVENTSTREAM or not send_event:
-        logger.warning("⚠️  SSE: django-eventstream not available")
-        return False
-        
-    channel = f'user-{user_id}'
-    
-    # Add optional metadata headers for advanced client-side routing
-    if metadata:
-        # For now, we keep it simple and just log metadata
-        # Future enhancement could embed metadata in the event data
-        logger.debug(f"📋 SSE: Event metadata for {event_type}: {metadata}")
-    
-    try:
-        send_event(channel, event_type, content, json_encode=False)
-        logger.info(f"📤 SSE: Event '{event_type}' sent to user-{user_id} (channel: {channel})")
-        return True
-    except Exception as e:
-        logger.error(f"❌ SSE: Failed to send {event_type} to user-{user_id}: {e}")
-        return False
 
 
 class UserGamesMixin:

@@ -1,96 +1,28 @@
 """
 Game service layer for multi-game business logic.
 
-This module contains the abstract base service and game-specific implementations
-for different game types (Gomoku, Go).
+This module contains game-specific implementations for different game types (Gomoku, Go).
+Uses the interface and registry system for better extensibility.
 """
 
-from abc import ABC, abstractmethod
 from typing import List, Tuple, Optional, Set, Dict
 from django.db import transaction
 import copy
 
 from core.exceptions import InvalidMoveError, GameStateError, PlayerError
 from .models import Game, GameMove, GameStatus, Player
-
-
-class BaseGameService(ABC):
-    """Abstract base class for game-specific services."""
-    
-    @abstractmethod
-    def validate_move(self, game, player_id: int, row: int, col: int) -> None:
-        """Validate a move before it's made."""
-        pass
-    
-    @abstractmethod
-    def make_move(self, game, player_id: int, row: int, col: int):
-        """Make a move in the game."""
-        pass
-    
-    @abstractmethod
-    def check_win(self, game, last_row: int, last_col: int) -> bool:
-        """Check if the last move resulted in a win."""
-        pass
-    
-    @abstractmethod
-    def get_valid_moves(self, game) -> List[Tuple[int, int]]:
-        """Get all valid moves for the current player."""
-        pass
-    
-    @abstractmethod
-    def resign_game(self, game, player_id: int) -> None:
-        """Handle a player resigning from the game."""
-        pass
+from .interfaces import BaseGameService, GameServiceRegistry
+from .validators import MoveValidatorFactory
+from .state_managers import StateManagerFactory
 
 
 class GomokuGameService(BaseGameService):
     """Game service for Gomoku games."""
     
     def validate_move(self, game: Game, player_id: int, row: int, col: int) -> None:
-        """Validate a Gomoku move."""
-        # Check if game is active
-        if game.status != GameStatus.ACTIVE:
-            raise GameStateError(
-                f"Cannot make move in game with status: {game.status}",
-                details={'current_status': game.status, 'game_id': str(game.id)}
-            )
-        
-        # Check if it's the correct player's turn
-        if game.current_player == Player.BLACK:
-            expected_player_id = game.black_player_id
-        else:
-            expected_player_id = game.white_player_id
-        
-        if player_id != expected_player_id:
-            current_player_name = "Black" if game.current_player == Player.BLACK else "White"
-            raise PlayerError(
-                f"It's {current_player_name}'s turn, not yours",
-                details={
-                    'current_player': current_player_name,
-                    'expected_player_id': expected_player_id,
-                    'actual_player_id': player_id
-                }
-            )
-        
-        # Check board boundaries
-        board_size = game.ruleset.board_size
-        if row < 0 or row >= board_size or col < 0 or col >= board_size:
-            raise InvalidMoveError(
-                f"Move out of bounds. Board size is {board_size}x{board_size}",
-                details={
-                    'row': row, 'col': col, 
-                    'board_size': board_size,
-                    'valid_range': f"0-{board_size-1}"
-                }
-            )
-        
-        # Check if position is already occupied
-        board = game.board_state.get('board', [])
-        if board and board[row][col] is not None:
-            raise InvalidMoveError(
-                f"Position ({row}, {col}) is already occupied",
-                details={'row': row, 'col': col, 'occupied_by': board[row][col]}
-            )
+        """Validate a Gomoku move using the modular validator."""
+        validator = MoveValidatorFactory.get_validator('GOMOKU')
+        validator.validate_move(game, player_id, row, col)
     
     @transaction.atomic
     def make_move(self, game: Game, player_id: int, row: int, col: int) -> GameMove:
@@ -109,14 +41,9 @@ class GomokuGameService(BaseGameService):
             player_color = Player.WHITE
             player = game.white_player
         
-        # Update board state
-        board = game.board_state.get('board', [])
-        if not board:
-            game.initialize_board()
-            board = game.board_state['board']
-        
-        board[row][col] = player_color
-        game.board_state = {'size': game.ruleset.board_size, 'board': board}
+        # Update board state using the modular state manager
+        state_manager = StateManagerFactory.get_manager('GOMOKU')
+        state_manager.update_board_state(game, row, col, player_color)
         
         # Create the move
         game.move_count += 1
@@ -302,81 +229,9 @@ class GoGameService(BaseGameService):
     """Game service for Go games."""
     
     def validate_move(self, game: Game, player_id: int, row: int, col: int) -> None:
-        """Validate a Go move."""
-        # Check if game is active
-        if game.status != GameStatus.ACTIVE:
-            raise GameStateError(
-                f"Cannot make move in game with status: {game.status}",
-                details={'current_status': game.status, 'game_id': str(game.id)}
-            )
-        
-        # Check if it's the correct player's turn
-        if game.current_player == Player.BLACK:
-            expected_player_id = game.black_player_id
-        else:
-            expected_player_id = game.white_player_id
-        
-        if player_id != expected_player_id:
-            current_player_name = "Black" if game.current_player == Player.BLACK else "White"
-            raise PlayerError(
-                f"It's {current_player_name}'s turn, not yours",
-                details={
-                    'current_player': current_player_name,
-                    'expected_player_id': expected_player_id,
-                    'actual_player_id': player_id
-                }
-            )
-        
-        # Check for pass move (row=-1, col=-1)
-        is_pass_move = row == -1 and col == -1
-        
-        if not is_pass_move:
-            # Check board boundaries for regular moves
-            board_size = game.ruleset.board_size
-            if row < 0 or row >= board_size or col < 0 or col >= board_size:
-                raise InvalidMoveError(
-                    f"Move out of bounds. Board size is {board_size}x{board_size}",
-                    details={
-                        'row': row, 'col': col, 
-                        'board_size': board_size,
-                        'valid_range': f"0-{board_size-1}"
-                    }
-                )
-        
-        # Check if position is already occupied (only for regular moves)
-        if not is_pass_move:
-            board = game.board_state.get('board', [])
-            if board and board[row][col] is not None:
-                raise InvalidMoveError(
-                    f"Position ({row}, {col}) is already occupied",
-                    details={'row': row, 'col': col, 'occupied_by': board[row][col]}
-                )
-        
-        # Check for Ko rule violation (only for regular moves)
-        if not is_pass_move:
-            # Determine player color for Ko check
-            player_color = Player.BLACK if player_id == game.black_player_id else Player.WHITE
-            
-            if self.is_ko_violation(game, row, col, player_color):
-                raise InvalidMoveError(
-                    f"Ko rule violation: This move would repeat a previous board position at ({row}, {col})",
-                    details={'row': row, 'col': col}
-                )
-        
-        # Check for suicide rule (can't play a move that kills your own group unless it captures opponent)
-        if not is_pass_move:
-            board = game.board_state.get('board', [])
-            if board:
-                # Determine player color
-                player_color = Player.BLACK if player_id == game.black_player_id else Player.WHITE
-                
-                # Check if this move would be suicide (only if it doesn't capture opponent stones)
-                # Ko rule was already checked above, no need to check again
-                if self.check_suicide_rule(board, row, col, player_color):
-                    raise InvalidMoveError(
-                        f"Suicide move not allowed at ({row}, {col})",
-                        details={'row': row, 'col': col, 'player_color': player_color}
-                    )
+        """Validate a Go move using the modular validator."""
+        validator = MoveValidatorFactory.get_validator('GO')
+        validator.validate_move(game, player_id, row, col)
     
     @transaction.atomic
     def make_move(self, game: Game, player_id: int, row: int, col: int) -> GameMove:
@@ -395,24 +250,19 @@ class GoGameService(BaseGameService):
             player_color = Player.WHITE
             player = game.white_player
         
-        # Handle pass move
+        # Handle pass move vs regular move
         is_pass_move = row == -1 and col == -1
         
         if is_pass_move:
-            # Increment consecutive passes for pass moves
-            consecutive_passes = game.board_state.get('consecutive_passes', 0) + 1
+            # For pass moves, only update pass counter via state manager
+            state_manager = StateManagerFactory.get_manager('GO')
+            state_manager.update_board_state(game, row, col, player_color)
+            consecutive_passes = game.board_state.get('consecutive_passes', 0)
         else:
-            # Update board state for regular moves
-            board = game.board_state.get('board', [])
-            if not board:
-                game.initialize_board()
-                board = game.board_state['board']
-            
-            
-            # Place the stone
-            board[row][col] = player_color
-            
-            # Reset consecutive passes since a stone was placed
+            # For regular moves, update board state via state manager
+            state_manager = StateManagerFactory.get_manager('GO')
+            state_manager.update_board_state(game, row, col, player_color)
+            board = game.board_state['board']
             consecutive_passes = 0
         
         # Handle captures - check adjacent opponent groups for liberties
@@ -461,32 +311,18 @@ class GoGameService(BaseGameService):
                 else:
                     captured_stones_count['black'] += self_removed_count
         
-        # Update board state
-        if is_pass_move:
-            # For pass moves, just update the consecutive passes
-            current_board = game.board_state.get('board', [])
-            if not current_board:
-                game.initialize_board()
-                current_board = game.board_state['board']
-        else:
-            current_board = board
-            
-        # Update captured stones count by adding new captures to existing totals
-        existing_captured = game.board_state.get('captured_stones', {'black': 0, 'white': 0})
-        updated_captured = {
-            'black': existing_captured['black'] + captured_stones_count['black'],
-            'white': existing_captured['white'] + captured_stones_count['white']
-        }
+        # Update captured stones and Ko position in board state
+        # (basic board state was already updated by state manager)
+        if captured_stones_count['black'] > 0 or captured_stones_count['white'] > 0:
+            existing_captured = game.board_state.get('captured_stones', {'black': 0, 'white': 0})
+            game.board_state['captured_stones'] = {
+                'black': existing_captured['black'] + captured_stones_count['black'],
+                'white': existing_captured['white'] + captured_stones_count['white']
+            }
         
-        # Always update the full board state with current values
-        game.board_state = {
-            'game_type': 'GO',
-            'size': game.ruleset.board_size, 
-            'board': current_board,
-            'captured_stones': updated_captured,
-            'consecutive_passes': consecutive_passes,
-            'ko_position': ko_position
-        }
+        # Update Ko position if applicable
+        if ko_position:
+            game.board_state['ko_position'] = ko_position
         
         # Create the move
         game.move_count += 1
@@ -898,16 +734,32 @@ class GoGameService(BaseGameService):
 
 
 class GameServiceFactory:
-    """Factory for creating game-specific services."""
+    """
+    Factory for creating game-specific services.
     
-    _services = {
-        'GOMOKU': GomokuGameService(),
-        'GO': GoGameService()
-    }
+    Maintains backward compatibility while using the new registry system internally.
+    """
     
     @classmethod
     def get_service(cls, game_type: str) -> BaseGameService:
-        """Get the appropriate service for a game type."""
-        if game_type not in cls._services:
-            raise ValueError(f"Unsupported game type: {game_type}")
-        return cls._services[game_type]
+        """
+        Get the appropriate service for a game type.
+        
+        Args:
+            game_type: String identifier for the game type ('GOMOKU', 'GO', etc.)
+            
+        Returns:
+            Service instance implementing the GameServiceInterface
+            
+        Raises:
+            ValueError: If no service is registered for the game type
+        """
+        try:
+            return GameServiceRegistry.get_service(game_type)
+        except ValueError as e:
+            raise ValueError(f"Unsupported game type: {game_type}") from e
+
+
+# Register the existing game services
+GameServiceRegistry.register('GOMOKU', GomokuGameService)
+GameServiceRegistry.register('GO', GoGameService)

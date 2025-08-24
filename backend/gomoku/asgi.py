@@ -22,7 +22,7 @@ from web.routing import websocket_urlpatterns
 
 # Combined ASGI application with WebSocket support
 application = ProtocolTypeRouter({
-    # HTTP protocol uses Django ASGI app (includes django-eventstream for SSE)
+    # HTTP protocol uses Django ASGI app
     "http": django_asgi_app,
     
     # WebSocket protocol uses Channels routing with authentication
