@@ -59,7 +59,9 @@ class GomokuStateManager(BaseStateManager):
             'last_move': None,
             'move_count': 0,
             'game_over': False,
-            'winner': None
+            'winner': None,
+            'game_type': 'GOMOKU',  # Add game type for test compatibility
+            'size': size  # Add board size for test compatibility
         }
     
     def update_board_state(self, game: Game, row: int, col: int, player: Player) -> None:
@@ -89,9 +91,11 @@ class GoStateManager(BaseStateManager):
             'move_count': 0,
             'consecutive_passes': 0,
             'captured_stones': {'black': 0, 'white': 0},
-            'board_history': [],  # For ko rule detection
             'game_over': False,
-            'winner': None
+            'winner': None,
+            'game_type': 'GO',  # Add game type for test compatibility
+            'size': size,  # Add board size for test compatibility  
+            'ko_position': None  # Add Ko rule tracking
         }
     
     def update_board_state(self, game: Game, row: int, col: int, player: Player) -> None:
@@ -109,14 +113,6 @@ class GoStateManager(BaseStateManager):
             game.board_state['board'][row][col] = player.value
             game.board_state['consecutive_passes'] = 0  # Reset pass counter
             game.board_state['last_move'] = {'row': row, 'col': col, 'player': player.value}
-            
-            # Store board state for ko rule (simplified)
-            board_copy = self.get_board_copy(game.board_state['board'])
-            game.board_state['board_history'].append(board_copy)
-            
-            # Keep only recent history (last 10 moves should be sufficient for ko rule)
-            if len(game.board_state['board_history']) > 10:
-                game.board_state['board_history'].pop(0)
         
         # Update move count
         game.board_state['move_count'] = game.board_state.get('move_count', 0) + 1
