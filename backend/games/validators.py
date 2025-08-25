@@ -122,12 +122,26 @@ class GoMoveValidator(BaseMoveValidator):
                 details={'row': row, 'col': col, 'occupied_by': board[row][col]}
             )
         
-        # Check suicide rule (simplified - can be enhanced)
-        # For now, we'll allow suicide moves but this could be restricted
-        # based on ruleset settings in the future
+        # Check suicide rule - prevent moves that would result in immediate capture
+        # of the player's own stones unless they capture opponent stones first
+        service = game.get_service()
+        if hasattr(service, 'check_suicide_rule'):
+            current_player = game.get_current_player_user()
+            player_color = 'BLACK' if current_player == game.black_player else 'WHITE'
+            
+            if service.check_suicide_rule(board, row, col, player_color):
+                raise InvalidMoveError(
+                    f"Move at ({row}, {col}) would be suicide - it would capture your own stones without capturing opponent stones",
+                    details={'row': row, 'col': col, 'player_color': player_color}
+                )
         
-        # Check ko rule (simplified - can be enhanced)
-        # This would need board history to properly implement
+        # Check Ko rule - prevent immediate recapture that would restore previous board position
+        if hasattr(service, 'is_ko_violation'):
+            if service.is_ko_violation(game, row, col, player_color):
+                raise InvalidMoveError(
+                    f"Ko rule violation: cannot immediately recapture at ({row}, {col}) to restore previous board position",
+                    details={'row': row, 'col': col, 'player_color': player_color}
+                )
 
 
 class ChessMoveValidator(BaseMoveValidator):
