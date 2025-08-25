@@ -16,7 +16,7 @@ class UserFactory(factory.django.DjangoModelFactory):
         model = User
     
     username = factory.Sequence(lambda n: f'user{n}')
-    email = factory.Sequence(lambda n: f'user{n}@example.com')
+    email = factory.Faker('email')  # Use faker for unique emails
     display_name = factory.Faker('name')
     games_played = 0
     games_won = 0
@@ -67,13 +67,17 @@ class GameFactory(factory.django.DjangoModelFactory):
     
     @factory.post_generation
     def set_generic_foreign_key(self, create, extracted, **kwargs):
-        if create:
-            self.ruleset_content_type = self.ruleset.get_content_type()
+        if create and self.ruleset:
+            # Handle both direct ruleset assignment and factory-created rulesets
+            from django.contrib.contenttypes.models import ContentType
+            self.ruleset_content_type = ContentType.objects.get_for_model(self.ruleset)
             self.ruleset_object_id = self.ruleset.id
+            # Initialize the board state using the proper state manager
+            self.initialize_board()
             self.save()
     status = 'ACTIVE'
     current_player = 'BLACK'
-    board_state = {}
+    # Don't set board_state - let initialize_board() handle it
     move_count = 0
 
 
