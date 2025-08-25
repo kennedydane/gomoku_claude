@@ -30,7 +30,10 @@ dependencies = [
 ]
 
 [project.scripts]
-gomoku-backend = "gomoku_backend:main"
+gomoku-manage = "gomoku.wsgi:application"
+
+[tool.hatch.build.targets.wheel]
+packages = ["gomoku", "games", "web", "users", "core"]
 
 [build-system]
 requires = ["hatchling"]
