@@ -14,6 +14,7 @@ This file serves as the master index for all documentation in the Gomoku Claude 
 ### Backend Documentation
 - **[backend/README.md](backend/README.md)** - Backend-specific documentation and API details
 - **[backend/TODO.md](backend/TODO.md)** - Backend-specific todo items and technical debt
+- **[backend/SERVICE_ARCHITECTURE.md](backend/SERVICE_ARCHITECTURE.md)** - Modular service layer architecture for multiple game types
 - **[backend/TEST_STRUCTURE.md](backend/TEST_STRUCTURE.md)** - Testing architecture and structure documentation
 - **[backend/WEBSOCKET_MIGRATION.md](backend/WEBSOCKET_MIGRATION.md)** - WebSocket migration and real-time features documentation
 - **[backend/fixtures/README.md](backend/fixtures/README.md)** - Database fixtures and test data documentation
@@ -46,6 +47,7 @@ For new users and developers:
 ### 🏗️ Architecture & Technical Details
 For understanding the system architecture:
 - [backend/README.md](backend/README.md) - Backend architecture and API endpoints
+- [backend/SERVICE_ARCHITECTURE.md](backend/SERVICE_ARCHITECTURE.md) - Modular service layer for multiple game types
 - [backend/TEST_STRUCTURE.md](backend/TEST_STRUCTURE.md) - Testing architecture
 - [backend/WEBSOCKET_MIGRATION.md](backend/WEBSOCKET_MIGRATION.md) - Real-time features implementation
 
@@ -98,16 +100,30 @@ The Gomoku Claude project has evolved through several major phases:
 - Standardized board sizes and validation
 - Project cleanup and API removal
 
-### Phase 16: Performance Optimization & Real-time Fixes (Current)
+### Phase 16: Performance Optimization & Real-time Fixes
 - Fixed turn switching and capture rendering bugs
 - Implemented 45.1% asset size reduction through build optimization
 - Added client-side build system with Node.js toolchain
 - Created targeted WebSocket updates with capture detection
 - Established Progressive Web App (PWA) foundation
 
+### Phase 17: Service Layer Refactoring
+- Enhanced modular service architecture with interfaces, validators, and state managers
+- Comprehensive code cleanup removing unused debug scripts and SSE remnants
+- Separated concerns: validation, state management, and business logic
+- Created extensible foundation for adding new games (Chess, etc.)
+- Improved type safety with protocol-based interfaces
+
+### Phase 18: Test Infrastructure & Critical Bug Fixes (Current)
+- Fixed critical KeyError: 'board_history' that was blocking gameplay moves
+- Implemented dedicated test configuration with SQLite for reliable test isolation
+- Enhanced test factories with proper board state initialization
+- Aligned state management with event sourcing architecture for Go Ko rule detection
+- Established consistent database environment variable patterns
+
 ## 🏛️ Current Architecture
 
-**Web-Only Architecture** (as of Phase 16):
+**Web-Only Architecture** (as of Phase 18):
 - **Backend**: Django web application with optimized WebSocket system
 - **Frontend**: Bootstrap 5 responsive web interface with PWA capabilities
 - **Build System**: Node.js-based asset optimization pipeline (45.1% size reduction)
@@ -122,11 +138,11 @@ The Gomoku Claude project has evolved through several major phases:
 
 ## 📊 Documentation Statistics
 
-- **Total .md files**: 19
-- **Primary documentation**: 5 files (added CLIENT_OPTIMIZATION.md)
-- **Backend documentation**: 6 files  
+- **Total .md files**: 20
+- **Primary documentation**: 5 files
+- **Backend documentation**: 7 files (added SERVICE_ARCHITECTURE.md)
 - **Archived documentation**: 6 files
-- **Development tools**: 6 files (added build system documentation)
+- **Development tools**: 6 files
 
 ## 🔄 Maintenance
 
@@ -136,4 +152,4 @@ This documentation index should be updated whenever:
 - Major architectural changes affect documentation structure
 - New phases or major features are implemented
 
-Last updated: Phase 16 (Performance Optimization & Real-time Gameplay Fixes)
+Last updated: Phase 18 (Test Infrastructure & Critical Bug Fixes)

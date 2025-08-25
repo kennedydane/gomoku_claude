@@ -52,6 +52,7 @@ Go (囲碁, Weiqi) is an ancient strategy game where players use black and white
 - **Event Sourcing**: Board states reconstructed from move history for Ko detection
 - **Caching System**: Django LocMemCache optimizes board state reconstruction performance
 - **Memory Efficient**: No database storage of board history, constant memory usage regardless of game length
+- **State Management**: Modular state managers with proper initialization and test isolation
 
 ### Tournament History
 
@@ -102,18 +103,18 @@ docker compose up -d postgres
 ```bash
 # Apply all migrations to set up database schema
 cd backend
-uv run python manage.py migrate
+DB_PASSWORD=your_secure_password_here_change_this DB_NAME=gomoku_dev_db python manage.py migrate
 ```
 
-5. **Create a superuser (optional):**
+5. **Create initial rulesets:**
 ```bash
-uv run python manage.py createsuperuser
-# Or use the provided script: uv run python create_superuser.py
+DB_PASSWORD=your_secure_password_here_change_this DB_NAME=gomoku_dev_db python manage.py create_initial_rulesets
 ```
 
-6. **Seed the database with test data (optional):**
+6. **Create a superuser (optional):**
 ```bash
-uv run python manage.py seed_data
+DB_PASSWORD=your_secure_password_here_change_this DB_NAME=gomoku_dev_db python manage.py createsuperuser
+# Or create a regular user: DB_PASSWORD=your_secure_password_here_change_this DB_NAME=gomoku_dev_db python manage.py createuser --username testuser --email test@example.com
 ```
 
 ## Usage
@@ -123,7 +124,7 @@ uv run python manage.py seed_data
 **Start the Django web server:**
 ```bash
 cd backend
-uv run python manage.py runserver 8001
+DB_PASSWORD=your_secure_password_here_change_this DB_NAME=gomoku_dev_db python manage.py runserver 8001
 ```
 Services available:
 - **Web Interface**: http://localhost:8001/ (Bootstrap 5 + htmx responsive web app)
@@ -217,22 +218,22 @@ Run the pytest test suite:
 ```bash
 cd backend
 # Run all tests (330+ total including centralized notifications)
-uv run pytest
+DB_PASSWORD=your_secure_password_here_change_this DB_NAME=gomoku_dev_db python -m pytest
 
 # Run with coverage reporting
-uv run coverage run -m pytest
-uv run coverage report
-uv run coverage html
+DB_PASSWORD=your_secure_password_here_change_this DB_NAME=gomoku_dev_db python -m coverage run -m pytest
+DB_PASSWORD=your_secure_password_here_change_this DB_NAME=gomoku_dev_db python -m coverage report
+DB_PASSWORD=your_secure_password_here_change_this DB_NAME=gomoku_dev_db python -m coverage html
 
 # Run specific test modules
-uv run pytest tests/test_games_models.py        # Game model tests
-uv run pytest tests/test_game_services.py       # Game service layer tests
-uv run pytest tests/test_web_views.py          # Web interface view tests
-uv run pytest tests/test_challenge_system.py   # Challenge system tests
-uv run pytest tests/test_websocket_consumer.py # WebSocket tests
+DB_PASSWORD=your_secure_password_here_change_this DB_NAME=gomoku_dev_db python -m pytest tests/test_games_models.py        # Game model tests
+DB_PASSWORD=your_secure_password_here_change_this DB_NAME=gomoku_dev_db python -m pytest tests/test_game_services.py       # Game service layer tests
+DB_PASSWORD=your_secure_password_here_change_this DB_NAME=gomoku_dev_db python -m pytest tests/test_web_views.py          # Web interface view tests
+DB_PASSWORD=your_secure_password_here_change_this DB_NAME=gomoku_dev_db python -m pytest tests/test_challenge_system.py   # Challenge system tests
+DB_PASSWORD=your_secure_password_here_change_this DB_NAME=gomoku_dev_db python -m pytest tests/test_websocket_consumer.py # WebSocket tests
 
 # Run with verbose output
-uv run pytest -v
+DB_PASSWORD=your_secure_password_here_change_this DB_NAME=gomoku_dev_db python -m pytest -v
 ```
 
 ### Selenium End-to-End Tests
@@ -240,18 +241,18 @@ Run comprehensive browser automation tests for real-time multiplayer functionali
 ```bash
 cd backend
 # Run all Selenium tests
-uv run python -m pytest tests/test_selenium_multiplayer.py -v
+DB_PASSWORD=your_secure_password_here_change_this DB_NAME=gomoku_dev_db python -m pytest tests/test_selenium_multiplayer.py -v
 
-# Run real-time SSE tests  
-uv run python -m pytest tests/test_sse_real_time.py -v
+# Run real-time WebSocket tests  
+DB_PASSWORD=your_secure_password_here_change_this DB_NAME=gomoku_dev_db python -m pytest tests/test_websocket_real_time.py -v
 
 # Run cross-browser tests (requires both Chrome and Firefox)
-uv run python -m pytest tests/test_cross_browser_sse.py -v
+DB_PASSWORD=your_secure_password_here_change_this DB_NAME=gomoku_dev_db python -m pytest tests/test_cross_browser_websocket.py -v
 
 # Run specific test categories
-uv run python -m pytest -m selenium -v
-uv run python -m pytest -m sse -v
-uv run python -m pytest -m cross_browser -v
+DB_PASSWORD=your_secure_password_here_change_this DB_NAME=gomoku_dev_db python -m pytest -m selenium -v
+DB_PASSWORD=your_secure_password_here_change_this DB_NAME=gomoku_dev_db python -m pytest -m websocket -v
+DB_PASSWORD=your_secure_password_here_change_this DB_NAME=gomoku_dev_db python -m pytest -m cross_browser -v
 ```
 
 **Test Coverage:**
@@ -265,29 +266,40 @@ uv run python -m pytest -m cross_browser -v
 - **Integration Tests**: End-to-end workflows and edge cases with centralized architecture
 - **Selenium Tests**: Real-time multiplayer functionality with cross-browser support
   - **Multiplayer Game Flow**: Two-player sessions with real-time move propagation
-  - **SSE Real-Time Updates**: Server-Sent Events testing with sub-2-second latency validation
+  - **WebSocket Real-Time Updates**: WebSocket testing with sub-2-second latency validation
   - **Cross-Browser Compatibility**: Chrome ↔ Firefox interoperability testing
-  - **Connection Resilience**: SSE reconnection, multiple tabs, and browser limits testing
+  - **Connection Resilience**: WebSocket reconnection, multiple tabs, and browser limits testing
 
 ## Configuration
 
 ### Environment Variables
+
+**Option 1: Command Line (Recommended for Development)**
+Set environment variables directly when running Django commands:
+```bash
+cd backend
+DB_PASSWORD=your_secure_password_here_change_this DB_NAME=gomoku_dev_db python manage.py runserver 8001
+```
+
+**Option 2: Environment File**
 Create a `.env` file in the backend directory:
 ```env
 DEBUG=True
 SECRET_KEY=your-secret-key-here
-DB_NAME=gomoku_db
+DB_NAME=gomoku_dev_db
 DB_USER=gomoku_user
-DB_PASSWORD=your-password-here
+DB_PASSWORD=your_secure_password_here_change_this
 DB_HOST=localhost
 DB_PORT=5434
 ```
+
+**Note**: This is a Django project, not a Python package. Use `python manage.py` commands directly rather than `uv run` for Django management commands.
 
 ### Database Configuration
 The application uses PostgreSQL with the following default connection:
 - Host: localhost
 - Port: 5434 (exposed from Docker)
-- Database: gomoku_db
+- Database: gomoku_dev_db (development)
 - User: gomoku_user
 
 ## Project Structure
